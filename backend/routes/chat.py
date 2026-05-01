@@ -43,23 +43,8 @@ async def start_run(req: Request, body: StartRunRequest):
         from urllib.parse import unquote
         workspace = unquote(workspace_header)
 
-    # Get model
+    # Get model (passed through to agent thread, which does full resolution)
     model = body.model or ""
-    if not model:
-        try:
-            from hermes_cli.runtime_provider import resolve_runtime_provider
-            rt = resolve_runtime_provider(requested=None)
-            model = rt.get("model", "")
-        except Exception:
-            pass
-        # Fallback to config.yaml if runtime_provider didn't return model
-        if not model:
-            try:
-                from hermes_cli.config import load_config
-                cfg = load_config()
-                model = cfg.get("model", {}).get("default", "")
-            except Exception:
-                pass
 
     # Start agent in background thread
     thread = threading.Thread(

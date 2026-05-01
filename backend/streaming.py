@@ -15,29 +15,46 @@ sys.path.insert(0, str(os.environ.get("HERMES_HOME", os.path.expanduser("~/.herm
 
 from .config import AGENT_DIR
 
-# Lazy import
+# Lazy import with pre-warm support
 _AIAgent = None
 _AIAgent_loading = False
 _AIAgent_loaded = False
+_AIAgent_ready = threading.Event()  # signaled once import completes (success or fail)
+
 
 def _get_ai_agent():
+    """Get AIAgent class, blocking if pre-warm is still in progress."""
     global _AIAgent, _AIAgent_loading, _AIAgent_loaded
     if _AIAgent is not None:
         return _AIAgent
+    if _AIAgent_loaded:
+        return None  # already tried and failed
+    # If pre-warm thread is running, wait for it
     if _AIAgent_loading:
-        return None  # already loading in another thread
+        _AIAgent_ready.wait(timeout=60)
+        return _AIAgent
+    # Fallback: import on demand
     _AIAgent_loading = True
     try:
-        print("[9898] First chat request — importing AIAgent (~26s)...", flush=True)
+        print("[9898] Importing AIAgent on demand...", flush=True)
         from run_agent import AIAgent
         _AIAgent = AIAgent
         _AIAgent_loaded = True
         print("[9898] AIAgent imported OK", flush=True)
     except ImportError as e:
         print(f"[9898] WARNING: Cannot import AIAgent: {e}", flush=True)
+        _AIAgent_loaded = True  # don't retry
     finally:
         _AIAgent_loading = False
+        _AIAgent_ready.set()
     return _AIAgent
+
+
+def prewarm_ai_agent():
+    """Start AIAgent import in background thread. Call at app startup."""
+    def _do_import():
+        _get_ai_agent()
+    threading.Thread(target=_do_import, daemon=True, name="aiagent-prewarm").start()
 
 
 # In-memory stream queues: stream_id -> queue
@@ -84,6 +101,8 @@ def cleanup_stream(stream_id: str):
 
 def put_event(stream_id: str, event: str, data: dict):
     """Thread-safe event push."""
+    # Inject event type into data so frontend can use data.event
+    data["event"] = event
     q = _streams.get(stream_id)
     if q:
         try:
@@ -138,43 +157,35 @@ def run_agent_in_thread(
         except Exception:
             pass
 
-        # Resolve model/provider
+        # Resolve model/provider/config — single pass, cached
         resolved_model = model
         resolved_provider = None
         resolved_base_url = None
         resolved_api_key = None
+        enabled_toolsets = None
         try:
             from hermes_cli.runtime_provider import resolve_runtime_provider
+            from hermes_cli.config import load_config
             rt = resolve_runtime_provider(requested=None)
+            cfg = load_config()
             if rt:
                 resolved_provider = rt.get("provider")
                 resolved_base_url = rt.get("base_url")
                 resolved_api_key = rt.get("api_key")
                 if not resolved_model:
                     resolved_model = rt.get("model", "")
-            # resolve_runtime_provider doesn't always return model — fallback to config.yaml
             if not resolved_model:
-                try:
-                    from hermes_cli.config import load_config
-                    cfg = load_config()
-                    resolved_model = cfg.get("model", {}).get("default", "glm-5-turbo")
-                    if not resolved_provider:
-                        resolved_provider = cfg.get("model", {}).get("provider")
-                except Exception:
-                    resolved_model = "glm-5-turbo"
-        except Exception as e:
-            print(f"[9898] resolve_runtime_provider failed: {e}", flush=True)
-
-        # Resolve toolsets from config
-        enabled_toolsets = None
-        try:
-            from hermes_cli.config import load_config
-            cfg = load_config()
+                resolved_model = cfg.get("model", {}).get("default", "glm-5-turbo")
+                if not resolved_provider:
+                    resolved_provider = cfg.get("model", {}).get("provider")
+            # Resolve toolsets from same config
             ts_cfg = cfg.get("tools", {})
             if isinstance(ts_cfg, dict):
                 enabled_toolsets = [k for k, v in ts_cfg.items() if v is True and k != "enabled"]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[9898] config resolution failed: {e}", flush=True)
+            if not resolved_model:
+                resolved_model = "glm-5-turbo"
 
         # Initialize SessionDB for session_search
         session_db = None
@@ -277,19 +288,19 @@ def run_agent_in_thread(
         if enabled_toolsets:
             agent_kwargs["enabled_toolsets"] = enabled_toolsets
 
-        # Newer agent params — guard
+        # Newer agent params — re-resolve with specific provider for api_mode/credential_pool
         if "api_mode" in _agent_params:
             try:
-                from hermes_cli.runtime_provider import resolve_runtime_provider
-                rt2 = resolve_runtime_provider(requested=resolved_provider)
+                from hermes_cli.runtime_provider import resolve_runtime_provider as _rrp
+                rt2 = _rrp(requested=resolved_provider)
                 if rt2.get("api_mode"):
                     agent_kwargs["api_mode"] = rt2["api_mode"]
             except Exception:
                 pass
         if "credential_pool" in _agent_params:
             try:
-                from hermes_cli.runtime_provider import resolve_runtime_provider
-                rt3 = resolve_runtime_provider(requested=resolved_provider)
+                from hermes_cli.runtime_provider import resolve_runtime_provider as _rrp
+                rt3 = _rrp(requested=resolved_provider)
                 if rt3.get("credential_pool"):
                     agent_kwargs["credential_pool"] = rt3["credential_pool"]
             except Exception:

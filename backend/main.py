@@ -86,11 +86,12 @@ if STATIC_DIR.exists():
 @app.on_event("startup")
 async def startup():
     from .config import STATE_DB
+    from .streaming import prewarm_ai_agent
     print(f"[9898] Hermes Py WebUI starting", flush=True)
     print(f"[9898] State DB: {STATE_DB} (exists: {STATE_DB.exists()})", flush=True)
     print(f"[9898] Listening on http://{HOST}:{PORT}", flush=True)
-    # AIAgent is lazy-loaded on first chat request (import takes ~26s).
-    # Verification is done in streaming.py::_get_ai_agent().
+    # Pre-warm AIAgent import in background (~26s) so first chat isn't cold
+    prewarm_ai_agent()
 
 
 if __name__ == "__main__":

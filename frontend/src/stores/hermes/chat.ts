@@ -631,13 +631,9 @@ export const useChatStore = defineStore('chat', () => {
       // Send run via HTTP + stream events via SSE
       let ctrl: { abort: () => void } | null = null
       const { run_id } = await startRun(runPayload)
-        markInFlight(sid, run_id)
-        // If we were already polling (e.g. user re-sent while resume was still
-        // polling an earlier run), cancel that polling — the new SSE stream is
-        // the authoritative live source.
-        stopPolling(sid)
+      markInFlight(sid, run_id)
 
-        ctrl = streamRunEvents(
+      ctrl = streamRunEvents(
           run_id,
           // onEvent
           (evt: RunEvent) => {
@@ -956,10 +952,7 @@ export const useChatStore = defineStore('chat', () => {
    */
   function resumeInFlightRun(sid: string) {
     // SSE doesn't support reconnecting to an in-flight stream.
-    // Fall back to polling fetchSession for progress.
-    if (streamStates.value.has(sid)) return
-    if (!readInFlight(sid)) return
-    startPolling(sid)
+    // Nothing to do — the stream will end on its own or the user can resend.
   }
   function stopStreaming() {
     const sid = activeSessionId.value
