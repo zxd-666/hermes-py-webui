@@ -103,3 +103,13 @@ export async function updateProvider(poolKey: string, data: {
     body: JSON.stringify(data),
   })
 }
+
+export interface ProviderPreset {
+  id: string
+  name: string
+  base_url: string
+}
+
+export async function fetchProviderPresets(): Promise<ProviderPreset[]> {
+  return request<ProviderPreset[]>('/api/hermes/config/provider-presets')
+}

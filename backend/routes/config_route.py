@@ -253,6 +253,31 @@ async def save_credentials(body: dict):
     return {"ok": True}
 
 
+@router.get("/config/provider-presets")
+async def get_provider_presets():
+    """Return known API-key providers from CLI PROVIDER_REGISTRY.
+
+    Filters out OAuth-only and AWS providers — only returns entries
+    where the user needs to manually fill in an API key / base URL.
+    """
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY
+    except ImportError:
+        return []
+
+    presets = []
+    for key, cfg in PROVIDER_REGISTRY.items():
+        # Skip non-API-key auth types
+        if cfg.auth_type not in ("api_key",):
+            continue
+        presets.append({
+            "id": cfg.id,
+            "name": cfg.name,
+            "base_url": cfg.inference_base_url,
+        })
+    return sorted(presets, key=lambda p: p["name"])
+
+
 @router.get("/download")
 async def download_file(path: str, name: str = ""):
     """Download a file from the filesystem."""

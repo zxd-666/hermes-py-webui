@@ -276,6 +276,7 @@ export default {
     addProvider: '添加 Provider',
     editProvider: '编辑 Provider',
     providerUpdated: 'Provider 已更新',
+    providerAlreadyExists: 'Provider "{name}" 已存在',
     providerType: 'Provider 类型',
     preset: '预设',
     custom: '自定义',

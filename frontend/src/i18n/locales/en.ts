@@ -276,6 +276,7 @@ export default {
     addProvider: 'Add Provider',
     editProvider: 'Edit Provider',
     providerUpdated: 'Provider updated',
+    providerAlreadyExists: 'Provider "{name}" already exists',
     providerType: 'Provider Type',
     preset: 'Preset',
     custom: 'Custom',

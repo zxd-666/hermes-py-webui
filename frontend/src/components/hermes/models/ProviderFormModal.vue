@@ -2,6 +2,7 @@
 import { ref, watch, computed, onMounted } from 'vue'
 import { NModal, NForm, NFormItem, NInput, NInputNumber, NButton, NSelect, NRadioGroup, NRadioButton, useMessage, useDialog } from 'naive-ui'
 import type { AvailableModelGroup } from '@/api/hermes/system'
+import { fetchProviderPresets, type ProviderPreset } from '@/api/hermes/system'
 import { useModelsStore } from '@/stores/hermes/models'
 import { useI18n } from 'vue-i18n'
 import CodexLoginModal from './CodexLoginModal.vue'
@@ -39,6 +40,7 @@ const copilotChecking = ref(false)
 
 const providerType = ref<'preset' | 'custom'>('preset')
 const selectedPreset = ref<string | null>(null)
+const presetList = ref<ProviderPreset[]>([])
 const formData = ref({
   name: '',
   base_url: '',
@@ -65,7 +67,7 @@ const isAlibabaCoding = computed(() => selectedPreset.value === ALIBABA_CODING_K
 const alibabaCodingRegion = ref<'intl' | 'cn'>('intl')
 
 const presetOptions = computed(() =>
-  modelsStore.allProviders.map(g => ({ label: g.label, value: g.provider })),
+  presetList.value.map(p => ({ label: p.name, value: p.id })),
 )
 
 function autoGenerateName(url: string): string {
@@ -81,17 +83,22 @@ watch(selectedPreset, (val) => {
   formData.value.model = ''
   alibabaCodingRegion.value = 'intl'
   if (val) {
-    const group = modelsStore.allProviders.find(g => g.provider === val)
-    if (group) {
-      formData.value.name = group.label
-      formData.value.base_url = group.base_url
-      modelOptions.value = group.models.map((m: string) => ({ label: m, value: m }))
-      if (group.models.length > 0) {
-        formData.value.model = group.models[0]
+    const preset = presetList.value.find(p => p.id === val)
+    if (preset) {
+      formData.value.name = preset.name
+      formData.value.base_url = preset.base_url
+    }
+    // If this provider already exists, pre-fill its models
+    const existing = modelsStore.allProviders.find(g => g.provider === val)
+    if (existing) {
+      modelOptions.value = existing.models.map(m => ({ label: m, value: m }))
+      if (existing.models.length > 0) {
+        formData.value.model = existing.models[0]
       }
+    } else {
+      modelOptions.value = []
     }
     if (val === COPILOT_KEY) {
-      // 判断是否已能解析到 token：有 → 弹简单确认；无 → 走 in-app device flow
       void triggerCopilotAdd()
     }
   }
@@ -115,9 +122,15 @@ watch(providerType, () => {
   selectedPreset.value = null
 })
 
-onMounted(() => {
+onMounted(async () => {
   if (modelsStore.providers.length === 0) {
     modelsStore.fetchProviders()
+  }
+  // Load preset provider list
+  if (presetList.value.length === 0) {
+    try {
+      presetList.value = await fetchProviderPresets()
+    } catch { /* ignore — presets are optional */ }
   }
   // Edit mode: pre-fill form
   if (props.editProvider) {
@@ -209,6 +222,15 @@ async function handleSave() {
   if (isCopilot.value) {
     void triggerCopilotAdd()
     return
+  }
+
+  // Check if preset provider already exists
+  if (providerType.value === 'preset' && selectedPreset.value) {
+    const exists = modelsStore.allProviders.find(g => g.provider === selectedPreset.value)
+    if (exists) {
+      message.warning(t('models.providerAlreadyExists', { name: exists.label }))
+      return
+    }
   }
 
   if (!formData.value.base_url.trim()) {
