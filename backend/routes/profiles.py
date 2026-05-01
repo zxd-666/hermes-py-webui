@@ -18,8 +18,10 @@ PROFILES_DIR = HERMES_HOME / "profiles"
 
 async def _run_hermes(args: list[str], timeout: int = 30) -> tuple[int, str, str]:
     """Run a hermes CLI command and return (exit_code, stdout, stderr)."""
+    import shutil
+    hermes_bin = shutil.which("hermes") or str(Path(__file__).resolve().parents[3] / "hermes-agent" / "venv" / "bin" / "hermes")
     proc = await asyncio.create_subprocess_exec(
-        "hermes", *args,
+        hermes_bin, *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
