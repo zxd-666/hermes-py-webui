@@ -1,5 +1,5 @@
 import { startRun, streamRunEvents, resumeSession, type RunEvent } from '@/api/hermes/chat'
-import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
+import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, renameSession, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
 import { getApiKey } from '@/api/client'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -556,6 +556,13 @@ export const useChatStore = defineStore('chat', () => {
     target.updatedAt = Date.now()
   }
 
+  /** Persist locally-set title to backend (state.db) after agent run completes. */
+  function persistSessionTitle(sessionId: string) {
+    const target = sessions.value.find(s => s.id === sessionId)
+    if (!target?.title) return
+    renameSession(sessionId, target.title).catch(() => { /* session may not exist yet */ })
+  }
+
   async function sendMessage(content: string, attachments?: Attachment[]) {
     if ((!content.trim() && !(attachments && attachments.length > 0)) || isStreaming.value) return
 
@@ -855,6 +862,7 @@ export const useChatStore = defineStore('chat', () => {
               }
               cleanup()
               updateSessionTitle(sid)
+              persistSessionTitle(sid)
               // the in-flight marker. If the browser is reloading right now
               // and kills us between the two localStorage writes, we want
               // the next page load to still see in-flight === true (so
@@ -913,6 +921,7 @@ export const useChatStore = defineStore('chat', () => {
           }
           cleanup()
           updateSessionTitle(sid)
+          persistSessionTitle(sid)
         },
         // onError
         (err) => {

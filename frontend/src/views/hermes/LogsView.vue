@@ -80,6 +80,10 @@ async function loadLogs() {
 
 onMounted(async () => {
   logFiles.value = await fetchLogFiles()
+  // Set default to first file if selectedLog doesn't match any option
+  if (!logOptions.value.some(o => o.value === selectedLog.value) && logFiles.value.length > 0) {
+    selectedLog.value = logFiles.value[0].name
+  }
   await loadLogs()
 })
 </script>

@@ -21,7 +21,18 @@ from .routes.chat import router as chat_router
 from .routes.sessions import router as sessions_router
 from .routes.config_route import router as config_router
 from .routes.system import router as system_router
-from .routes.auth import check_auth
+from .routes.skills import router as skills_router
+from .routes.files import router as files_router
+from .routes.jobs import router as jobs_router
+from .routes.logs import router as logs_router
+from .routes.cron_history import router as cron_history_router
+from .routes.profiles import router as profiles_router
+from .routes.gateways import router as gateways_router
+from .routes.auth_providers import router as auth_providers_router
+from .routes.weixin import router as weixin_router
+from .routes.terminal import router as terminal_router
+from .routes.auth import check_auth, router as auth_router
+from .routes.files import upload_files as _upload_files
 
 app = FastAPI(title="Hermes Py WebUI", version="0.1.0")
 
@@ -44,8 +55,8 @@ async def auth_middleware(request, call_next):
     # Skip auth for login page
     if path == "/login.html" or path == "/":
         return await call_next(request)
-    # Check auth for API routes
-    if path.startswith("/api/"):
+    # Check auth for API routes (but allow /api/auth/* endpoints)
+    if path.startswith("/api/") and not path.startswith("/api/auth/"):
         try:
             await check_auth(request)
         except Exception:
@@ -53,12 +64,27 @@ async def auth_middleware(request, call_next):
             return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     return await call_next(request)
 
+# Auth routes FIRST — /api/auth/* bypasses middleware auth check
+app.include_router(auth_router)
+
 # API routes
 app.include_router(chat_router)
 app.include_router(sessions_router)
 app.include_router(config_router)
 app.include_router(system_router)
+app.include_router(skills_router)
+app.include_router(files_router)
+app.include_router(jobs_router)
+app.include_router(logs_router)
+app.include_router(cron_history_router)
+app.include_router(profiles_router)
+app.include_router(gateways_router)
+app.include_router(auth_providers_router)
+app.include_router(weixin_router)
+app.include_router(terminal_router)
 
+# Chat attachment upload — frontend sends POST /upload with FormData
+app.post("/upload")(_upload_files)
 
 # Static files — serve Vue build from backend/static/
 STATIC_DIR = Path(__file__).parent / "static"
@@ -97,3 +123,9 @@ async def startup():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=False, log_level="warning")
+
+
+# Wrap app with ASGI middleware to handle WebSocket terminal connections
+# This bypasses Starlette 1.0.0's WebSocket routing issues
+from .routes.terminal import TerminalWSMiddleware
+app = TerminalWSMiddleware(app)
