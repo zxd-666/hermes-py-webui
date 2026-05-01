@@ -142,10 +142,11 @@ async def get_available_models():
     groups = []
     all_providers = []
     seen = set()
+    hidden = set(cfg.get("hidden_providers", []))
 
     def add_group(provider: str, label: str, base_url: str,
                   models: list, api_key: str):
-        if provider in seen:
+        if provider in seen or provider in hidden:
             return
         seen.add(provider)
         g = {
@@ -168,7 +169,12 @@ async def get_available_models():
         pool_key = f"custom:{name}"
         base_url = cp.get("base_url", "")
         api_key = cp.get("api_key", "") or cp.get("key_env", "")
-        models = [cp["model"]] if cp.get("model") else []
+        models = []
+        if cp.get("models"):
+            m = cp["models"]
+            models = list(m.keys()) if isinstance(m, dict) else list(m)
+        if not models and cp.get("model"):
+            models = [cp["model"]]
         add_group(pool_key, name, base_url, models, api_key)
 
     # --- 1b. credentials_pool providers ---
@@ -291,13 +297,34 @@ async def add_provider(body: dict):
 
 @router.delete("/config/providers/{pool_key:path}")
 async def remove_provider(pool_key: str):
-    """Remove a custom provider from the credentials pool."""
+    """Remove a provider from credentials_pool, custom_providers, or hide a builtin."""
     cfg = _load_hermes_config()
+    removed = False
+
+    # 1. Try credentials_pool (exact key match)
     pool = cfg.get("credentials_pool", {})
-    if pool_key not in pool:
-        return {"error": "provider not found"}
-    del pool[pool_key]
-    cfg["credentials_pool"] = pool
+    if pool_key in pool:
+        del pool[pool_key]
+        cfg["credentials_pool"] = pool
+        removed = True
+
+    # 2. Try custom_providers — match name with or without "custom:" prefix
+    name = pool_key.removeprefix("custom:")
+    customs = cfg.get("custom_providers", [])
+    original_len = len(customs)
+    cfg["custom_providers"] = [
+        cp for cp in customs
+        if not (isinstance(cp, dict) and cp.get("name", "") == name)
+    ]
+    if len(cfg["custom_providers"]) < original_len:
+        removed = True
+
+    if not removed:
+        # 3. Builtin provider (from .env) — add to hidden_providers
+        hidden = set(cfg.get("hidden_providers", []))
+        hidden.add(pool_key)
+        cfg["hidden_providers"] = sorted(hidden)
+
     _save_hermes_config(cfg)
     return {"ok": True}
 

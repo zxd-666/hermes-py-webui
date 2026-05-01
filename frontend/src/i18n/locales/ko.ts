@@ -68,7 +68,7 @@ export default {
   sidebar: {
     chat: '채팅',
     jobs: '예약 작업',
-    models: '모델',
+    models: 'Models',
     profiles: '프로필',
     skills: '스킬',
     memory: '메모리',

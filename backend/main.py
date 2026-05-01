@@ -11,7 +11,7 @@ from pathlib import Path
 HERMES_HOME = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
 sys.path.insert(0, str(Path(HERMES_HOME) / "hermes-agent"))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -32,6 +32,7 @@ from .routes.auth_providers import router as auth_providers_router
 from .routes.weixin import router as weixin_router
 from .routes.terminal import router as terminal_router
 from .routes.channels import router as channels_router
+from .routes.workspaces import router as workspaces_router
 from .routes.auth import check_auth, router as auth_router
 from .routes.files import upload_files as _upload_files
 
@@ -84,6 +85,7 @@ app.include_router(auth_providers_router)
 app.include_router(weixin_router)
 app.include_router(terminal_router)
 app.include_router(channels_router)
+app.include_router(workspaces_router)
 
 # Chat attachment upload — frontend sends POST /upload with FormData
 app.post("/upload")(_upload_files)
@@ -96,11 +98,12 @@ if STATIC_DIR.exists():
     @app.get("/favicon.ico")
     @app.get("/favicon.svg")
     @app.get("/icons.svg")
-    async def favicon():
-        for name in ["favicon.ico", "favicon.svg", "icons.svg"]:
-            p = STATIC_DIR / name
-            if p.exists():
-                return FileResponse(str(p))
+    @app.get("/logo.png")
+    async def static_root_file(request: Request):
+        filename = request.url.path.lstrip("/")
+        p = STATIC_DIR / filename
+        if p.exists():
+            return FileResponse(str(p))
 
     @app.get("/{path:path}")
     async def spa_catchall(path: str):

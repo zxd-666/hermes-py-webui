@@ -46,30 +46,53 @@ async def list_profiles():
 
     # Fallback: parse from directory listing
     if not PROFILES_DIR.exists():
-        return {"profiles": []}
+        profiles = []
+    else:
+        profiles = []
+        for entry in sorted(PROFILES_DIR.iterdir()):
+            if not entry.is_dir():
+                continue
+            cfg = entry / "config.yaml"
+            model, gateway = "", ""
+            if cfg.exists():
+                try:
+                    import yaml
+                    with open(cfg) as f:
+                        c = yaml.safe_load(f) or {}
+                    model = (c.get("model") or {}).get("default", "")
+                    gateway = (c.get("platforms") or {}).get("api_server", {}).get("extra", {}).get("port", "")
+                except Exception:
+                    pass
+            profiles.append({
+                "name": entry.name,
+                "active": False,
+                "model": model,
+                "gateway": gateway,
+                "alias": entry.name,
+            })
 
-    profiles = []
-    for entry in sorted(PROFILES_DIR.iterdir()):
-        if not entry.is_dir():
-            continue
-        cfg = entry / "config.yaml"
+    # Ensure the "default" profile (root config.yaml) is always present
+    default_names = {p["name"] for p in profiles}
+    if "default" not in default_names:
+        import yaml
+        root_cfg_path = HERMES_HOME / "config.yaml"
         model, gateway = "", ""
-        if cfg.exists():
+        if root_cfg_path.exists():
             try:
-                import yaml
-                with open(cfg) as f:
+                with open(root_cfg_path) as f:
                     c = yaml.safe_load(f) or {}
                 model = (c.get("model") or {}).get("default", "")
                 gateway = (c.get("platforms") or {}).get("api_server", {}).get("extra", {}).get("port", "")
             except Exception:
                 pass
-        profiles.append({
-            "name": entry.name,
+        profiles.insert(0, {
+            "name": "default",
             "active": False,
             "model": model,
             "gateway": gateway,
-            "alias": entry.name,
+            "alias": "default",
         })
+
     return {"profiles": profiles}
 
 
@@ -85,11 +108,14 @@ async def get_profile(name: str):
             pass
 
     # Fallback: build from filesystem
-    target = PROFILES_DIR / name
-    if not target.is_dir():
-        return JSONResponse(status_code=404, content={"error": "profile not found"})
-
-    cfg = target / "config.yaml"
+    if name == "default":
+        target = HERMES_HOME
+        cfg = target / "config.yaml"
+    else:
+        target = PROFILES_DIR / name
+        cfg = target / "config.yaml"
+        if not target.is_dir():
+            return JSONResponse(status_code=404, content={"error": "profile not found"})
     model, provider = "", ""
     if cfg.exists():
         try:

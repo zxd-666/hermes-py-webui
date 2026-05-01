@@ -495,18 +495,15 @@ export const useChatStore = defineStore('chat', () => {
     // Inherit current global model
     const appStore = useAppStore()
     session.model = appStore.selectedModel || undefined
+    // Default workspace: home (~ will be expanded on server)
+    session.workspace = '~'
     switchSession(session.id)
   }
 
-  async function switchSessionModel(modelId: string, provider?: string) {
+  function switchSessionModel(modelId: string, provider?: string) {
     if (!activeSession.value) return
     activeSession.value.model = modelId
     activeSession.value.provider = provider || ''
-    // If provider changed, update global config too (Hermes requires it)
-    if (provider) {
-      const { useAppStore } = await import('./app')
-      await useAppStore().switchModel(modelId, provider)
-    }
   }
 
   async function deleteSession(sessionId: string) {

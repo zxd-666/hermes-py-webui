@@ -71,6 +71,11 @@ const router = createRouter({
       // component: () => import('@/views/hermes/GroupChatView.vue'),  // DISABLED: socket.io
     },
     {
+      path: '/hermes/models',
+      name: 'hermes.models',
+      component: () => import('@/views/hermes/ModelsView.vue'),
+    },
+    {
       path: '/hermes/files',
       name: 'hermes.files',
       component: () => import('@/views/hermes/FilesView.vue'),

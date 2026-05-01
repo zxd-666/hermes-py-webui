@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { renameSession, setSessionWorkspace } from '@/api/hermes/sessions'
+import { fetchWorkspaces } from '@/api/hermes/workspaces'
+import type { WorkspacePreset } from '@/api/hermes/workspaces'
 import { useChatStore, type Session } from '@/stores/hermes/chat'
+import { useAppStore } from '@/stores/hermes/app'
 import { useSessionBrowserPrefsStore } from '@/stores/hermes/session-browser-prefs'
-import { NButton, NDropdown, NInput, NModal, NTooltip, useMessage } from 'naive-ui'
+import { NButton, NDropdown, NInput, NModal, NSelect, useMessage } from 'naive-ui'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSourceLabel } from '@/shared/session-display'
 import { copyToClipboard } from '@/utils/clipboard'
-import FolderPicker from './FolderPicker.vue'
 import ChatInput from './ChatInput.vue'
 import ConversationMonitorPane from './ConversationMonitorPane.vue'
 import MessageList from './MessageList.vue'
 import SessionListItem from './SessionListItem.vue'
 
 const chatStore = useChatStore()
+const appStore = useAppStore()
 const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
 const message = useMessage()
 const { t } = useI18n()
@@ -48,6 +51,7 @@ onMounted(() => {
   mobileQuery = window.matchMedia('(max-width: 768px)')
   handleMobileChange(mobileQuery)
   mobileQuery.addEventListener('change', handleMobileChange)
+  loadHeaderWorkspaces()
 })
 
 onUnmounted(() => {
@@ -157,6 +161,86 @@ const activeSessionSource = computed(() =>
   currentMode.value === 'chat' ? (chatStore.activeSession?.source || '') : '',
 )
 
+// Header model selector
+const modelOptions = computed(() => {
+  const groups: { type: 'group'; label: string; key: string; children: { label: string; value: string; disabled?: boolean }[] }[] = []
+  for (const g of appStore.modelGroups) {
+    const children: { label: string; value: string; disabled?: boolean }[] = []
+    for (const m of g.models) {
+      const meta = g.model_meta?.[m]
+      children.push({ label: `${m}${meta?.disabled ? ' ✗' : ''}`, value: `${g.provider}::${m}`, disabled: !!meta?.disabled })
+    }
+    if (children.length) {
+      groups.push({ type: 'group', label: g.label || g.provider, key: g.provider, children })
+    }
+  }
+  return groups
+})
+
+/** Resolve the compound value `provider::model` from the current session context. */
+const headerModelValue = computed(() => {
+  const model = chatStore.activeSession?.model || appStore.selectedModel
+  if (!model) return undefined
+  // Find the matching group: prefer the session's provider hint
+  const provider = chatStore.activeSession?.provider || appStore.selectedProvider
+  if (provider) {
+    const group = appStore.modelGroups.find(g => g.provider === provider && g.models.includes(model))
+    if (group) return `${group.provider}::${model}`
+  }
+  // Fallback: first group containing this model
+  const group = appStore.modelGroups.find(g => g.models.includes(model))
+  return group ? `${group.provider}::${model}` : undefined
+})
+
+function handleModelChange(compound: string) {
+  const sep = compound.indexOf('::')
+  const provider = compound.substring(0, sep)
+  const model = compound.substring(sep + 2)
+  // Only update active session model, not global default
+  if (chatStore.activeSession) {
+    chatStore.switchSessionModel(model, provider)
+  }
+}
+
+// Header workspace selector
+const headerWorkspacePresets = ref<WorkspacePreset[]>([])
+
+const headerWorkspaceOptions = computed(() => {
+  const opts = headerWorkspacePresets.value.map(ws => ({
+    label: ws.name,
+    value: ws.path,
+  }))
+  // Add custom path if current workspace is not in presets
+  const currentWs = chatStore.activeSession?.workspace
+  if (currentWs && !headerWorkspacePresets.value.some(ws => ws.path === currentWs)) {
+    opts.push({ label: currentWs, value: currentWs })
+  }
+  return opts
+})
+
+// Load workspace presets for header selector
+async function loadHeaderWorkspaces() {
+  try {
+    headerWorkspacePresets.value = await fetchWorkspaces()
+  } catch {
+    headerWorkspacePresets.value = []
+  }
+}
+
+async function handleHeaderWorkspaceChange(path: string) {
+  const sid = chatStore.activeSessionId
+  if (!sid) return
+  const ok = await setSessionWorkspace(sid, path || null)
+  if (ok) {
+    if (chatStore.activeSession) chatStore.activeSession.workspace = path || null
+    message.success(t('chat.workspaceSet'))
+  } else {
+    message.error(t('chat.workspaceSetFailed'))
+  }
+}
+
+// Preload workspace presets (handled in onMounted above)
+
 function handleNewChat() {
   chatStore.newChat()
 }
@@ -181,12 +265,16 @@ const contextSessionPinned = computed(() =>
   contextSessionId.value ? sessionBrowserPrefsStore.isPinned(contextSessionId.value) : false,
 )
 
-const contextMenuOptions = computed(() => [
-  { label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' },
-  { label: t('chat.rename'), key: 'rename' },
-  { label: t('chat.setWorkspace'), key: 'workspace' },
-  { label: t('chat.copySessionId'), key: 'copy-id' },
-])
+const contextMenuOptions = computed(() => {
+  const canDel = contextSessionId.value !== chatStore.activeSessionId || chatStore.sessions.length > 1
+  return [
+    { label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' },
+    { label: t('chat.rename'), key: 'rename' },
+    { label: t('chat.setWorkspace'), key: 'workspace' },
+    { label: t('chat.copySessionId'), key: 'copy-id' },
+    ...(canDel ? [{ label: t('common.delete'), key: 'delete' }] : []),
+  ]
+})
 
 function handleContextMenu(e: MouseEvent, sessionId: string) {
   e.preventDefault()
@@ -210,10 +298,7 @@ function handleContextMenuSelect(key: string) {
   if (key === 'copy-id') {
     copySessionId(contextSessionId.value)
   } else if (key === 'workspace') {
-    const session = chatStore.sessions.find(s => s.id === contextSessionId.value)
-    workspaceSessionId.value = contextSessionId.value
-    workspaceValue.value = session?.workspace || ''
-    showWorkspaceModal.value = true
+    openWorkspaceModal(contextSessionId.value)
   } else if (key === 'rename') {
     const session = chatStore.sessions.find(s => s.id === contextSessionId.value)
     renameSessionId.value = contextSessionId.value
@@ -222,6 +307,8 @@ function handleContextMenuSelect(key: string) {
     nextTick(() => {
       renameInputRef.value?.focus()
     })
+  } else if (key === 'delete') {
+    handleDeleteSession(contextSessionId.value)
   }
 }
 
@@ -248,6 +335,43 @@ async function handleRenameConfirm() {
 const showWorkspaceModal = ref(false)
 const workspaceValue = ref('')
 const workspaceSessionId = ref<string | null>(null)
+const workspacePresets = ref<WorkspacePreset[]>([])
+const useCustomPath = ref(false)
+
+const workspaceSelectOptions = computed(() =>
+  workspacePresets.value.map(ws => ({
+    label: `${ws.name}  (${ws.path})`,
+    value: ws.path,
+  })),
+)
+
+async function openWorkspaceModal(sessionId: string) {
+  workspaceSessionId.value = sessionId
+  const session = chatStore.sessions.find(s => s.id === sessionId)
+  const currentPath = session?.workspace || ''
+
+  // Try loading presets
+  try {
+    workspacePresets.value = await fetchWorkspaces()
+  } catch {
+    workspacePresets.value = []
+  }
+
+  // Check if current path matches a preset
+  const match = workspacePresets.value.find(ws => ws.path === currentPath)
+  if (match) {
+    workspaceValue.value = match.path
+    useCustomPath.value = false
+  } else if (currentPath) {
+    workspaceValue.value = currentPath
+    useCustomPath.value = true
+  } else {
+    workspaceValue.value = ''
+    useCustomPath.value = workspacePresets.value.length === 0
+  }
+
+  showWorkspaceModal.value = true
+}
 
 async function handleWorkspaceConfirm() {
   if (!workspaceSessionId.value) return
@@ -263,6 +387,10 @@ async function handleWorkspaceConfirm() {
     message.error(t('chat.workspaceSetFailed'))
   }
   showWorkspaceModal.value = false
+}
+
+function handleWorkspaceSelect(val: string) {
+  workspaceValue.value = val
 }
 </script>
 
@@ -298,11 +426,9 @@ async function handleWorkspaceConfirm() {
             :session="s"
             :active="s.id === chatStore.activeSessionId"
             :pinned="true"
-            :can-delete="s.id !== chatStore.activeSessionId || chatStore.sessions.length > 1"
             :streaming="chatStore.isSessionLive(s.id)"
             @select="handleSessionClick(s.id)"
             @contextmenu="handleContextMenu($event, s.id)"
-            @delete="handleDeleteSession(s.id)"
           />
         </template>
 
@@ -319,11 +445,9 @@ async function handleWorkspaceConfirm() {
               :session="s"
               :active="s.id === chatStore.activeSessionId"
               :pinned="false"
-              :can-delete="s.id !== chatStore.activeSessionId || chatStore.sessions.length > 1"
               :streaming="chatStore.isSessionLive(s.id)"
               @select="handleSessionClick(s.id)"
               @contextmenu="handleContextMenu($event, s.id)"
-              @delete="handleDeleteSession(s.id)"
             />
           </template>
         </template>
@@ -363,10 +487,47 @@ async function handleWorkspaceConfirm() {
       :title="t('chat.setWorkspaceTitle')"
       :positive-text="t('common.ok')"
       :negative-text="t('common.cancel')"
-      style="width: 520px"
+      style="width: 480px"
       @positive-click="handleWorkspaceConfirm"
     >
-      <FolderPicker v-model="workspaceValue" />
+      <div class="workspace-modal-body">
+        <div v-if="workspacePresets.length > 0" class="workspace-mode-switch">
+          <NButton
+            size="tiny"
+            :type="!useCustomPath ? 'primary' : 'default'"
+            @click="useCustomPath = false"
+          >
+            {{ t('chat.workspaceFromPresets') }}
+          </NButton>
+          <NButton
+            size="tiny"
+            :type="useCustomPath ? 'primary' : 'default'"
+            @click="useCustomPath = true"
+          >
+            {{ t('chat.workspaceCustom') }}
+          </NButton>
+        </div>
+        <div v-if="!useCustomPath && workspacePresets.length > 0">
+          <NSelect
+            :value="workspaceValue"
+            :options="workspaceSelectOptions"
+            placeholder=""
+            filterable
+            @update:value="handleWorkspaceSelect"
+          />
+        </div>
+        <div v-else>
+          <NInput
+            :value="workspaceValue"
+            :placeholder="t('chat.workspacePlaceholder')"
+            @update:value="v => workspaceValue = v"
+            @keydown.enter="handleWorkspaceConfirm"
+          />
+        </div>
+        <div v-if="workspacePresets.length === 0" class="workspace-empty-hint">
+          {{ t('chat.workspaceNoPresets') }}
+        </div>
+      </div>
     </NModal>
 
     <div class="chat-main">
@@ -379,27 +540,31 @@ async function handleWorkspaceConfirm() {
           </NButton>
           <span class="header-session-title">{{ headerTitle }}</span>
           <span v-if="activeSessionSource" class="source-badge">{{ getSourceLabel(activeSessionSource) }}</span>
-          <span v-if="chatStore.activeSession?.workspace" class="workspace-badge" :title="chatStore.activeSession.workspace">📁 {{ chatStore.activeSession.workspace.split('/').pop() || chatStore.activeSession.workspace }}</span>
         </div>
         <div class="header-actions">
-          <!-- chat/live mode toggle hidden -->
           <template v-if="currentMode === 'chat'">
-            <NTooltip trigger="hover">
-              <template #trigger>
-                <NButton quaternary size="small" @click="copySessionId()" circle>
-                  <template #icon>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </template>
-                </NButton>
-              </template>
-              {{ t('chat.copySessionId') }}
-            </NTooltip>
-            <NButton size="small" :circle="isMobile" @click="handleNewChat">
-              <template #icon>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              </template>
-              <template v-if="!isMobile">{{ t('chat.newChat') }}</template>
-            </NButton>
+            <div class="header-select-group">
+              <NSelect
+                :value="headerModelValue"
+                :options="modelOptions"
+                size="small"
+                filterable
+                :virtual-scroll="false"
+                class="header-model-select"
+                :placeholder="t('models.title')"
+                @update:value="handleModelChange"
+              />
+              <NSelect
+                :value="chatStore.activeSession?.workspace || ''"
+                :options="headerWorkspaceOptions"
+                size="small"
+                filterable
+                clearable
+                class="header-workspace-select"
+                :placeholder="t('chat.workspace')"
+                @update:value="handleHeaderWorkspaceChange"
+              />
+            </div>
           </template>
         </div>
       </header>
@@ -738,6 +903,20 @@ async function handleWorkspaceConfirm() {
   flex-shrink: 0;
 }
 
+.header-select-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-model-select {
+  width: 240px;
+}
+
+.header-workspace-select {
+  width: 120px;
+}
+
 .chat-mode-toggle {
   display: flex;
   align-items: center;
@@ -751,16 +930,19 @@ async function handleWorkspaceConfirm() {
   }
 }
 
-.workspace-badge {
-  font-size: 11px;
-  color: $text-muted;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 8px;
-  border-radius: 4px;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
+.workspace-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workspace-mode-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.workspace-empty-hint {
+  font-size: 12px;
+  opacity: 0.5;
 }
 </style>

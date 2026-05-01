@@ -109,20 +109,14 @@ async function handleDelete() {
         <span class="info-label">{{ t('models.models') }}</span>
         <span class="info-value models-count">{{ provider.models.length }} {{ t('models.count') }}</span>
       </div>
-      <div class="info-row">
-        <span class="info-label">{{ t('models.apiKey') }}</span>
-        <span class="info-value" :class="{ 'has-key': hasKey }">
-          {{ hasKey ? '••••••••' : '—' }}
-        </span>
-      </div>
       <div class="models-list">
         <span
           v-for="model in provider.models.slice(0, 20)"
           :key="model"
           class="model-tag"
-          :class="{ 'model-tag-default': model === modelsStore.defaultModel }"
-          :title="model === modelsStore.defaultModel ? t('models.currentDefault') : t('models.clickToSetDefault')"
-          @click="model !== modelsStore.defaultModel && handleSetDefault(model)"
+          :class="{ 'model-tag-default': model === modelsStore.defaultModel && provider.provider === modelsStore.defaultProvider }"
+          :title="model === modelsStore.defaultModel && provider.provider === modelsStore.defaultProvider ? t('models.currentDefault') : t('models.clickToSetDefault')"
+          @click="(model !== modelsStore.defaultModel || provider.provider !== modelsStore.defaultProvider) && handleSetDefault(model)"
         >{{ model }}</span>
         <span v-if="provider.models.length > 20" class="model-tag model-tag-more">
           +{{ provider.models.length - 20 }} {{ t('models.more') }}
@@ -151,7 +145,7 @@ async function handleDelete() {
   background-color: $bg-card;
   border: 1px solid $border-color;
   border-radius: $radius-md;
-  padding: 16px;
+  padding: 10px 14px;
   transition: border-color $transition-fast;
 
   &:hover {
@@ -163,7 +157,7 @@ async function handleDelete() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .provider-name {
@@ -196,8 +190,8 @@ async function handleDelete() {
 .card-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 3px;
+  margin-bottom: 8px;
 }
 
 .info-row {
@@ -239,8 +233,8 @@ async function handleDelete() {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 6px;
-  margin-top: 6px;
-  height: 100px;
+  margin-top: 4px;
+  max-height: 68px;
   overflow-y: auto;
   align-content: flex-start;
 }
@@ -283,6 +277,6 @@ async function handleDelete() {
   display: flex;
   gap: 8px;
   border-top: 1px solid $border-light;
-  padding-top: 10px;
+  padding-top: 6px;
 }
 </style>

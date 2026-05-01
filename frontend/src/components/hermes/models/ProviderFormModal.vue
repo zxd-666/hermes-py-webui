@@ -265,10 +265,6 @@ async function handleSave() {
     message.warning(t('models.apiKeyRequired'))
     return
   }
-  if (!formData.value.model) {
-    message.warning(t('models.modelRequired'))
-    return
-  }
 
   loading.value = true
   try {
@@ -445,26 +441,6 @@ function handleClose() {
           :placeholder="t('models.apiKeyPlaceholder')"
           autocomplete="off"
         />
-      </NFormItem>
-
-      <NFormItem :label="t('models.defaultModel')" required>
-        <div style="display: flex; gap: 8px; width: 100%">
-          <NSelect
-            v-model:value="formData.model"
-            :options="modelOptions"
-            filterable
-            tag
-            :placeholder="t('models.selectOrInput')"
-            style="flex: 1"
-          />
-          <NButton
-            v-if="providerType === 'custom' || isEditMode || (providerType === 'preset' && modelOptions.length === 0)"
-            :loading="fetchingModels"
-            @click="fetchModels"
-          >
-            {{ t('common.fetch') }}
-          </NButton>
-        </div>
       </NFormItem>
 
       <NFormItem v-if="providerType === 'custom' && !isEditMode" :label="t('models.contextLength')">

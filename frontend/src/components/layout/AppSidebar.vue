@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { NButton, NModal, useMessage } from "naive-ui";
+import { NButton, useMessage } from "naive-ui";
 import { useAppStore } from "@/stores/hermes/app";
-import ModelSelector from "./ModelSelector.vue";
 import ProfileSelector from "./ProfileSelector.vue";
 import LanguageSwitch from "./LanguageSwitch.vue";
 import ThemeSwitch from "./ThemeSwitch.vue";
 import { useSessionSearch } from '@/composables/useSessionSearch'
-import { changelog } from "@/data/changelog";
 
 const { t } = useI18n();
 const message = useMessage();
@@ -48,20 +46,13 @@ function handleLogout() {
   router.replace({ name: 'login' });
 }
 
-// Changelog
-const showChangelog = ref(false);
-
-function openChangelog() {
-  showChangelog.value = true;
-}
 </script>
 
 <template>
   <aside class="sidebar" :class="{ open: appStore.sidebarOpen }">
-    <div class="sidebar-logo" @click="router.push('/hermes/chat')">
+    <div class="sidebar-logo">
       <img :src="logoPath" alt="Hermes" class="logo-img" />
-      <span class="logo-text">Hermes</span>
-      <!-- <video class="logo-dance" :src="isDark ? danceVideoDark : danceVideoLight" autoplay loop muted playsinline /> -->
+      <ProfileSelector />
     </div>
 
     <nav class="sidebar-nav">
@@ -129,6 +120,15 @@ function openChangelog() {
               <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
             </svg>
             <span>{{ t("sidebar.memory") }}</span>
+          </button>
+          <button class="nav-item" :class="{ active: selectedKey === 'hermes.models' }" @click="handleNav('hermes.models')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a5 5 0 0 1 5 5v3a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <path d="M12 18v4" />
+              <circle cx="12" cy="12" r="1" />
+            </svg>
+            <span>{{ t("sidebar.models") }}</span>
           </button>
         </div>
       </div>
@@ -224,9 +224,6 @@ function openChangelog() {
       </div>
     </nav>
 
-    <ProfileSelector />
-    <ModelSelector />
-
     <div class="sidebar-footer">
       <button class="nav-item logout-item" @click="handleLogout">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -254,10 +251,10 @@ function openChangelog() {
         <LanguageSwitch />
       </div>
       <div class="version-info">
-        <a class="github-link" href="https://github.com/EKKOLearnAI/hermes-web-ui" target="_blank" rel="noopener noreferrer" title="GitHub">
+        <a class="github-link" href="https://github.com/zxd-666/hermes-py-webui" target="_blank" rel="noopener noreferrer" title="GitHub">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
         </a>
-        <span class="version-text" @click="openChangelog">Hermes Web UI v{{ appStore.serverVersion || "0.1.0" }}</span>
+        <span class="version-text">Hermes Web UI v{{ appStore.serverVersion || "0.1.0" }}</span>
         <ThemeSwitch />
       </div>
       <NButton v-if="appStore.updateAvailable" type="primary" size="tiny" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
@@ -265,20 +262,6 @@ function openChangelog() {
       </NButton>
     </div>
 
-    <!-- Changelog modal -->
-    <NModal v-model:show="showChangelog" preset="dialog" :title="t('sidebar.changelog')" style="width: 520px;">
-      <div class="changelog-list">
-        <div v-for="entry in changelog" :key="entry.version" class="changelog-version-block">
-          <div class="changelog-version-header">
-            <span class="changelog-version-tag">v{{ entry.version }}</span>
-            <span class="changelog-date">{{ entry.date }}</span>
-          </div>
-          <ul class="changelog-changes">
-            <li v-for="(change, idx) in entry.changes" :key="idx">{{ t(change) }}</li>
-          </ul>
-        </div>
-      </div>
-    </NModal>
   </aside>
 </template>
 
@@ -307,38 +290,8 @@ function openChangelog() {
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 20px 12px;
-  margin: 0 -12px;
-  color: $text-primary;
-  cursor: pointer;
-  background-color: $bg-card;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-  .dark & {
-    background-color: #393939;
-  }
-  position: relative;
-  overflow: hidden;
-
-  .logo-text {
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-
-  .logo-dance {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 100px;
-    border-radius: $radius-md;
-    object-fit: contain;
-    flex-shrink: 0;
-    width: auto;
-    pointer-events: none;
-  }
+  gap: 8px;
+  padding: 16px 12px;
 }
 
 .sidebar-nav {
@@ -518,57 +471,6 @@ function openChangelog() {
 
   &:hover {
     color: $accent-primary;
-  }
-}
-
-.changelog-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.changelog-version-block {
-  margin-bottom: 20px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.changelog-version-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.changelog-version-tag {
-  font-weight: 600;
-  font-size: 14px;
-  color: $text-primary;
-  font-family: $font-code;
-}
-
-.changelog-changes {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-
-  li {
-    font-size: 13px;
-    color: $text-secondary;
-    padding: 4px 0 4px 16px;
-    position: relative;
-
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 12px;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: $text-muted;
-    }
   }
 }
 

@@ -68,7 +68,7 @@ export default {
   sidebar: {
     chat: 'Discussion',
     jobs: 'Taches planifiees',
-    models: 'Modeles',
+    models: 'Models',
     profiles: 'Profils',
     skills: 'Competences',
     memory: 'Memoire',

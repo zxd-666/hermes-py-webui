@@ -68,7 +68,7 @@ export default {
   sidebar: {
     chat: 'チャット',
     jobs: 'ジョブ',
-    models: 'モデル',
+    models: 'Models',
     profiles: 'プロファイル',
     skills: 'スキル',
     memory: 'メモリ',

@@ -11,8 +11,8 @@ import DisplaySettings from "@/components/hermes/settings/DisplaySettings.vue";
 import AgentSettings from "@/components/hermes/settings/AgentSettings.vue";
 import MemorySettings from "@/components/hermes/settings/MemorySettings.vue";
 import SessionSettings from "@/components/hermes/settings/SessionSettings.vue";
+import WorkspaceSettings from "@/components/hermes/settings/WorkspaceSettings.vue";
 import PrivacySettings from "@/components/hermes/settings/PrivacySettings.vue";
-import ModelSettings from "@/components/hermes/settings/ModelSettings.vue";
 import AccountSettings from "@/components/hermes/settings/AccountSettings.vue";
 
 const settingsStore = useSettingsStore();
@@ -51,11 +51,11 @@ onMounted(() => {
           <NTabPane name="session" :tab="t('settings.tabs.session')">
             <SessionSettings />
           </NTabPane>
+          <NTabPane name="workspace" :tab="t('settings.tabs.workspace')">
+            <WorkspaceSettings />
+          </NTabPane>
           <NTabPane name="privacy" :tab="t('settings.tabs.privacy')">
             <PrivacySettings />
-          </NTabPane>
-          <NTabPane name="models" :tab="t('settings.tabs.models')">
-            <ModelSettings />
           </NTabPane>
         </NTabs>
       </NSpin>

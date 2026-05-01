@@ -54,7 +54,7 @@ export interface RunEvent {
 export async function startRun(body: StartRunRequest): Promise<StartRunResponse> {
   const headers: Record<string, string> = {}
   if (body.workspace) {
-    headers['X-Hermes-Workspace'] = body.workspace
+    headers['X-Hermes-Workspace'] = encodeURIComponent(body.workspace)
   }
   return request('/api/chat/start', {
     method: 'POST',

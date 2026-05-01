@@ -37,7 +37,6 @@ onMounted(() => {
 
 <template>
   <div class="profile-selector">
-    <div class="selector-label">{{ t('sidebar.profiles') }}</div>
     <NSelect
       :value="activeName"
       :options="options"
@@ -52,16 +51,7 @@ onMounted(() => {
 @use '@/styles/variables' as *;
 
 .profile-selector {
-  padding: 0 12px;
-  margin-bottom: 8px;
-}
-
-.selector-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: $text-muted;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 6px;
+  padding: 0;
+  flex: 1;
 }
 </style>

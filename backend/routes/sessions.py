@@ -1,8 +1,11 @@
 """Session endpoints: list, get, delete, rename, search, usage, conversations."""
+import json
+from pathlib import Path
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from typing import Optional
 
+from ..config import HERMES_HOME
 from ..db import (
     list_sessions, get_session, get_session_messages,
     delete_session, rename_session, search_sessions,
@@ -10,6 +13,23 @@ from ..db import (
 )
 
 router = APIRouter(prefix="/api/hermes", tags=["sessions"])
+
+# ─── Workspace persistence ───
+
+_WORKSPACE_META = HERMES_HOME / "webui_session_meta.json"
+
+
+def _load_workspace_map() -> dict:
+    if _WORKSPACE_META.exists():
+        try:
+            return json.loads(_WORKSPACE_META.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_workspace_map(data: dict):
+    _WORKSPACE_META.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
 
 # ─── Conversation endpoints (MUST be before /sessions/{session_id}) ───
@@ -22,6 +42,7 @@ async def conversation_summaries(
 ):
     """List conversation summaries with richer data."""
     sessions = list_sessions(source=source, limit=limit)
+    wmap = _load_workspace_map()
     summaries = []
     for s in sessions:
         msgs = get_session_messages(s["id"], limit=3)
@@ -48,6 +69,7 @@ async def conversation_summaries(
             "estimated_cost_usd": s.get("estimated_cost_usd", 0),
             "preview": preview,
             "is_active": not s.get("ended_at"),
+            "workspace": wmap.get(s["id"]),
         })
     return {"sessions": summaries}
 
@@ -114,7 +136,9 @@ async def sessions_list(
     limit: int = Query(50),
 ):
     sessions = list_sessions(source=source, limit=limit)
+    wmap = _load_workspace_map()
     for s in sessions:
+        s["workspace"] = wmap.get(s["id"])
         msgs = get_session_messages(s["id"], limit=3)
         for m in reversed(msgs):
             if m.get("role") == "user" and m.get("content"):
@@ -145,7 +169,53 @@ async def session_rename(session_id: str, body: dict):
 
 @router.post("/sessions/{session_id}/workspace")
 async def session_workspace(session_id: str, body: dict):
+    """Set or clear workspace for a session. Persists to JSON file."""
+    workspace = body.get("workspace", "").strip()
+    wmap = _load_workspace_map()
+    if workspace:
+        wmap[session_id] = workspace
+    else:
+        wmap.pop(session_id, None)
+    _save_workspace_map(wmap)
     return {"ok": True}
+
+
+@router.get("/workspace/folders")
+async def workspace_folders(path: str = Query("")):
+    """List folders for workspace picker. Supports sub-path browsing."""
+    import os
+
+    home = str(Path.home())
+    if not path:
+        base = home
+        scan_dir = home
+    else:
+        base = home
+        scan_dir = path
+
+    if not os.path.isdir(scan_dir):
+        return {"base": home, "current": scan_dir, "folders": []}
+
+    folders = []
+    try:
+        for entry in sorted(os.scandir(scan_dir), key=lambda e: e.name.lower()):
+            if not entry.is_dir():
+                continue
+            name = entry.name
+            # Skip hidden dirs and common noise
+            if name.startswith(".") or name in ("Library", "Applications", "System"):
+                continue
+            rel = os.path.relpath(entry.path, base)
+            folders.append({
+                "name": name,
+                "path": rel,
+                "fullPath": entry.path,
+            })
+    except PermissionError:
+        pass
+
+    # Limit to prevent huge responses
+    return {"base": base, "current": scan_dir, "folders": folders[:200]}
 
 
 @router.get("/sessions/{session_id}/usage")
