@@ -20,6 +20,7 @@ function formatCost(n: number): string {
 const maxTokens = computed(() =>
   Math.max(...usageStore.dailyUsage.map(d => d.tokens), 1),
 )
+const dailyUsageAsc = computed(() => [...usageStore.dailyUsage].reverse())
 </script>
 
 <script lang="ts">
@@ -32,7 +33,7 @@ import { computed } from 'vue'
 
     <div class="bar-chart">
       <div
-        v-for="d in usageStore.dailyUsage"
+        v-for="d in dailyUsageAsc"
         :key="d.date"
         class="bar-col"
       >
@@ -52,8 +53,8 @@ import { computed } from 'vue'
       </div>
     </div>
     <div class="bar-dates">
-      <span>{{ usageStore.dailyUsage[0]?.date.slice(5) }}</span>
-      <span>{{ usageStore.dailyUsage[usageStore.dailyUsage.length - 1]?.date.slice(5) }}</span>
+      <span>{{ dailyUsageAsc[0]?.date.slice(5) }}</span>
+      <span>{{ dailyUsageAsc[dailyUsageAsc.length - 1]?.date.slice(5) }}</span>
     </div>
 
     <div class="trend-table">
@@ -68,7 +69,7 @@ import { computed } from 'vue'
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in [...usageStore.dailyUsage].reverse().slice(0, 30)" :key="d.date">
+          <tr v-for="d in usageStore.dailyUsage.slice(0, 30)" :key="d.date">
             <td>{{ d.date }}</td>
             <td>{{ formatTokens(d.tokens) }}</td>
             <td>{{ formatTokens(d.cache) }}</td>

@@ -55,7 +55,7 @@ async function handleSave() {
 
 function formatTime(ts: number | null): string {
   if (!ts) return ''
-  return new Date(ts).toLocaleString([], {
+  return new Date(ts * 1000).toLocaleString([], {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -102,7 +102,7 @@ const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n
                     <line x1="16" y1="17" x2="8" y2="17" />
                   </svg>
                 </span>
-                <span class="section-title">{{ t('memory.myNotes') }}</span>
+                <span class="section-title">MEMORY.md</span>
                 <span v-if="data?.memory_mtime" class="section-mtime">{{ formatTime(data.memory_mtime) }}</span>
               </div>
               <NButton v-if="editingSection !== 'memory'" size="tiny" quaternary @click="startEdit('memory')">
@@ -147,7 +147,7 @@ const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n
                     <circle cx="12" cy="7" r="4" />
                   </svg>
                 </span>
-                <span class="section-title">{{ t('memory.userProfile') }}</span>
+                <span class="section-title">USER.md</span>
                 <span v-if="data?.user_mtime" class="section-mtime">{{ formatTime(data.user_mtime) }}</span>
               </div>
               <NButton v-if="editingSection !== 'user'" size="tiny" quaternary @click="startEdit('user')">
@@ -194,7 +194,7 @@ const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n
                     <line x1="15" y1="9" x2="15.01" y2="9" />
                   </svg>
                 </span>
-                <span class="section-title">{{ t('memory.soul') }}</span>
+                <span class="section-title">SOUL.md</span>
                 <span v-if="data?.soul_mtime" class="section-mtime">{{ formatTime(data.soul_mtime) }}</span>
               </div>
               <NButton v-if="editingSection !== 'soul'" size="tiny" quaternary @click="startEdit('soul')">

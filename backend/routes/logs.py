@@ -120,4 +120,4 @@ async def read_log(
                 continue
         entries.append(parsed)
 
-    return {"entries": entries}
+    return {"entries": entries[::-1]}
