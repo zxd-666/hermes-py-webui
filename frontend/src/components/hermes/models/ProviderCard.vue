@@ -7,6 +7,7 @@ import { useAppStore } from '@/stores/hermes/app'
 import { useChatStore } from '@/stores/hermes/chat'
 import { checkCopilotToken, disableCopilot } from '@/api/hermes/copilot-auth'
 import { useI18n } from 'vue-i18n'
+import ProviderFormModal from './ProviderFormModal.vue'
 
 const props = defineProps<{ provider: AvailableModelGroup }>()
 
@@ -21,17 +22,36 @@ const isCustom = computed(() => props.provider.provider.startsWith('custom:'))
 const isCopilot = computed(() => props.provider.provider === 'copilot')
 const displayName = computed(() => props.provider.label)
 const deleting = ref(false)
+const settingDefault = ref(false)
+const showEditModal = ref(false)
+const hasKey = computed(() => !!props.provider.api_key)
+
+async function handleEditSaved() {
+  showEditModal.value = false
+  await Promise.all([modelsStore.fetchProviders(), appStore.loadModels()])
+}
+
+async function handleSetDefault(modelId: string) {
+  settingDefault.value = true
+  try {
+    await modelsStore.setDefaultModel(modelId, props.provider.provider)
+    message.success(t('models.defaultSet', { model: modelId }))
+  } catch (e: any) {
+    message.error(e.message)
+  } finally {
+    settingDefault.value = false
+  }
+}
 
 async function handleDelete() {
   let copilotMsg = ''
   if (isCopilot.value) {
-    // 提前查 source，让用户清楚移除会不会影响 VS Code/gh CLI 等其他工具的登录态
     try {
       const status = await checkCopilotToken()
       if (status.source === 'env') copilotMsg = t('models.copilotDeleteHintEnv')
       else if (status.source === 'gh-cli') copilotMsg = t('models.copilotDeleteHintGhCli')
       else if (status.source === 'apps-json') copilotMsg = t('models.copilotDeleteHintAppsJson')
-    } catch { /* ignore — fall back to generic confirm copy */ }
+    } catch { /* ignore */ }
   }
   dialog.warning({
     title: t('models.deleteProvider'),
@@ -44,18 +64,12 @@ async function handleDelete() {
       deleting.value = true
       try {
         if (isCopilot.value) {
-          // Copilot 走显式 opt-in 模型：disable 把 enabled 置 false，
-          // 仅当 token 来自 ~/.hermes/.env 时才清掉，gh-cli / apps.json 不动。
           await disableCopilot()
-          // 服务端会在默认模型属于 copilot 时清掉 model.default，这里再清理本地
-          // 会话级 model/provider，避免 Chat 页继续显示已下架的 copilot 模型。
           chatStore.clearProviderFromSessions('copilot')
           await Promise.all([modelsStore.fetchProviders(), appStore.loadModels()])
         } else {
           await modelsStore.removeProvider(props.provider.provider)
         }
-        // 删完之后若已没有默认模型，自动从剩余 provider 里挑一个，避免 chat 页
-        // "无默认模型"的尴尬态。与 hermes CLI `model` 子命令的隐含行为对齐。
         if (!appStore.selectedModel && appStore.modelGroups.length > 0) {
           const first = appStore.modelGroups.find(g => g.models.length > 0)
           if (first) {
@@ -95,11 +109,20 @@ async function handleDelete() {
         <span class="info-label">{{ t('models.models') }}</span>
         <span class="info-value models-count">{{ provider.models.length }} {{ t('models.count') }}</span>
       </div>
+      <div class="info-row">
+        <span class="info-label">{{ t('models.apiKey') }}</span>
+        <span class="info-value" :class="{ 'has-key': hasKey }">
+          {{ hasKey ? '••••••••' : '—' }}
+        </span>
+      </div>
       <div class="models-list">
         <span
           v-for="model in provider.models.slice(0, 20)"
           :key="model"
           class="model-tag"
+          :class="{ 'model-tag-default': model === modelsStore.defaultModel }"
+          :title="model === modelsStore.defaultModel ? t('models.currentDefault') : t('models.clickToSetDefault')"
+          @click="model !== modelsStore.defaultModel && handleSetDefault(model)"
         >{{ model }}</span>
         <span v-if="provider.models.length > 20" class="model-tag model-tag-more">
           +{{ provider.models.length - 20 }} {{ t('models.more') }}
@@ -108,9 +131,17 @@ async function handleDelete() {
     </div>
 
     <div class="card-actions">
+      <NButton size="tiny" quaternary @click="showEditModal = true">{{ t('common.edit') }}</NButton>
       <NButton size="tiny" quaternary type="error" :loading="deleting" @click="handleDelete">{{ t('common.delete') }}</NButton>
     </div>
   </div>
+
+  <ProviderFormModal
+    v-if="showEditModal"
+    :edit-provider="provider"
+    @close="showEditModal = false"
+    @saved="handleEditSaved"
+  />
 </template>
 
 <style scoped lang="scss">
@@ -183,6 +214,11 @@ async function handleDelete() {
 .info-value {
   font-size: 12px;
   color: $text-secondary;
+
+  &.has-key {
+    color: $success;
+    font-family: $font-code;
+  }
 }
 
 .mono {
@@ -223,6 +259,18 @@ async function handleDelete() {
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
+
+  &:hover:not(&-default) {
+    background: rgba(var(--accent-primary-rgb), 0.16);
+    cursor: pointer;
+  }
+
+  &-default {
+    background: rgba(var(--success-rgb), 0.15);
+    color: $success;
+    font-weight: 600;
+  }
 
   &-more {
     background: rgba(var(--accent-primary-rgb), 0.15);
