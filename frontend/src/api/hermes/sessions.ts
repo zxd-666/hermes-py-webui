@@ -134,6 +134,27 @@ export interface UsageStatsResponse {
     sessions: number
     cost: number
   }>
+  source_usage?: Array<{
+    source: string
+    sessions: number
+    input_tokens: number
+    output_tokens: number
+    cache_read_tokens: number
+    cache_write_tokens: number
+    reasoning_tokens: number
+  }>
+  top_sessions?: Array<{
+    id: string
+    source: string
+    title: string | null
+    model: string
+    sessions: number
+    input_tokens: number
+    output_tokens: number
+    cache_read_tokens: number
+    started_at: number
+    last_active: number
+  }>
 }
 
 export async function fetchUsageStats(days = 30): Promise<UsageStatsResponse> {

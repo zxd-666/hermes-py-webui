@@ -670,6 +670,14 @@ export default {
     sessions: '会话',
     cost: '费用',
     noData: '暂无用量数据',
+    sourceBreakdown: '来源分布',
+    topSessions: '输入 Token Top 会话',
+    untitled: '无标题',
+  },
+  // 频道
+  channels: {
+    activeChannels: '活跃',
+    lastUpdated: '更新时间',
   },
   // 文件管理
   files: {

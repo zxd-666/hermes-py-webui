@@ -19,6 +19,27 @@ interface ModelUsage {
   sessions: number
 }
 
+interface SourceUsage {
+  source: string
+  sessions: number
+  inputTokens: number
+  outputTokens: number
+  cacheTokens: number
+  totalTokens: number
+}
+
+interface TopSession {
+  id: string
+  source: string
+  title: string | null
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheTokens: number
+  startedAt: number
+  lastActive: number
+}
+
 export const useUsageStore = defineStore('usage', () => {
   const stats = ref<UsageStatsResponse | null>(null)
   const isLoading = ref(false)
@@ -65,6 +86,33 @@ export const useUsageStore = defineStore('usage', () => {
 
   const dailyUsage = computed<DailyUsage[]>(() => stats.value?.daily_usage ?? [])
 
+  const sourceUsage = computed<SourceUsage[]>(() => {
+    if (!stats.value?.source_usage) return []
+    return stats.value.source_usage.map(s => ({
+      source: s.source,
+      sessions: s.sessions,
+      inputTokens: s.input_tokens,
+      outputTokens: s.output_tokens,
+      cacheTokens: s.cache_read_tokens + s.cache_write_tokens,
+      totalTokens: s.input_tokens + s.output_tokens,
+    })).sort((a, b) => b.totalTokens - a.totalTokens)
+  })
+
+  const topSessions = computed<TopSession[]>(() => {
+    if (!stats.value?.top_sessions) return []
+    return stats.value.top_sessions.map(s => ({
+      id: s.id,
+      source: s.source,
+      title: s.title,
+      model: s.model,
+      inputTokens: s.input_tokens,
+      outputTokens: s.output_tokens,
+      cacheTokens: s.cache_read_tokens,
+      startedAt: s.started_at,
+      lastActive: s.last_active,
+    }))
+  })
+
   const avgSessionsPerDay = computed(() => {
     if (!stats.value || stats.value.daily_usage.length === 0) return 0
     const daysWithActivity = stats.value.daily_usage.filter(d => d.sessions > 0).length
@@ -86,6 +134,8 @@ export const useUsageStore = defineStore('usage', () => {
     estimatedCost,
     modelUsage,
     dailyUsage,
+    sourceUsage,
+    topSessions,
     avgSessionsPerDay,
   }
 })

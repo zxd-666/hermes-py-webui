@@ -4,7 +4,9 @@ import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/hermes/usage'
 import StatCards from '@/components/hermes/usage/StatCards.vue'
+import SourceBreakdown from '@/components/hermes/usage/SourceBreakdown.vue'
 import ModelBreakdown from '@/components/hermes/usage/ModelBreakdown.vue'
+import TopSessions from '@/components/hermes/usage/TopSessions.vue'
 import DailyTrend from '@/components/hermes/usage/DailyTrend.vue'
 
 const { t } = useI18n()
@@ -31,7 +33,9 @@ onMounted(() => {
 
       <template v-else-if="usageStore.hasData">
         <StatCards />
+        <SourceBreakdown />
         <ModelBreakdown />
+        <TopSessions />
         <DailyTrend />
       </template>
 

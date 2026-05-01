@@ -668,6 +668,14 @@ export default {
     sessions: 'Sessions',
     cost: 'Cost',
     noData: 'No usage data',
+    sourceBreakdown: 'Source Breakdown',
+    topSessions: 'Top Sessions by Input Tokens',
+    untitled: 'Untitled',
+  },
+  // Channels
+  channels: {
+    activeChannels: 'Active',
+    lastUpdated: 'Updated',
   },
   // Files
   files: {
