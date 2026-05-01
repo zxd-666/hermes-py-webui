@@ -32,11 +32,11 @@ onMounted(() => {
       </div>
 
       <template v-else-if="usageStore.hasData">
-        <StatCards />
-        <SourceBreakdown />
-        <ModelBreakdown />
-        <TopSessions />
-        <DailyTrend />
+        <div class="usage-section"><StatCards /></div>
+        <div class="usage-section"><SourceBreakdown /></div>
+        <div class="usage-section"><ModelBreakdown /></div>
+        <div class="usage-section"><TopSessions /></div>
+        <div class="usage-section"><DailyTrend /></div>
       </template>
 
       <div v-else class="usage-empty">
@@ -68,6 +68,10 @@ onMounted(() => {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+.usage-section + .usage-section {
+  margin-top: 10px;
 }
 
 .usage-loading,

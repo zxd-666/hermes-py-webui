@@ -44,8 +44,8 @@ function formatTokens(n: number): string {
   border: 1px solid $border-color;
   border-radius: $radius-md;
   padding: 16px;
-  margin-bottom: 20px;
 }
+
 
 .section-title {
   font-size: 13px;

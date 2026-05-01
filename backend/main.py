@@ -97,6 +97,7 @@ if STATIC_DIR.exists():
 
     @app.get("/favicon.ico")
     @app.get("/favicon.svg")
+    @app.get("/favicon.jpg")
     @app.get("/icons.svg")
     @app.get("/logo.png")
     async def static_root_file(request: Request):
