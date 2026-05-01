@@ -60,6 +60,22 @@ const modelOptions = computed(() =>
   })),
 )
 
+// Load profile-specific providers and detail on mount
+onMounted(async () => {
+  await Promise.all([
+    fetchProviders(),
+    fetchProfileDetail(),
+  ])
+})
+
+async function fetchProfileDetail() {
+  try {
+    detail.value = await profilesStore.fetchProfileDetail(props.profile.name)
+  } catch {
+    // silent
+  }
+}
+
 async function fetchProviders() {
   providersLoading.value = true
   try {
@@ -75,18 +91,14 @@ async function toggleDetail() {
     return
   }
   expanded.value = true
-  detailLoading.value = true
-  providersLoading.value = true
-  try {
-    const [det, provs] = await Promise.all([
-      profilesStore.fetchProfileDetail(props.profile.name),
-      profilesStore.fetchProfileProviders(props.profile.name),
-    ])
-    detail.value = det
-    profileProviders.value = provs
-  } finally {
-    detailLoading.value = false
-    providersLoading.value = false
+  // Refresh detail (providers already loaded on mount)
+  if (!detail.value) {
+    detailLoading.value = true
+    try {
+      detail.value = await profilesStore.fetchProfileDetail(props.profile.name)
+    } finally {
+      detailLoading.value = false
+    }
   }
 }
 
