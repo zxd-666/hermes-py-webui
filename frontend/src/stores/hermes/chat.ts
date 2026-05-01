@@ -159,7 +159,7 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
 function mapHermesSession(s: SessionSummary): Session {
   return {
     id: s.id,
-    title: s.title || '',
+    title: s.title || s.preview || '',
     source: s.source || undefined,
     messages: [],
     createdAt: Math.round(s.started_at * 1000),
