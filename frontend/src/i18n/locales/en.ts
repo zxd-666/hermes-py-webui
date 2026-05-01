@@ -417,6 +417,9 @@ export default {
     skills: 'Skills',
     hasEnv: 'Has .env',
     hasSoulMd: 'Has soul.md',
+    avatar: 'Avatar',
+    uploadAvatar: 'Click to upload avatar',
+    removeAvatar: 'Remove avatar?',
     noProfiles: 'No profiles found. Create one to get started.',
   },
 

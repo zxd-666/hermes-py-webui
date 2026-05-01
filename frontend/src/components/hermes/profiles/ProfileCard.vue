@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { NButton, NTag, NSpin, NSelect, useMessage, useDialog } from 'naive-ui'
-import type { HermesProfile, HermesProfileDetail } from '@/api/hermes/profiles'
-import { useProfilesStore } from '@/stores/hermes/profiles'
-import { useModelsStore } from '@/stores/hermes/models'
+import { ref, computed, onMounted, watch } from 'vue'
+import { NButton, NTag, NSpin, NSelect, NPopconfirm, useMessage, useDialog } from 'naive-ui'
+import type { HermesProfile, HermesProfileDetail, ProfileProvider } from '@/api/hermes/profiles'
+import { getProfileAvatarUrl } from '@/api/hermes/profiles'
 import { updateProfileModel } from '@/api/hermes/profiles'
+import { useProfilesStore } from '@/stores/hermes/profiles'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ profile: HermesProfile }>()
@@ -12,7 +12,6 @@ const emit = defineEmits<{ rename: [name: string] }>()
 
 const { t } = useI18n()
 const profilesStore = useProfilesStore()
-const modelsStore = useModelsStore()
 const message = useMessage()
 const dialog = useDialog()
 
@@ -21,30 +20,36 @@ const detailLoading = ref(false)
 const exporting = ref(false)
 const switching = ref(false)
 const savingModel = ref(false)
+const uploadingAvatar = ref(false)
 const detail = ref<HermesProfileDetail | null>(null)
+
+// Profile-level providers (fetched per-card, not global)
+const profileProviders = ref<ProfileProvider[]>([])
+const providersLoading = ref(false)
 
 const isDefault = computed(() => props.profile.name === 'default')
 
-onMounted(() => {
-  if (modelsStore.providers.length === 0) {
-    modelsStore.fetchProviders()
+const avatarUrl = computed(() => {
+  if (props.profile.hasAvatar) {
+    return getProfileAvatarUrl(props.profile.name)
   }
+  return null
 })
 
 const providerOptions = computed(() =>
-  modelsStore.providers.map(p => ({
+  profileProviders.value.map(p => ({
     label: p.label,
     value: p.provider,
-  }))
+  })),
 )
 
 const currentProvider = computed(() => {
   if (detail.value?.provider) return detail.value.provider
-  return modelsStore.providers.find(p => p.models.includes(props.profile.model))?.provider || ''
+  return ''
 })
 
 const currentModels = computed(() => {
-  const prov = modelsStore.providers.find(p => p.provider === currentProvider.value)
+  const prov = profileProviders.value.find(p => p.provider === currentProvider.value)
   return prov ? prov.models : []
 })
 
@@ -52,8 +57,17 @@ const modelOptions = computed(() =>
   currentModels.value.map(m => ({
     label: m,
     value: m,
-  }))
+  })),
 )
+
+async function fetchProviders() {
+  providersLoading.value = true
+  try {
+    profileProviders.value = await profilesStore.fetchProfileProviders(props.profile.name)
+  } finally {
+    providersLoading.value = false
+  }
+}
 
 async function toggleDetail() {
   if (expanded.value) {
@@ -62,15 +76,22 @@ async function toggleDetail() {
   }
   expanded.value = true
   detailLoading.value = true
+  providersLoading.value = true
   try {
-    detail.value = await profilesStore.fetchProfileDetail(props.profile.name)
+    const [det, provs] = await Promise.all([
+      profilesStore.fetchProfileDetail(props.profile.name),
+      profilesStore.fetchProfileProviders(props.profile.name),
+    ])
+    detail.value = det
+    profileProviders.value = provs
   } finally {
     detailLoading.value = false
+    providersLoading.value = false
   }
 }
 
 async function handleProviderChange(providerKey: string) {
-  const prov = modelsStore.providers.find(p => p.provider === providerKey)
+  const prov = profileProviders.value.find(p => p.provider === providerKey)
   if (!prov || prov.models.length === 0) return
   const model = prov.models[0]
   await handleModelSave(model, providerKey)
@@ -142,12 +163,75 @@ async function handleExport() {
     exporting.value = false
   }
 }
+
+// --- Avatar ---
+
+const avatarInput = ref<HTMLInputElement | null>(null)
+
+function triggerAvatarUpload() {
+  avatarInput.value?.click()
+}
+
+async function handleAvatarChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  if (file.size > 512 * 1024) {
+    message.error('Image too large (max 512KB)')
+    return
+  }
+
+  uploadingAvatar.value = true
+  try {
+    const ok = await profilesStore.uploadAvatar(props.profile.name, file)
+    if (ok) {
+      message.success(t('common.done'))
+      // Bust avatar cache by appending timestamp
+      if (detail.value) {
+        detail.value = { ...detail.value, hasAvatar: true }
+      }
+    } else {
+      message.error(t('common.failed'))
+    }
+  } finally {
+    uploadingAvatar.value = false
+    input.value = ''
+  }
+}
+
+async function handleAvatarDelete() {
+  const ok = await profilesStore.deleteAvatar(props.profile.name)
+  if (ok) {
+    message.success(t('common.done'))
+    if (detail.value) {
+      detail.value = { ...detail.value, hasAvatar: false }
+    }
+  }
+}
 </script>
 
 <template>
   <div class="profile-card" :class="{ active: profile.active }">
     <div class="card-header">
-      <h3 class="profile-name">{{ profile.name }}</h3>
+      <div class="profile-identity">
+        <div
+          class="profile-avatar"
+          :class="{ 'has-image': avatarUrl }"
+          @click="triggerAvatarUpload"
+          :title="t('profiles.uploadAvatar')"
+        >
+          <img v-if="avatarUrl" :src="avatarUrl + '?t=' + Date.now()" alt="" class="avatar-img" />
+          <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="avatar-placeholder">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span v-if="uploadingAvatar" class="avatar-loading">
+            <NSpin size="12" />
+          </span>
+        </div>
+        <h3 class="profile-name">{{ profile.name }}</h3>
+      </div>
       <NTag v-if="profile.active" size="tiny" type="success" :bordered="false">
         {{ t('profiles.active') }}
       </NTag>
@@ -160,7 +244,7 @@ async function handleExport() {
           :value="currentProvider"
           :options="providerOptions"
           size="tiny"
-          :loading="savingModel"
+          :loading="savingModel || providersLoading"
           style="max-width: 180px"
           @update:value="handleProviderChange"
         />
@@ -214,6 +298,23 @@ async function handleExport() {
             <span class="info-label">{{ t('profiles.hasSoulMd') }}</span>
             <span class="info-value">{{ detail.hasSoulMd ? t('common.yes') : t('common.no') }}</span>
           </div>
+          <div class="info-row">
+            <span class="info-label">{{ t('profiles.avatar') }}</span>
+            <span class="info-value">
+              <NTag v-if="detail.hasAvatar" size="tiny" :bordered="false">
+                ✓
+                <template #avatar>
+                  <NPopconfirm @positive-click="handleAvatarDelete">
+                    <template #trigger>
+                      <NButton text size="tiny" class="avatar-remove-btn">×</NButton>
+                    </template>
+                    {{ t('profiles.removeAvatar') }}
+                  </NPopconfirm>
+                </template>
+              </NTag>
+              <span v-else class="text-muted">{{ t('common.no') }}</span>
+            </span>
+          </div>
         </template>
       </NSpin>
     </div>
@@ -249,6 +350,15 @@ async function handleExport() {
         {{ t('profiles.export') }}
       </NButton>
     </div>
+
+    <!-- Hidden file input for avatar upload -->
+    <input
+      ref="avatarInput"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      class="hidden-input"
+      @change="handleAvatarChange"
+    />
   </div>
 </template>
 
@@ -276,6 +386,61 @@ async function handleExport() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  background-color: rgba(var(--accent-primary-rgb), 0.08);
+  color: $text-muted;
+  transition: background-color $transition-fast;
+
+  &:hover {
+    background-color: rgba(var(--accent-primary-rgb), 0.15);
+  }
+
+  &.has-image {
+    background: none;
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-placeholder {
+    flex-shrink: 0;
+  }
+
+  .avatar-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: $radius-sm;
+  }
+}
+
+.hidden-input {
+  display: none;
 }
 
 .profile-name {
@@ -345,6 +510,19 @@ async function handleExport() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.text-muted {
+  color: $text-muted;
+}
+
+.avatar-remove-btn {
+  padding: 0 2px;
+  color: $text-muted;
+
+  &:hover {
+    color: $error;
+  }
 }
 
 .mono {

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import * as profilesApi from '@/api/hermes/profiles'
-import type { HermesProfile, HermesProfileDetail } from '@/api/hermes/profiles'
+import type { HermesProfile, HermesProfileDetail, ProfileProvider, ProfileProvidersResponse } from '@/api/hermes/profiles'
 
 const ACTIVE_PROFILE_STORAGE_KEY = 'hermes_active_profile_name'
 
@@ -11,8 +11,16 @@ export const useProfilesStore = defineStore('profiles', () => {
   const activeProfileName = ref<string | null>(localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY))
   const activeProfile = ref<HermesProfile | null>(null)
   const detailMap = ref<Record<string, HermesProfileDetail>>({})
+  const providerMap = ref<Record<string, ProfileProvider[]>>({})
   const loading = ref(false)
   const switching = ref(false)
+
+  const activeAvatar = computed(() => {
+    const name = activeProfile.value?.name
+    if (!name) return null
+    const p = profiles.value.find(p => p.name === name)
+    return (p?.hasAvatar) ? profilesApi.getProfileAvatarUrl(name) : null
+  })
 
   async function fetchProfiles() {
     loading.value = true
@@ -109,11 +117,42 @@ export const useProfilesStore = defineStore('profiles', () => {
     return ok
   }
 
+  async function fetchProfileProviders(name: string): Promise<ProfileProvider[]> {
+    if (providerMap.value[name]) return providerMap.value[name]
+    try {
+      const res: ProfileProvidersResponse = await profilesApi.fetchProfileProviders(name)
+      providerMap.value[name] = res.groups
+      return res.groups
+    } catch {
+      return []
+    }
+  }
+
+  async function uploadAvatar(name: string, file: File): Promise<boolean> {
+    const ok = await profilesApi.uploadProfileAvatar(name, file)
+    if (ok) {
+      const p = profiles.value.find(p => p.name === name)
+      if (p) p.hasAvatar = true
+    }
+    return ok
+  }
+
+  async function deleteAvatar(name: string): Promise<boolean> {
+    const ok = await profilesApi.deleteProfileAvatar(name)
+    if (ok) {
+      const p = profiles.value.find(p => p.name === name)
+      if (p) p.hasAvatar = false
+    }
+    return ok
+  }
+
   return {
     profiles,
     activeProfile,
     activeProfileName,
+    activeAvatar,
     detailMap,
+    providerMap,
     loading,
     switching,
     fetchProfiles,
@@ -124,5 +163,8 @@ export const useProfilesStore = defineStore('profiles', () => {
     switchProfile,
     exportProfile,
     importProfile,
+    fetchProfileProviders,
+    uploadAvatar,
+    deleteAvatar,
   }
 })

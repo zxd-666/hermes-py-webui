@@ -6,6 +6,7 @@ export interface HermesProfile {
   model: string
   gateway: string
   alias: string
+  hasAvatar?: boolean
 }
 
 export interface HermesProfileDetail {
@@ -17,6 +18,21 @@ export interface HermesProfileDetail {
   skills: number
   hasEnv: boolean
   hasSoulMd: boolean
+  hasAvatar?: boolean
+}
+
+export interface ProfileProvider {
+  provider: string
+  label: string
+  base_url: string
+  models: string[]
+  api_key: string
+}
+
+export interface ProfileProvidersResponse {
+  default: string
+  default_provider: string
+  groups: ProfileProvider[]
 }
 
 export async function fetchProfiles(): Promise<HermesProfile[]> {
@@ -151,4 +167,49 @@ export async function updateProfileModel(name: string, model: string, provider: 
   } catch {
     return false
   }
+}
+
+// --- Avatar ---
+
+export function getProfileAvatarUrl(name: string): string {
+  const baseUrl = getBaseUrlValue()
+  return `${baseUrl}/api/hermes/profiles/${encodeURIComponent(name)}/avatar`
+}
+
+export async function uploadProfileAvatar(name: string, file: File): Promise<boolean> {
+  try {
+    const baseUrl = getBaseUrlValue()
+    const token = getApiKey()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const res = await fetch(`${baseUrl}/api/hermes/profiles/${encodeURIComponent(name)}/avatar`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+export async function deleteProfileAvatar(name: string): Promise<boolean> {
+  try {
+    await request(`/api/hermes/profiles/${encodeURIComponent(name)}/avatar`, {
+      method: 'DELETE',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// --- Profile-level providers ---
+
+export async function fetchProfileProviders(name: string): Promise<ProfileProvidersResponse> {
+  return request<ProfileProvidersResponse>(`/api/hermes/profiles/${encodeURIComponent(name)}/providers`)
 }

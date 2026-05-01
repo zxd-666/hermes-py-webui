@@ -409,6 +409,9 @@ export default {
     skills: '技能',
     hasEnv: '有 .env',
     hasSoulMd: '有 soul.md',
+    avatar: '头像',
+    uploadAvatar: '点击上传头像',
+    removeAvatar: '确定删除头像？',
     noProfiles: '暂无配置，创建一个开始吧。',
   },
 

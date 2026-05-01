@@ -9,6 +9,7 @@ import MarkdownRenderer from "./MarkdownRenderer.vue";
 import { parseThinking, countThinkingChars } from "@/utils/thinking-parser";
 import { useChatStore } from "@/stores/hermes/chat";
 import { useSettingsStore } from "@/stores/hermes/settings";
+import { useProfilesStore } from "@/stores/hermes/profiles";
 import {
   copyTextToClipboard,
   handleCodeBlockCopyClick,
@@ -27,6 +28,9 @@ const previewUrl = ref<string | null>(null);
 
 const chatStore = useChatStore();
 const settingsStore = useSettingsStore();
+const profilesStore = useProfilesStore();
+
+const assistantAvatar = computed(() => profilesStore.activeAvatar || '/logo.png');
 
 // Copy entire bubble content
 const copyableContent = computed(() => {
@@ -348,7 +352,7 @@ const renderedToolResult = computed(() => {
       <div class="msg-body">
         <img
           v-if="message.role === 'assistant'"
-          src="/logo.png"
+          :src="assistantAvatar"
           alt="Hermes"
           class="msg-avatar"
         />

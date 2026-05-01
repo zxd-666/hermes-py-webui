@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { NButton, useMessage } from "naive-ui";
 import { useAppStore } from "@/stores/hermes/app";
+import { useProfilesStore } from "@/stores/hermes/profiles";
 import ProfileSelector from "./ProfileSelector.vue";
 import LanguageSwitch from "./LanguageSwitch.vue";
 import ThemeSwitch from "./ThemeSwitch.vue";
@@ -14,9 +15,10 @@ const message = useMessage();
 const route = useRoute();
 const router = useRouter();
 const appStore = useAppStore();
+const profilesStore = useProfilesStore();
 const { openSessionSearch } = useSessionSearch();
 const selectedKey = computed(() => route.name as string);
-const logoPath = '/logo.png';
+const logoPath = computed(() => profilesStore.activeAvatar || '/logo.png');
 
 const collapsedGroups = reactive<Record<string, boolean>>({});
 
@@ -51,7 +53,7 @@ function handleLogout() {
 <template>
   <aside class="sidebar" :class="{ open: appStore.sidebarOpen }">
     <div class="sidebar-logo">
-      <img :src="logoPath" alt="Hermes" class="logo-img" />
+      <img :src="logoPath" alt="Hermes" class="logo-img" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
       <ProfileSelector />
     </div>
 
@@ -285,6 +287,11 @@ function handleLogout() {
   height: 28px;
   border-radius: 0;
   flex-shrink: 0;
+
+  &.avatar-logo {
+    border-radius: 6px;
+    object-fit: cover;
+  }
 }
 
 .sidebar-logo {
