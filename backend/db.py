@@ -147,6 +147,38 @@ def get_usage_stats(days: int = 30) -> dict:
             GROUP BY date ORDER BY date DESC
         """, (since,)).fetchall()
         result["daily_usage"] = [_row_to_dict(r) for r in daily_rows]
+
+        # Source usage breakdown
+        source_rows = conn.execute("""
+            SELECT
+                COALESCE(source, 'unknown') as source,
+                COALESCE(SUM(input_tokens), 0) as input_tokens,
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+                COALESCE(SUM(cache_write_tokens), 0) as cache_write_tokens,
+                COALESCE(SUM(reasoning_tokens), 0) as reasoning_tokens,
+                COUNT(*) as sessions
+            FROM sessions WHERE started_at >= ?
+            GROUP BY source ORDER BY sessions DESC
+        """, (since,)).fetchall()
+        result["source_usage"] = [_row_to_dict(r) for r in source_rows]
+
+        # Top sessions by token usage
+        top_rows = conn.execute("""
+            SELECT
+                id, title, source, model,
+                COALESCE(input_tokens, 0) as input_tokens,
+                COALESCE(output_tokens, 0) as output_tokens,
+                COALESCE(cache_read_tokens, 0) as cache_read_tokens,
+                COALESCE(cache_write_tokens, 0) as cache_write_tokens,
+                COALESCE(reasoning_tokens, 0) as reasoning_tokens,
+                started_at, message_count, tool_call_count
+            FROM sessions WHERE started_at >= ?
+            ORDER BY (COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) DESC
+            LIMIT 10
+        """, (since,)).fetchall()
+        result["top_sessions"] = [_row_to_dict(r) for r in top_rows]
+
         result["period_days"] = days
         return result
     finally:

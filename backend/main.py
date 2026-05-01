@@ -31,6 +31,7 @@ from .routes.gateways import router as gateways_router
 from .routes.auth_providers import router as auth_providers_router
 from .routes.weixin import router as weixin_router
 from .routes.terminal import router as terminal_router
+from .routes.channels import router as channels_router
 from .routes.auth import check_auth, router as auth_router
 from .routes.files import upload_files as _upload_files
 
@@ -82,6 +83,7 @@ app.include_router(gateways_router)
 app.include_router(auth_providers_router)
 app.include_router(weixin_router)
 app.include_router(terminal_router)
+app.include_router(channels_router)
 
 # Chat attachment upload — frontend sends POST /upload with FormData
 app.post("/upload")(_upload_files)
