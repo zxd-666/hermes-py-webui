@@ -140,3 +140,15 @@ export async function importProfile(file: File): Promise<boolean> {
     return false
   }
 }
+
+export async function updateProfileModel(name: string, model: string, provider: string): Promise<boolean> {
+  try {
+    await request(`/api/hermes/profiles/${encodeURIComponent(name)}/model`, {
+      method: 'PATCH',
+      body: JSON.stringify({ model, provider }),
+    })
+    return true
+  } catch {
+    return false
+  }
+}

@@ -221,3 +221,31 @@ async def import_profile(file: UploadFile = File(...)):
     finally:
         if tmp.exists():
             tmp.unlink()
+
+
+@router.patch("/{name}/model")
+async def update_profile_model(name: str, body: dict):
+    """Update model config for a profile."""
+    target = PROFILES_DIR / name
+    if not target.is_dir():
+        return JSONResponse(status_code=404, content={"error": "profile not found"})
+
+    import yaml
+
+    cfg_path = target / "config.yaml"
+    config = {}
+    if cfg_path.exists():
+        try:
+            with open(cfg_path) as f:
+                config = yaml.safe_load(f) or {}
+        except Exception:
+            config = {}
+
+    config.setdefault("model", {})
+    config["model"]["default"] = body.get("model", "")
+    config["model"]["provider"] = body.get("provider", "")
+
+    with open(cfg_path, "w") as f:
+        yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+
+    return {"ok": True}

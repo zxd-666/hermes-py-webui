@@ -1,7 +1,14 @@
 """Config endpoints: read/write hermes config.yaml, model management, providers."""
 import asyncio
+import sys
+from pathlib import Path as _P
 from fastapi import APIRouter, Query
 from typing import Optional
+
+# Ensure hermes_cli is importable from the hermes-agent install directory
+_HERMES_HOME = _P.home() / ".hermes" / "hermes-agent"
+if str(_HERMES_HOME) not in sys.path:
+    sys.path.insert(0, str(_HERMES_HOME))
 
 router = APIRouter(prefix="/api/hermes", tags=["config"])
 
@@ -118,54 +125,126 @@ async def update_default_model(body: dict):
 
 @router.get("/available-models")
 async def get_available_models():
-    """Get all available models by querying configured providers."""
+    """Get all available models.
+
+    Discovers providers from three sources:
+    1. credentials_pool (in config.yaml) — user-added providers
+    2. .env API keys — builtin providers with keys configured via hermes CLI
+    3. Fallback — ensures the current default model is always visible
+    """
+    from pathlib import Path as P
+
     cfg = _load_hermes_config()
     model_cfg = cfg.get("model", {})
     default = model_cfg.get("default", "")
     default_provider = model_cfg.get("provider", "")
 
-    # Build groups from credentials pool
-    pool = cfg.get("credentials_pool", {})
     groups = []
     all_providers = []
+    seen = set()
 
-    if pool:
-        for pool_key, pool_cfg in pool.items():
-            if not isinstance(pool_cfg, dict):
-                continue
-            base_url = pool_cfg.get("base_url", "")
-            api_key = pool_cfg.get("api_key", "")
-            models = pool_cfg.get("models", [])
-            if not models and pool_cfg.get("model"):
-                models = [pool_cfg["model"]]
-
-            label = pool_key
-            if ":" in pool_key:
-                label = pool_key.split(":", 1)[1]
-
-            group = {
-                "provider": pool_key,
-                "label": label,
-                "base_url": base_url,
-                "models": models,
-                "api_key": api_key,
-            }
-            all_providers.append(group)
-
-            if pool_key == default_provider or not pool_key.startswith("custom:"):
-                groups.append(group)
-    else:
-        # Fallback: single provider
-        base_url = model_cfg.get("base_url", "")
-        group = {
-            "provider": default_provider,
-            "label": default_provider,
+    def add_group(provider: str, label: str, base_url: str,
+                  models: list, api_key: str):
+        if provider in seen:
+            return
+        seen.add(provider)
+        g = {
+            "provider": provider,
+            "label": label,
             "base_url": base_url,
-            "models": [default] if default else [],
-            "api_key": "",
+            "models": models,
+            "api_key": api_key,
         }
-        groups.append(group)
-        all_providers.append(group)
+        all_providers.append(g)
+        groups.append(g)
+
+    # --- 1a. custom_providers (Hermes CLI registry) ---
+    for cp in cfg.get("custom_providers", []):
+        if not isinstance(cp, dict):
+            continue
+        name = cp.get("name", "")
+        if not name:
+            continue
+        pool_key = f"custom:{name}"
+        base_url = cp.get("base_url", "")
+        api_key = cp.get("api_key", "") or cp.get("key_env", "")
+        models = [cp["model"]] if cp.get("model") else []
+        add_group(pool_key, name, base_url, models, api_key)
+
+    # --- 1b. credentials_pool providers ---
+    pool = cfg.get("credentials_pool", {})
+    for pool_key, pool_cfg in pool.items():
+        if not isinstance(pool_cfg, dict):
+            continue
+        base_url = pool_cfg.get("base_url", "")
+        api_key = pool_cfg.get("api_key", "")
+        models = pool_cfg.get("models", [])
+        if not models and pool_cfg.get("model"):
+            models = [pool_cfg["model"]]
+        label = pool_key.split(":", 1)[1] if ":" in pool_key else pool_key
+        add_group(pool_key, label, base_url, models, api_key)
+
+    # --- 2. .env API keys → builtin providers ---
+    env_path = P.home() / ".hermes" / ".env"
+    env_vars: dict[str, str] = {}
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, _, v = line.partition("=")
+                env_vars[k.strip()] = v.strip()
+
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY
+    except ImportError:
+        PROVIDER_REGISTRY = {}
+
+    try:
+        from hermes_cli.models import _PROVIDER_MODELS
+    except ImportError:
+        _PROVIDER_MODELS = {}
+
+    for pk, pinfo in PROVIDER_REGISTRY.items():
+        if pk in seen:
+            continue
+        if pinfo.auth_type != "api_key":
+            continue
+        # Check if any env var has a value
+        has_key = any(
+            env_vars.get(ev, "").strip() not in ("", "#")
+            for ev in pinfo.api_key_env_vars
+        )
+        if not has_key:
+            continue
+        base_url = pinfo.inference_base_url
+        if pinfo.base_url_env_var and env_vars.get(pinfo.base_url_env_var, "").strip():
+            base_url = env_vars[pinfo.base_url_env_var].strip()
+        # Resolve api_key for display (masked)
+        api_key_val = ""
+        for ev in pinfo.api_key_env_vars:
+            if env_vars.get(ev, "").strip():
+                api_key_val = "***"
+                break
+        # Model list from _PROVIDER_MODELS registry
+        catalog = _PROVIDER_MODELS.get(pk, [])
+        models = list(catalog) if isinstance(catalog, (list, tuple)) else []
+        label = pinfo.name
+        add_group(pk, label, base_url, models, api_key_val)
+
+    # --- 3. Ensure default model is visible ---
+    if default and not any(default in g.get("models", []) for g in groups):
+        label = default_provider
+        if ":" in (label or ""):
+            label = label.split(":", 1)[1]
+        add_group(
+            default_provider or default,
+            label or default,
+            model_cfg.get("base_url", ""),
+            [default],
+            "",
+        )
 
     return {
         "default": default,
@@ -177,18 +256,25 @@ async def get_available_models():
 
 @router.post("/config/providers")
 async def add_provider(body: dict):
-    """Add a custom provider to the credentials pool."""
+    """Add a provider to the credentials pool."""
     name = body.get("name", "")
     base_url = body.get("base_url", "")
     api_key = body.get("api_key", "")
     model = body.get("model", "")
+    provider_key = body.get("providerKey")
 
     if not name:
         return {"error": "provider name required"}
 
     cfg = _load_hermes_config()
     pool = cfg.get("credentials_pool", {})
-    pool_key = f"custom:{name}"
+
+    # Preset provider: use registry key as pool_key (e.g. "zai", "anthropic")
+    # Custom provider: prefix with "custom:" (e.g. "custom:My Provider")
+    if provider_key:
+        pool_key = provider_key
+    else:
+        pool_key = f"custom:{name}"
 
     pool[pool_key] = {
         "base_url": base_url,

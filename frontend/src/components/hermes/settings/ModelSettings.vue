@@ -1,127 +1,64 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NSpin, NEmpty, useMessage } from 'naive-ui'
+import { NButton, NSpin, NEmpty } from 'naive-ui'
 import { useModelsStore } from '@/stores/hermes/models'
-import { updateProvider } from '@/api/hermes/system'
 import { useI18n } from 'vue-i18n'
+import ProvidersPanel from '@/components/hermes/models/ProvidersPanel.vue'
+import ProviderFormModal from '@/components/hermes/models/ProviderFormModal.vue'
+import { useAppStore } from '@/stores/hermes/app'
+import { checkCopilotToken } from '@/api/hermes/copilot-auth'
 
 const { t } = useI18n()
 const modelsStore = useModelsStore()
-const message = useMessage()
+const appStore = useAppStore()
+const showModal = ref(false)
 
-const savingKey = ref<string | null>(null)
-const editKeys = ref<Record<string, string>>({})
-
-onMounted(() => {
+onMounted(async () => {
+  try { await checkCopilotToken() } catch { /* ignore */ }
   if (modelsStore.providers.length === 0) {
     modelsStore.fetchProviders()
   }
 })
 
-const isCustom = (provider: string) => provider.startsWith('custom:')
-
-function getEditKey(provider: string): string {
-  if (!(provider in editKeys.value)) {
-    const g = modelsStore.providers.find(p => p.provider === provider)
-    editKeys.value[provider] = g?.api_key || ''
-  }
-  return editKeys.value[provider]
+function openCreateModal() {
+  showModal.value = true
 }
 
-async function handleSaveApiKey(providerKey: string) {
-  const key = getEditKey(providerKey)
-  if (!key.trim()) {
-    message.warning(t('settings.models.apiKeyPlaceholder'))
-    return
-  }
-  savingKey.value = providerKey
-  try {
-    await updateProvider(providerKey, { api_key: key.trim() })
-    message.success(t('settings.models.saved'))
-    await modelsStore.fetchProviders()
-  } catch (e: any) {
-    message.error(e.message || t('settings.models.saveFailed'))
-  } finally {
-    savingKey.value = null
-  }
+function handleModalClose() {
+  showModal.value = false
 }
 
-async function handleSaveCustom(providerKey: string) {
-  const key = getEditKey(providerKey)
-  savingKey.value = providerKey
-  try {
-    await updateProvider(providerKey, { api_key: key.trim() })
-    message.success(t('settings.models.saved'))
-    await modelsStore.fetchProviders()
-  } catch (e: any) {
-    message.error(e.message || t('settings.models.saveFailed'))
-  } finally {
-    savingKey.value = null
-  }
+async function handleSaved() {
+  await modelsStore.fetchProviders()
+  appStore.loadModels()
+  handleModalClose()
 }
 </script>
 
 <template>
   <section class="settings-section">
-    <NSpin :show="modelsStore.loading">
+    <div class="section-header">
+      <h3 class="section-title">{{ t('settings.models.providerManagement') }}</h3>
+      <NButton type="primary" size="small" @click="openCreateModal">
+        <template #icon>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </template>
+        {{ t('models.addProvider') }}
+      </NButton>
+    </div>
+    <NSpin :show="modelsStore.loading && modelsStore.providers.length === 0">
       <div v-if="modelsStore.providers.length === 0" class="empty-hint">
         <NEmpty :description="t('settings.models.noProviders')" />
       </div>
-
-      <div v-for="g in modelsStore.providers" :key="g.provider" class="provider-section">
-        <div class="provider-header">
-          <h4 class="provider-name">{{ g.label }}</h4>
-          <span class="type-badge" :class="isCustom(g.provider) ? 'custom' : 'builtin'">
-            {{ isCustom(g.provider) ? t('models.customType') : t('models.builtIn') }}
-          </span>
-        </div>
-
-        <!-- Built-in provider: only API key -->
-        <div v-if="!isCustom(g.provider)" class="provider-fields">
-          <div class="field-row">
-            <NInput
-              :value="getEditKey(g.provider)"
-              type="password"
-              show-password-on="click"
-              :placeholder="t('settings.models.apiKeyPlaceholder')"
-              autocomplete="off"
-              @update:value="v => editKeys[g.provider] = v"
-            />
-            <NButton
-              type="primary"
-              size="small"
-              :loading="savingKey === g.provider"
-              @click="handleSaveApiKey(g.provider)"
-            >
-              {{ t('settings.models.save') }}
-            </NButton>
-          </div>
-        </div>
-
-        <!-- Custom provider: API key -->
-        <div v-else class="provider-fields">
-          <div class="field-row">
-            <NInput
-              :value="getEditKey(g.provider)"
-              type="password"
-              show-password-on="click"
-              :placeholder="t('settings.models.apiKeyPlaceholder')"
-              autocomplete="off"
-              @update:value="v => editKeys[g.provider] = v"
-            />
-            <NButton
-              type="primary"
-              size="small"
-              :loading="savingKey === g.provider"
-              @click="handleSaveCustom(g.provider)"
-            >
-              {{ t('settings.models.save') }}
-            </NButton>
-          </div>
-        </div>
-      </div>
+      <ProvidersPanel />
     </NSpin>
   </section>
+
+  <ProviderFormModal
+    v-if="showModal"
+    @close="handleModalClose"
+    @saved="handleSaved"
+  />
 </template>
 
 <style scoped lang="scss">
@@ -131,62 +68,21 @@ async function handleSaveCustom(providerKey: string) {
   margin-top: 16px;
 }
 
-.empty-hint {
-  padding: 40px 0;
-}
-
-.provider-section {
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  padding: 16px;
-  margin-bottom: 14px;
-  background: $bg-card;
-}
-
-.provider-header {
+.section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
 }
 
-.provider-name {
+.section-title {
   font-size: 14px;
   font-weight: 600;
-  color: $text-primary;
+  color: var(--text-primary, $text-primary);
   margin: 0;
 }
 
-.type-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
-
-  &.builtin {
-    background: rgba(var(--accent-primary-rgb), 0.12);
-    color: $accent-primary;
-  }
-
-  &.custom {
-    background: rgba(var(--success-rgb), 0.12);
-    color: $success;
-  }
-}
-
-.provider-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.field-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  .n-input {
-    flex: 1;
-  }
+.empty-hint {
+  padding: 40px 0;
 }
 </style>

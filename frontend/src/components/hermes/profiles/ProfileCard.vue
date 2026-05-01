@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NButton, NTag, NSpin, useMessage, useDialog } from 'naive-ui'
+import { ref, computed, onMounted } from 'vue'
+import { NButton, NTag, NSpin, NSelect, useMessage, useDialog } from 'naive-ui'
 import type { HermesProfile, HermesProfileDetail } from '@/api/hermes/profiles'
 import { useProfilesStore } from '@/stores/hermes/profiles'
+import { useModelsStore } from '@/stores/hermes/models'
+import { updateProfileModel } from '@/api/hermes/profiles'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ profile: HermesProfile }>()
-const emit = defineEmits<{}>()
+const emit = defineEmits<{ rename: [name: string] }>()
 
 const { t } = useI18n()
 const profilesStore = useProfilesStore()
+const modelsStore = useModelsStore()
 const message = useMessage()
 const dialog = useDialog()
 
@@ -17,9 +20,40 @@ const expanded = ref(false)
 const detailLoading = ref(false)
 const exporting = ref(false)
 const switching = ref(false)
+const savingModel = ref(false)
 const detail = ref<HermesProfileDetail | null>(null)
 
 const isDefault = computed(() => props.profile.name === 'default')
+
+onMounted(() => {
+  if (modelsStore.providers.length === 0) {
+    modelsStore.fetchProviders()
+  }
+})
+
+const providerOptions = computed(() =>
+  modelsStore.providers.map(p => ({
+    label: p.label,
+    value: p.provider,
+  }))
+)
+
+const currentProvider = computed(() => {
+  if (detail.value?.provider) return detail.value.provider
+  return modelsStore.providers.find(p => p.models.includes(props.profile.model))?.provider || ''
+})
+
+const currentModels = computed(() => {
+  const prov = modelsStore.providers.find(p => p.provider === currentProvider.value)
+  return prov ? prov.models : []
+})
+
+const modelOptions = computed(() =>
+  currentModels.value.map(m => ({
+    label: m,
+    value: m,
+  }))
+)
 
 async function toggleDetail() {
   if (expanded.value) {
@@ -32,6 +66,35 @@ async function toggleDetail() {
     detail.value = await profilesStore.fetchProfileDetail(props.profile.name)
   } finally {
     detailLoading.value = false
+  }
+}
+
+async function handleProviderChange(providerKey: string) {
+  const prov = modelsStore.providers.find(p => p.provider === providerKey)
+  if (!prov || prov.models.length === 0) return
+  const model = prov.models[0]
+  await handleModelSave(model, providerKey)
+}
+
+async function handleModelChange(model: string) {
+  await handleModelSave(model, currentProvider.value)
+}
+
+async function handleModelSave(model: string, provider: string) {
+  savingModel.value = true
+  try {
+    const ok = await updateProfileModel(props.profile.name, model, provider)
+    if (ok) {
+      message.success(t('profiles.modelUpdated'))
+      await profilesStore.fetchProfiles()
+      if (detail.value) {
+        detail.value = await profilesStore.fetchProfileDetail(props.profile.name)
+      }
+    } else {
+      message.error(t('profiles.modelUpdateFailed'))
+    }
+  } finally {
+    savingModel.value = false
   }
 }
 
@@ -92,8 +155,27 @@ async function handleExport() {
 
     <div class="card-body">
       <div class="info-row">
+        <span class="info-label">{{ t('profiles.provider') }}</span>
+        <NSelect
+          :value="currentProvider"
+          :options="providerOptions"
+          size="tiny"
+          :loading="savingModel"
+          style="max-width: 180px"
+          @update:value="handleProviderChange"
+        />
+      </div>
+      <div class="info-row">
         <span class="info-label">{{ t('profiles.model') }}</span>
-        <code class="info-value mono">{{ profile.model }}</code>
+        <NSelect
+          :value="profile.model"
+          :options="modelOptions"
+          size="tiny"
+          :loading="savingModel"
+          :placeholder="currentProvider ? t('profiles.selectModel') : t('profiles.selectProviderFirst')"
+          style="max-width: 180px"
+          @update:value="handleModelChange"
+        />
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('profiles.gateway') }}</span>
@@ -117,10 +199,6 @@ async function handleExport() {
       <NSpin :show="detailLoading" size="small">
         <template v-if="detail">
           <div class="info-row">
-            <span class="info-label">{{ t('profiles.provider') }}</span>
-            <span class="info-value">{{ detail.provider }}</span>
-          </div>
-          <div class="info-row">
             <span class="info-label">{{ t('profiles.path') }}</span>
             <code class="info-value mono detail-path">{{ detail.path }}</code>
           </div>
@@ -130,11 +208,11 @@ async function handleExport() {
           </div>
           <div class="info-row">
             <span class="info-label">{{ t('profiles.hasEnv') }}</span>
-            <span class="info-value">{{ detail.hasEnv ? 'Yes' : 'No' }}</span>
+            <span class="info-value">{{ detail.hasEnv ? t('common.yes') : t('common.no') }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">{{ t('profiles.hasSoulMd') }}</span>
-            <span class="info-value">{{ detail.hasSoulMd ? 'Yes' : 'No' }}</span>
+            <span class="info-value">{{ detail.hasSoulMd ? t('common.yes') : t('common.no') }}</span>
           </div>
         </template>
       </NSpin>
@@ -144,12 +222,19 @@ async function handleExport() {
       <NButton
         v-if="!profile.active"
         size="tiny"
-        :loading="switching"
         quaternary
+        :loading="switching"
         type="primary"
         @click="handleSwitch"
       >
         {{ t('profiles.switchTo') }}
+      </NButton>
+      <NButton
+        size="tiny"
+        quaternary
+        @click="emit('rename', profile.name)"
+      >
+        {{ t('profiles.rename') }}
       </NButton>
       <NButton
         size="tiny"

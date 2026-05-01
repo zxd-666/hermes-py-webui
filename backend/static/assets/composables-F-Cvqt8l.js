@@ -1,0 +1,1 @@
+import{qr as e,w as t,wn as n}from"./index-CnGJXrS6.js";function r(){let r=e(t,null);return r===null&&n(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

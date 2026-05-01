@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
+
+// Provider presets loaded from CLI registry
 import { NModal, NForm, NFormItem, NInput, NInputNumber, NButton, NSelect, NRadioGroup, NRadioButton, useMessage, useDialog } from 'naive-ui'
 import type { AvailableModelGroup } from '@/api/hermes/system'
 import { fetchProviderPresets, type ProviderPreset } from '@/api/hermes/system'
+import { PROVIDER_PRESETS } from '@/shared/providers'
 import { useModelsStore } from '@/stores/hermes/models'
 import { useI18n } from 'vue-i18n'
 import CodexLoginModal from './CodexLoginModal.vue'
@@ -80,6 +83,7 @@ function autoGenerateName(url: string): string {
 }
 
 watch(selectedPreset, (val) => {
+  if (isEditMode.value) return
   formData.value.model = ''
   alibabaCodingRegion.value = 'intl'
   if (val) {
@@ -88,15 +92,22 @@ watch(selectedPreset, (val) => {
       formData.value.name = preset.name
       formData.value.base_url = preset.base_url
     }
-    // If this provider already exists, pre-fill its models
-    const existing = modelsStore.allProviders.find(g => g.provider === val)
-    if (existing) {
-      modelOptions.value = existing.models.map(m => ({ label: m, value: m }))
-      if (existing.models.length > 0) {
-        formData.value.model = existing.models[0]
-      }
+    // Populate models from preset registry
+    const presetDef = PROVIDER_PRESETS.find(p => p.value === val)
+    if (presetDef && presetDef.models.length > 0) {
+      modelOptions.value = presetDef.models.map(m => ({ label: m, value: m }))
+      formData.value.model = presetDef.models[0]
     } else {
-      modelOptions.value = []
+      // Fallback: if this provider already exists in the store, use its models
+      const existing = modelsStore.allProviders.find(g => g.provider === val)
+      if (existing) {
+        modelOptions.value = existing.models.map(m => ({ label: m, value: m }))
+        if (existing.models.length > 0) {
+          formData.value.model = existing.models[0]
+        }
+      } else {
+        modelOptions.value = []
+      }
     }
     if (val === COPILOT_KEY) {
       void triggerCopilotAdd()
@@ -117,6 +128,7 @@ watch(() => formData.value.base_url, (url) => {
 })
 
 watch(providerType, () => {
+  if (isEditMode.value) return
   modelOptions.value = []
   formData.value = { name: '', base_url: '', api_key: '', model: '', context_length: null }
   selectedPreset.value = null
@@ -132,14 +144,26 @@ onMounted(async () => {
       presetList.value = await fetchProviderPresets()
     } catch { /* ignore — presets are optional */ }
   }
-  // Edit mode: pre-fill form
+  // Edit mode: pre-fill form with same layout as create
   if (props.editProvider) {
     const p = props.editProvider
     formData.value.name = p.label
     formData.value.base_url = p.base_url
-    formData.value.api_key = ''
+    formData.value.api_key = p.api_key || ''
     formData.value.model = p.models.length > 0 ? p.models[0] : ''
-    modelOptions.value = p.models.map(m => ({ label: m, value: m }))
+    if (p.provider.startsWith('custom:')) {
+      providerType.value = 'custom'
+      modelOptions.value = p.models.map(m => ({ label: m, value: m }))
+    } else {
+      providerType.value = 'preset'
+      selectedPreset.value = p.provider
+      const presetDef = PROVIDER_PRESETS.find(pr => pr.value === p.provider)
+      if (presetDef && presetDef.models.length > 0) {
+        modelOptions.value = presetDef.models.map(m => ({ label: m, value: m }))
+      } else if (p.models.length > 0) {
+        modelOptions.value = p.models.map(m => ({ label: m, value: m }))
+      }
+    }
   }
 })
 
@@ -360,11 +384,12 @@ function handleClose() {
     @after-leave="emit('close')"
   >
     <NForm label-placement="top">
-      <NFormItem v-if="!isEditMode" :label="t('models.providerType')">
+      <NFormItem :label="t('models.providerType')">
         <div style="display: flex; gap: 12px">
           <NButton
             :type="providerType === 'preset' ? 'primary' : 'default'"
             size="small"
+            :disabled="isEditMode"
             @click="providerType = 'preset'"
           >
             {{ t('models.preset') }}
@@ -372,6 +397,7 @@ function handleClose() {
           <NButton
             :type="providerType === 'custom' ? 'primary' : 'default'"
             size="small"
+            :disabled="isEditMode"
             @click="providerType = 'custom'"
           >
             {{ t('models.custom') }}
@@ -384,11 +410,12 @@ function handleClose() {
           v-model:value="selectedPreset"
           :options="presetOptions"
           :placeholder="t('models.chooseProvider')"
+          :disabled="isEditMode"
           filterable
         />
       </NFormItem>
 
-      <NFormItem v-if="isEditMode || (providerType === 'custom' && !isCodex && !isNous)" :label="t('models.name')">
+      <NFormItem v-if="providerType === 'custom' && !isCodex && !isNous" :label="t('models.name')">
         <NInput
           v-model:value="formData.name"
           :placeholder="t('models.autoGeneratedName')"
@@ -406,7 +433,7 @@ function handleClose() {
         <NInput
           v-model:value="formData.base_url"
           :placeholder="t('models.baseUrlPlaceholder')"
-          :disabled="providerType === 'preset' && !isEditMode"
+          :disabled="providerType === 'preset'"
         />
       </NFormItem>
 
@@ -440,7 +467,7 @@ function handleClose() {
         </div>
       </NFormItem>
 
-      <NFormItem v-if="providerType === 'custom' || isEditMode" :label="t('models.contextLength')">
+      <NFormItem v-if="providerType === 'custom' && !isEditMode" :label="t('models.contextLength')">
         <NInputNumber
           v-model:value="formData.context_length as number | null"
           :placeholder="t('models.contextLengthPlaceholder')"
