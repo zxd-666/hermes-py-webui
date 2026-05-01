@@ -14,8 +14,14 @@ const lineCount = ref(100)
 const levelFilter = ref<string>('')
 const searchQuery = ref('')
 
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + 'MB'
+  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + 'KB'
+  return bytes + 'B'
+}
+
 const logOptions = computed(() =>
-  logFiles.value.map(f => ({ label: `${f.name} (${f.size})`, value: f.name })),
+  logFiles.value.map(f => ({ label: `${f.name} (${formatSize(f.size)})`, value: f.name })),
 )
 
 const levelOptions = computed(() => [

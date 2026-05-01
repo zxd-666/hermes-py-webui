@@ -29,7 +29,32 @@ def _parse_log_line(line: str) -> Optional[dict]:
         return None
     entry = {"raw": _clean(line.strip())}
     try:
-        # Try pipe-delimited: 2026-04-30 16:24:03 | INFO | module | message
+        # JSON structured log: {"ts":"...","level":"info","msg":"..."}
+        if line.startswith("{"):
+            import json
+            obj = json.loads(line)
+            ts = obj.get("ts") or obj.get("time") or obj.get("timestamp") or ""
+            level = str(obj.get("level", "")).upper()
+            # Normalize level names
+            level_map = {"10": "DEBUG", "20": "INFO", "30": "WARNING", "WARN": "WARNING", "40": "ERROR", "50": "FATAL"}
+            level = level_map.get(level, level)
+            msg = obj.get("msg") or obj.get("message") or ""
+            logger = obj.get("logger") or obj.get("name") or ""
+            if ts:
+                # Extract time portion
+                if "T" in ts:
+                    ts = ts.split("T")[1].split("+")[0].split(".")[0].split("Z")[0]
+                m = re.match(r"(\d{2}:\d{2}:\d{2})", ts)
+                if m:
+                    ts = m.group(1)
+            entry["timestamp"] = ts
+            entry["level"] = level
+            entry["logger"] = str(logger)
+            entry["message"] = _clean(str(msg))
+            entry["raw"] = None
+            return entry
+
+        # Pipe-delimited: 2026-04-30 16:24:03 | INFO | module | message
         m = re.match(
             r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s*\|\s*(\w+)\s*\|\s*(\S+)\s*\|\s*(.*)",
             line,
@@ -40,20 +65,68 @@ def _parse_log_line(line: str) -> Optional[dict]:
             entry["logger"] = m.group(3)
             entry["message"] = _clean(m.group(4).strip())
             entry["raw"] = None
-        else:
-            # Standard Python logging: 2026-05-01 17:09:57,106 INFO [session_id] module: message
-            m = re.match(
-                r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+(\w+)\s+(?:\[\S+\]\s+)?(\S+?):\s*(.*)",
-                line,
-            )
-            if m:
-                entry["timestamp"] = m.group(1)
-                entry["level"] = m.group(2)
-                entry["logger"] = m.group(3)
-                entry["message"] = _clean(m.group(4).strip())
-                entry["raw"] = None
+            return entry
+
+        # Standard Python logging: 2026-05-01 17:09:57,106 INFO [session_id] module: message
+        m = re.match(
+            r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+(?:\[\S+\]\s+)?(\S+?):\s*(.*)",
+            line,
+        )
+        if m:
+            entry["timestamp"] = m.group(1)
+            entry["level"] = m.group(2)
+            entry["logger"] = m.group(3)
+            entry["message"] = _clean(m.group(4).strip())
+            entry["raw"] = None
+            return entry
+
+        # Uvicorn/Starlette access log: INFO: GET /api/xxx HTTP/1.1 "200 OK"
+        m = re.match(
+            r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)\s+(INFO|WARNING|ERROR):\s+(.*)",
+            line,
+        )
+        if m:
+            entry["timestamp"] = m.group(1)
+            entry["level"] = m.group(2)
+            entry["logger"] = "server"
+            entry["message"] = _clean(m.group(3).strip())
+            entry["raw"] = None
+            return entry
+
+        # [module] LEVEL: message format (e.g., [bootstrap] ERROR: ...)
+        m = re.match(r"^\[([^\]]+)\]\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*(.*)", line)
+        if m:
+            entry["timestamp"] = ""
+            entry["level"] = m.group(2)
+            entry["logger"] = m.group(1)
+            entry["message"] = _clean(m.group(3).strip())
+            entry["raw"] = None
+            return entry
+
+        # Uvicorn/Starlette without date prefix: INFO:     Started server process [50253]
+        m = re.match(
+            r"^\s*(INFO|WARNING|ERROR|DEBUG):\s+(.*)",
+            line,
+        )
+        if m:
+            entry["timestamp"] = ""
+            entry["level"] = m.group(1)
+            entry["logger"] = "server"
+            entry["message"] = _clean(m.group(2).strip())
+            entry["raw"] = None
+            return entry
+
+        # Python traceback / unstructured lines
+        if line.strip().startswith(("Traceback", "  File", "    ", "During handling", "The above", "import ", "from ", "#", "---", "===")):
+            entry["timestamp"] = ""
+            entry["level"] = "DEBUG"
+            entry["logger"] = "traceback"
+            entry["message"] = _clean(line.strip())
+            entry["raw"] = None
+            return entry
     except Exception:
         pass
+    # Fallback: return as raw unstructured line
     return entry
 
 

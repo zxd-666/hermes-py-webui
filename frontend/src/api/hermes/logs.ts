@@ -2,8 +2,8 @@ import { request } from '../client'
 
 export interface LogFileInfo {
   name: string
-  size: string
-  modified: string
+  size: number
+  modTime: string
 }
 
 export interface LogEntry {
