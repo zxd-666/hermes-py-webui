@@ -271,6 +271,34 @@ def run_agent_in_thread(
         import inspect
         _agent_params = set(inspect.signature(AIAgent.__init__).parameters)
 
+        # --- Status callback: capture compression/continuation lifecycle events ---
+        def on_status(category: str, message: str):
+            """AIAgent calls status_callback(category, message) for lifecycle events.
+            We intercept compression-related messages to push SSE events to the frontend."""
+            if not message:
+                return
+            msg_lower = message.lower()
+            if "compressing" in msg_lower or "compression started" in msg_lower or "compressing context" in msg_lower:
+                put_event(stream_id, "compression.started", {
+                    "message_count": 0,
+                    "token_count": 0,
+                    "session_id": session_id,
+                })
+            elif "compressed" in msg_lower and ("session" in msg_lower or "context" in msg_lower):
+                put_event(stream_id, "compression.completed", {
+                    "compressed": True,
+                    "session_id": session_id,
+                    "message": message,
+                })
+            elif "continuation" in msg_lower:
+                if hasattr(agent, 'session_id') and agent.session_id != session_id:
+                    put_event(stream_id, "compression.completed", {
+                        "compressed": True,
+                        "new_session_id": agent.session_id,
+                        "session_id": session_id,
+                        "message": message,
+                    })
+
         agent_kwargs = dict(
             model=resolved_model,
             provider=resolved_provider,
@@ -283,6 +311,7 @@ def run_agent_in_thread(
             stream_delta_callback=on_token,
             reasoning_callback=on_reasoning,
             tool_progress_callback=on_tool,
+            status_callback=on_status,
         )
 
         if enabled_toolsets:
