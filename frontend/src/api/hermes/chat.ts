@@ -11,6 +11,7 @@ export interface StartRunRequest {
   instructions?: string
   session_id?: string
   model?: string
+  workspace?: string | null
 }
 
 export interface StartRunResponse {
@@ -51,9 +52,14 @@ export interface RunEvent {
  * The caller then uses streamRunEvents() to subscribe to SSE events.
  */
 export async function startRun(body: StartRunRequest): Promise<StartRunResponse> {
+  const headers: Record<string, string> = {}
+  if (body.workspace) {
+    headers['X-Hermes-Workspace'] = body.workspace
+  }
   return request('/api/chat/start', {
     method: 'POST',
     body: JSON.stringify(body),
+    headers,
   })
 }
 

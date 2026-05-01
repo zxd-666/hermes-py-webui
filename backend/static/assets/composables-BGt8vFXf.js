@@ -1,0 +1,1 @@
+import{C as e,Hr as t,bn as n}from"./index-Cr8k17hd.js";function r(){let r=t(e,null);return r===null&&n(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

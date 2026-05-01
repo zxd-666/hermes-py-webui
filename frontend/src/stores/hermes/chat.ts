@@ -615,6 +615,7 @@ export const useChatStore = defineStore('chat', () => {
         input: inputText,
         session_id: sid,
         model: sessionModel || undefined,
+        workspace: activeSession.value?.workspace || null,
       }
 
       // Helper to clean up this session's stream state

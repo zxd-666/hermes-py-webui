@@ -30,6 +30,11 @@ onMounted(async () => {
   try {
     const status = await fetchAuthStatus();
     hasPasswordLogin.value = status.hasPasswordLogin;
+    if (!status.hasPasswordLogin) {
+      setApiKey("noauth");
+      router.replace("/hermes/chat");
+      return;
+    }
     if (status.hasPasswordLogin && !urlToken) {
       loginMethod.value = "password";
     }
