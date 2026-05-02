@@ -19,15 +19,20 @@ def _conn(profile: str | None = None) -> sqlite3.Connection:
 
 def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0,
                   profile: str | None = None) -> list[dict]:
-    """Return sessions ordered by started_at DESC."""
+    """Return sessions ordered by last message time DESC."""
     conn = _conn(profile)
     try:
-        q = "SELECT * FROM sessions"
+        q = """
+            SELECT s.*,
+              (SELECT MAX(m.timestamp) FROM messages m WHERE m.session_id = s.id)
+                AS last_message_ts
+            FROM sessions s
+        """
         params: list = []
         if source:
-            q += " WHERE source = ?"
+            q += " WHERE s.source = ?"
             params.append(source)
-        q += " ORDER BY started_at DESC LIMIT ? OFFSET ?"
+        q += " ORDER BY last_message_ts DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         rows = conn.execute(q, params).fetchall()
         return [_row_to_dict(r) for r in rows]

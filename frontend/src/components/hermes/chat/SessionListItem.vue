@@ -42,7 +42,7 @@ const { t } = useI18n()
       </span>
       <span class="session-item-meta">
         <span v-if="session.model" class="session-item-model">{{ session.model }}</span>
-        <span class="session-item-time">{{ formatTimestampMs(session.createdAt) }}</span>
+        <span class="session-item-time">{{ formatTimestampMs(session.updatedAt) }}</span>
       </span>
     </div>
   </button>

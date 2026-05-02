@@ -4,14 +4,10 @@ import { useI18n } from "vue-i18n";
 import MessageItem from "./MessageItem.vue";
 import { useChatStore } from "@/stores/hermes/chat";
 import { useProfilesStore } from "@/stores/hermes/profiles";
-import thinkingVideoLight from "@/assets/thinking-light.mp4";
-import thinkingVideoDark from "@/assets/thinking-dark.mp4";
-import { useTheme } from "@/composables/useTheme";
 
 const chatStore = useChatStore();
 const profilesStore = useProfilesStore();
 const { t } = useI18n();
-const { isDark } = useTheme();
 const listRef = ref<HTMLElement>();
 
 function formatTokens(n: number): string {
@@ -136,14 +132,6 @@ watch(currentToolCalls, () => {
     />
     <Transition name="fade">
       <div v-if="chatStore.isRunActive" class="streaming-indicator">
-        <video
-          :src="isDark ? thinkingVideoDark : thinkingVideoLight"
-          autoplay
-          loop
-          muted
-          playsinline
-          class="thinking-video"
-        />
         <div v-if="currentToolCalls.length > 0 || chatStore.compressionState" class="tool-calls-panel">
           <!-- Compression indicator -->
           <div v-if="chatStore.compressionState" class="tool-call-item compression-item">
@@ -318,13 +306,6 @@ watch(currentToolCalls, () => {
   align-items: flex-start;
   gap: 12px;
   padding: 4px;
-  .thinking-video {
-    width: 120px;
-    height: 213px;
-    border-radius: $radius-md;
-    object-fit: contain;
-    flex-shrink: 0;
-  }
 }
 
 .tool-calls-panel {
