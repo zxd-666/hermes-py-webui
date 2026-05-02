@@ -22,20 +22,28 @@ In short: this project trades the Gateway's decoupling for **direct access to AI
 
 <table>
 <tr>
-<td><img src="docs/images/chat.jpg" width="400"></td>
-<td><img src="docs/images/jobs.jpg" width="400"></td>
+<td><img src="docs/images/chat.png" width="400"></td>
+<td><img src="docs/images/jobs.png" width="400"></td>
 </tr>
 <tr>
 <td align="center">💬 Chat</td>
 <td align="center">🕐 Cron Jobs</td>
 </tr>
 <tr>
-<td><img src="docs/images/memory.jpg" width="400"></td>
+<td><img src="docs/images/memory.png" width="400"></td>
 <td><img src="docs/images/models.jpg" width="400"></td>
 </tr>
 <tr>
 <td align="center">🧠 Skills & Memory</td>
 <td align="center">🤖 Models & Providers</td>
+</tr>
+<tr>
+<td><img src="docs/images/channels.png" width="400"></td>
+<td><img src="docs/images/skills.png" width="400"></td>
+</tr>
+<tr>
+<td align="center">📡 Channels</td>
+<td align="center">⚡ Skill Viewer</td>
 </tr>
 <tr>
 <td><img src="docs/images/usage.jpg" width="400"></td>

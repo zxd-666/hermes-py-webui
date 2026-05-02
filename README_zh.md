@@ -22,20 +22,28 @@
 
 <table>
 <tr>
-<td><img src="docs/images/chat.jpg" width="400"></td>
-<td><img src="docs/images/jobs.jpg" width="400"></td>
+<td><img src="docs/images/chat.png" width="400"></td>
+<td><img src="docs/images/jobs.png" width="400"></td>
 </tr>
 <tr>
 <td align="center">💬 聊天对话</td>
 <td align="center">🕐 定时任务</td>
 </tr>
 <tr>
-<td><img src="docs/images/memory.jpg" width="400"></td>
+<td><img src="docs/images/memory.png" width="400"></td>
 <td><img src="docs/images/models.jpg" width="400"></td>
 </tr>
 <tr>
 <td align="center">🧠 技能与记忆</td>
 <td align="center">🤖 模型与 Provider</td>
+</tr>
+<tr>
+<td><img src="docs/images/channels.png" width="400"></td>
+<td><img src="docs/images/skills.png" width="400"></td>
+</tr>
+<tr>
+<td align="center">📡 频道管理</td>
+<td align="center">⚡ 技能查看</td>
 </tr>
 <tr>
 <td><img src="docs/images/usage.jpg" width="400"></td>
