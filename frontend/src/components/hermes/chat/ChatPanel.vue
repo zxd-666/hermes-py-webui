@@ -124,19 +124,32 @@ function toggleGroup(source: string) {
 }
 
 watch(groupedSessions, groups => {
-  // If user has saved collapsed state, respect it — don't override.
-  const saved = localStorage.getItem('hermes_collapsed_groups')
-  if (saved !== null) return
-
-  // First load with no saved state: expand only the most recent session's group
   const allSources = groups.map(g => g.source)
+  const saved = localStorage.getItem('hermes_collapsed_groups')
+
+  if (saved !== null) {
+    // Restore saved collapse state, but ensure active session's group is expanded
+    const activeSource = chatStore.activeSession?.source
+    if (activeSource) {
+      collapsedGroups.value = new Set([...JSON.parse(saved)].filter(s => s !== activeSource))
+    } else {
+      collapsedGroups.value = new Set(JSON.parse(saved))
+    }
+  } else {
+    // First load with no saved state: expand only the active/recent session's group
+    const activeSource = chatStore.activeSession?.source
+    const targetSource = activeSource
+      || chatStore.sessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
+          .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.source
+      || ''
+    collapsedGroups.value = new Set(allSources.filter(s => s !== targetSource))
+  }
+  localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+
+  // Select the most recent session if none is active
   const recentSession = chatStore.sessions
     .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
-  const recentSource = recentSession?.source || ''
-  collapsedGroups.value = new Set(allSources.filter(s => s !== recentSource))
-  localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
-  // Select the most recent session if none is active
   if (recentSession && !chatStore.activeSessionId) {
     chatStore.switchSession(recentSession.id)
   }
