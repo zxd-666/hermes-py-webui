@@ -38,16 +38,26 @@ onMounted(loadContextLength)
 watch(() => useProfilesStore().activeProfileName, loadContextLength)
 watch(() => useAppStore().selectedModel, loadContextLength)
 
-const totalTokens = computed(() => {
-  const input = chatStore.activeSession?.inputTokens ?? 0
-  const output = chatStore.activeSession?.outputTokens ?? 0
-  return input + output
-})
+// Only show context stats when we have accurate data — i.e. after a WebUI
+// agent run that populated contextLength from context_compressor. Other
+// platforms store cumulative prompt_tokens in DB, so without a WebUI run
+// the bar would be misleading.
+const showContextInfo = computed(() => !!chatStore.activeSession?.contextLength)
 
-const remainingTokens = computed(() => Math.max(0, contextLength.value - totalTokens.value))
+// inputTokens now reflects last_prompt_tokens (actual context window usage),
+// not the cumulative sum. outputTokens is separate and not part of context usage.
+const contextTokens = computed(() => showContextInfo.value ? (chatStore.activeSession?.inputTokens ?? 0) : 0)
+
+// Prefer agent-reported context_length (from context_compressor, accurate after probe)
+// over static config value (from config.yaml, may not match actual provider limit).
+const effectiveContextLength = computed(() =>
+  chatStore.activeSession?.contextLength || contextLength.value,
+)
+
+const remainingTokens = computed(() => Math.max(0, effectiveContextLength.value - contextTokens.value))
 
 const usagePercent = computed(() =>
-  Math.min((totalTokens.value / contextLength.value) * 100, 100),
+  Math.min((contextTokens.value / effectiveContextLength.value) * 100, 100),
 )
 
 function formatTokens(n: number): string {
@@ -207,10 +217,10 @@ function isImage(type: string): boolean {
         </template>
         {{ t('chat.attachFiles') }}
       </NTooltip>
-      <span v-if="totalTokens > 0" class="context-info" :class="{ 'context-warning': usagePercent > 80 }">
-        {{ formatTokens(totalTokens) }} / {{ formatTokens(contextLength) }} · {{ t('chat.contextRemaining') }} {{ formatTokens(remainingTokens) }}
+      <span v-if="contextTokens > 0" class="context-info" :class="{ 'context-warning': usagePercent > 80 }">
+        {{ formatTokens(contextTokens) }} / {{ formatTokens(effectiveContextLength) }} · {{ t('chat.contextRemaining') }} {{ formatTokens(remainingTokens) }}
       </span>
-      <div v-if="totalTokens > 0" class="context-bar">
+      <div v-if="contextTokens > 0" class="context-bar">
         <div
           class="context-bar-fill"
           :class="{

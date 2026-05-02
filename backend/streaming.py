@@ -394,7 +394,13 @@ def run_agent_in_thread(
         )
 
         # Extract usage
-        input_tokens = getattr(agent, "session_prompt_tokens", 0) or 0
+        # Use last_prompt_tokens (actual context window usage) instead of
+        # session_prompt_tokens (cumulative sum that inflates with tool calls).
+        compressor = getattr(agent, "context_compressor", None)
+        if compressor:
+            input_tokens = getattr(compressor, "last_prompt_tokens", 0) or 0
+        else:
+            input_tokens = getattr(agent, "session_prompt_tokens", 0) or 0
         output_tokens = getattr(agent, "session_completion_tokens", 0) or 0
         estimated_cost = getattr(agent, "session_estimated_cost_usd", None)
 
@@ -412,6 +418,7 @@ def run_agent_in_thread(
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "total_tokens": input_tokens + output_tokens,
+                "context_length": getattr(compressor, "context_length", None),
                 "estimated_cost": estimated_cost,
             },
             "session_id": session_id,

@@ -49,6 +49,7 @@ export interface Session {
   messageCount?: number
   inputTokens?: number
   outputTokens?: number
+  contextLength?: number
   endedAt?: number | null
   lastActiveAt?: number
   workspace?: string | null
@@ -169,6 +170,8 @@ function mapHermesSession(s: SessionSummary): Session {
     model: s.model,
     provider: undefined,  // don't inherit billing_provider; let Hermes resolve from profile config
     messageCount: s.message_count,
+    inputTokens: (s as any).input_tokens || undefined,
+    outputTokens: (s as any).output_tokens || undefined,
     endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
     lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
     workspace: s.workspace || null,
@@ -796,12 +799,16 @@ export const useChatStore = defineStore('chat', () => {
               if (lastMsg?.isStreaming) {
                 updateMessage(sid, lastMsg.id, { isStreaming: false })
               }
-              // Server-computed usage (local countTokens, snapshot-aware)
-              if ((evt as any).inputTokens != null) {
+              // Server-computed usage (from run.completed event)
+              const usage = (evt as any).usage
+              if (usage) {
                 const target = sessions.value.find(s => s.id === sid)
                 if (target) {
-                  target.inputTokens = (evt as any).inputTokens
-                  target.outputTokens = (evt as any).outputTokens
+                  target.inputTokens = usage.input_tokens ?? target.inputTokens
+                  target.outputTokens = usage.output_tokens ?? target.outputTokens
+                  // Use agent-reported context_length (from compressor) if available
+                  const srvCtx = usage.context_length
+                  if (srvCtx && srvCtx > 0) target.contextLength = srvCtx
                 }
               }
               // Write model into last assistant message
@@ -914,10 +921,11 @@ export const useChatStore = defineStore('chat', () => {
             }
 
             case 'usage.updated': {
+              const u = (evt as any).usage || evt
               const target = sessions.value.find(s => s.id === sid)
               if (target) {
-                target.inputTokens = (evt as any).inputTokens
-                target.outputTokens = (evt as any).outputTokens
+                target.inputTokens = u.input_tokens ?? u.inputTokens ?? target.inputTokens
+                target.outputTokens = u.output_tokens ?? u.outputTokens ?? target.outputTokens
               }
               break
             }
