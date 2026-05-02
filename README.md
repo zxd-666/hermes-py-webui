@@ -1,6 +1,6 @@
 # hermes-py-webui
 
-**The Official WebUI for [Hermes Agent](https://github.com/NousResearch/hermes-agent)** — FastAPI backend + Vue 3 frontend, directly importing AIAgent without the Gateway layer.
+**The WebUI for [Hermes Agent](https://github.com/NousResearch/hermes-agent)** — FastAPI backend + Vue 3 frontend, directly importing AIAgent without the Gateway layer.
 
 > This project is a companion web interface for Hermes Agent and **cannot run standalone**. Install Hermes Agent first.
 

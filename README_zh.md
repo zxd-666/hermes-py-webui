@@ -1,6 +1,6 @@
 # hermes-py-webui
 
-**[Hermes Agent](https://github.com/NousResearch/hermes-agent) 的官方 WebUI** — FastAPI 后端 + Vue 3 前端，直接 import AIAgent，不走 Gateway。
+**[Hermes Agent](https://github.com/NousResearch/hermes-agent) 的 WebUI** — FastAPI 后端 + Vue 3 前端，直接 import AIAgent，不走 Gateway。
 
 > 本项目是 Hermes Agent 的附属 Web 管理界面，**不能独立运行**。使用前需先安装 Hermes Agent。
 
