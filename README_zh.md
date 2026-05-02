@@ -1,10 +1,20 @@
 # hermes-py-webui
 
-**[Hermes Agent](https://github.com/zxd-666/hermes) 的官方 WebUI** — FastAPI 后端 + Vue 3 前端，直接 import AIAgent，不走 Gateway。
+**[Hermes Agent](https://github.com/NousResearch/hermes-agent) 的官方 WebUI** — FastAPI 后端 + Vue 3 前端，直接 import AIAgent，不走 Gateway。
 
 > 本项目是 Hermes Agent 的附属 Web 管理界面，**不能独立运行**。使用前需先安装 Hermes Agent。
 
-**核心价值：会话可绑定工作区** — AIAgent 实例化时传 workdir 生效，Gateway 代理模式做不到。
+**为什么做这个项目？**
+
+| | Gateway 模式 (hermes-web-ui) | **本项目** |
+|---|---|---|
+| 架构 | Node.js → HTTP → Gateway → AIAgent | **FastAPI → import → AIAgent** |
+| 延迟 | 额外经过 Gateway 的 HTTP 转发 | **直接函数调用，零开销** |
+| 工作区 | 全局共享，所有会话同一目录 | **按会话绑定独立工作区** |
+| 运行时 | 需要 Node.js + Python | **仅 Python**（前端预构建） |
+| 流式通信 | Socket.IO | **SSE — 更轻量，无状态** |
+
+一句话：本项目用 Gateway 的解耦换取了 **对 AIAgent 内部的直接访问能力** — 最核心的是为每个会话绑定独立的工作区目录。如果你需要多节点或远程部署，用 Gateway；如果你在本地或单机使用，追求最大控制力，用这个。
 
 中文 | [**English**](README.md)
 
@@ -115,7 +125,7 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 
 | 依赖 | 版本 | 说明 |
 |------|------|------|
-| [Hermes Agent](https://github.com/zxd-666/hermes) | 最新 | 必须先安装，本项目通过 `from run_agent import AIAgent` 直接调用 |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | 最新 | 必须先安装，本项目通过 `from run_agent import AIAgent` 直接调用 |
 | Python | 3.11+ | 后端运行时 |
 | Node.js | 18+ | 前端构建 |
 

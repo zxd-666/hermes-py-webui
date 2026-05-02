@@ -1,10 +1,20 @@
 # hermes-py-webui
 
-**The Official WebUI for [Hermes Agent](https://github.com/zxd-666/hermes)** — FastAPI backend + Vue 3 frontend. Directly imports AIAgent, bypassing the Gateway.
+**The Official WebUI for [Hermes Agent](https://github.com/NousResearch/hermes-agent)** — FastAPI backend + Vue 3 frontend, directly importing AIAgent without the Gateway layer.
 
 > This project is a companion web interface for Hermes Agent and **cannot run standalone**. Install Hermes Agent first.
 
-**Core value: Workdir-bound sessions** — AIAgent instances receive `workdir` at initialization, something Gateway proxy mode cannot achieve.
+**Why this project?**
+
+| | Gateway Mode (hermes-web-ui) | **This Project** |
+|---|---|---|
+| Architecture | Node.js → HTTP → Gateway → AIAgent | **FastAPI → import → AIAgent** |
+| Latency | Extra HTTP hop through Gateway | **Direct function call, zero overhead** |
+| Workdir | Global, shared across sessions | **Per-session workdir binding** |
+| Runtime | Requires Node.js + Python | **Python only** (frontend is pre-built) |
+| Streaming | Socket.IO | **SSE — lighter, stateless** |
+
+In short: this project trades the Gateway's decoupling for **direct access to AIAgent internals** — most notably, the ability to bind a workspace directory to each individual session. If you need multi-node or remote deployment, use the Gateway. If you want maximum control from a local or single-server setup, this is it.
 
 [**中文**](README_zh.md) | English
 
@@ -115,7 +125,7 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 
 | Dependency | Version | Description |
 |------------|---------|-------------|
-| [Hermes Agent](https://github.com/zxd-666/hermes) | Latest | Required. This project calls AIAgent via `from run_agent import AIAgent` |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Latest | Required. This project calls AIAgent via `from run_agent import AIAgent` |
 | Python | 3.11+ | Backend runtime |
 | Node.js | 18+ | Frontend build |
 
