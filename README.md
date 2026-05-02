@@ -11,7 +11,7 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`，提供以
 ### 💬 聊天对话
 
 - SSE 实时流式输出（文本 + 推理 + 工具调用事件）
-- 支持单聊和群聊模式
+- 会话可选择模型与工作区
 - 会话列表：浏览、搜索、重命名、删除历史会话
 - 会话数据直读 `~/.hermes/state.db`，与 CLI 会话互通
 
@@ -222,5 +222,3 @@ hermes-py-webui/
 
 - 前端 build 产物在 `backend/static/`，修改前端后需 `npm run build`
 - GitHub 仓库：[zxd-666/hermes-py-webui](https://github.com/zxd-666/hermes-py-webui)
-- Auth 默认关闭（无密码时），设置密码后所有 `/api/` 路由需 Bearer token
-- 与 hermes-web-ui（8648）前端同源但 API 协议不同（SSE vs Socket.IO）
