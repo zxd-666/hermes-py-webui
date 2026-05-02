@@ -299,7 +299,15 @@ function removeItemWithLegacy(key: string, legacyKey?: string | null) {
 
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
-  const activeSessionId = ref<string | null>(null)
+  // Restore from localStorage so a page refresh keeps the selected session
+  const _restoredSessionId: string | null = (() => {
+    try {
+      return localStorage.getItem(storageKey()) || null
+    } catch {
+      return null
+    }
+  })()
+  const activeSessionId = ref<string | null>(_restoredSessionId)
   const focusMessageId = ref<string | null>(null)
   const streamStates = ref<Map<string, { abort: () => void }>>(new Map())
   /** sessionId → server-reported isWorking status */
