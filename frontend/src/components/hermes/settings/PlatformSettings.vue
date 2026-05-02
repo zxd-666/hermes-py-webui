@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, reactive, onUnmounted } from 'vue'
-import { NSwitch, NInput, NButton, useMessage } from 'naive-ui'
+import { ref, onUnmounted } from 'vue'
+import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
-import { saveCredentials as saveCredsApi, fetchWeixinQrCode, pollWeixinQrStatus, saveWeixinCredentials } from '@/api/hermes/config'
+import { saveCredentials as saveCredsApi } from '@/api/hermes/config'
 import PlatformCard from './PlatformCard.vue'
 import SettingRow from './SettingRow.vue'
 
@@ -51,70 +51,6 @@ async function saveCredentials(platform: string, field: string, values: Record<s
 function getCreds(key: string) {
   return (settingsStore.platforms[key] || {}) as Record<string, any>
 }
-
-// Weixin QR code login state
-const wxQrUrl = ref('')
-const wxQrId = ref('')
-const wxQrStatus = ref<'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'>('idle')
-let wxPollTimer: ReturnType<typeof setTimeout> | null = null
-
-async function startWeixinQrLogin() {
-  wxQrStatus.value = 'loading'
-  wxQrUrl.value = ''
-  wxQrId.value = ''
-  stopWeixinPoll()
-
-  try {
-    const data = await fetchWeixinQrCode()
-    wxQrId.value = data.qrcode
-    wxQrUrl.value = data.qrcode_url
-    window.open(data.qrcode_url, '_blank')
-    wxQrStatus.value = 'waiting'
-    pollWeixinStatus()
-  } catch (err: any) {
-    wxQrStatus.value = 'error'
-    message.error(err.message || t('platform.qrFetching'))
-  }
-}
-
-function pollWeixinStatus() {
-  if (!wxQrId.value) return
-  wxPollTimer = setTimeout(async () => {
-    try {
-      const data = await pollWeixinQrStatus(wxQrId.value)
-      if (data.status === 'wait') {
-        pollWeixinStatus()
-      } else if (data.status === 'scaned') {
-        wxQrStatus.value = 'scaned'
-        pollWeixinStatus()
-      } else if (data.status === 'expired') {
-        wxQrStatus.value = 'expired'
-      } else if (data.status === 'confirmed') {
-        wxQrStatus.value = 'confirmed'
-        await saveWeixinCredentials({
-          account_id: data.account_id!,
-          token: data.token!,
-          base_url: data.base_url,
-        })
-        await settingsStore.fetchSettings()
-        message.success(t('settings.saved'))
-      }
-    } catch {
-      pollWeixinStatus()
-    }
-  }, 3000)
-}
-
-function stopWeixinPoll() {
-  if (wxPollTimer) {
-    clearTimeout(wxPollTimer)
-    wxPollTimer = null
-  }
-}
-
-onUnmounted(() => {
-  stopWeixinPoll()
-})
 
 const platforms = [
   {
@@ -312,23 +248,6 @@ const platforms = [
 
       <!-- Weixin -->
       <template v-if="p.key === 'weixin'">
-        <div class="weixin-qr-section">
-          <NButton
-            v-if="wxQrStatus === 'idle' || wxQrStatus === 'error' || wxQrStatus === 'expired' || wxQrStatus === 'confirmed'"
-            type="primary"
-            size="small"
-            @click="startWeixinQrLogin"
-          >
-            {{ wxQrStatus === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
-          </NButton>
-          <div v-if="wxQrStatus === 'loading'" class="weixin-qr-loading">
-            <NSpin size="small" />
-            <span>{{ t('platform.qrFetching') }}</span>
-          </div>
-          <div v-if="wxQrStatus === 'waiting' || wxQrStatus === 'scaned'" class="weixin-qr-hint">
-            {{ wxQrStatus === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}
-          </div>
-        </div>
         <SettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')">
           <NInput :value="getCreds('weixin').token || ''" :loading="isSaving('weixin', 'token')" clearable size="small" class="input-lg" placeholder="Token" @change="v => saveCredentials('weixin', 'token', { token: v })" />
         </SettingRow>
@@ -355,23 +274,5 @@ const platforms = [
 
 .settings-section {
   margin-top: 16px;
-}
-
-.weixin-qr-section {
-  margin-top: 12px;
-  margin-bottom: 12px;
-}
-
-.weixin-qr-loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: $text-muted;
-  font-size: 13px;
-}
-
-.weixin-qr-hint {
-  font-size: 13px;
-  color: $text-secondary;
 }
 </style>
