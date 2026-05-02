@@ -4,11 +4,27 @@ import { useI18n } from "vue-i18n";
 import MessageItem from "./MessageItem.vue";
 import { useChatStore } from "@/stores/hermes/chat";
 import { useProfilesStore } from "@/stores/hermes/profiles";
+import { useSettingsStore } from "@/stores/hermes/settings";
 
 const chatStore = useChatStore();
 const profilesStore = useProfilesStore();
+const settingsStore = useSettingsStore();
 const { t } = useI18n();
 const listRef = ref<HTMLElement>();
+
+const displayMessages = computed(() =>
+  chatStore.messages.filter((m) => m.role !== "tool"),
+);
+
+const noStreamDisplay = computed(() => !settingsStore.display.streaming);
+
+const lastAssistantMsg = computed(() => {
+  const msgs = displayMessages.value;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].role === 'assistant') return msgs[i];
+  }
+  return null;
+});
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
@@ -23,10 +39,6 @@ function formatToolDuration(seconds: number): string {
   const secs = Math.round(seconds % 60)
   return `${mins}m ${secs}s`
 }
-
-const displayMessages = computed(() =>
-  chatStore.messages.filter((m) => m.role !== "tool"),
-);
 
 const currentToolCalls = computed(() => {
   const msgs = chatStore.messages;
@@ -119,7 +131,7 @@ watch(currentToolCalls, () => {
 </script>
 
 <template>
-  <div ref="listRef" class="message-list">
+  <div ref="listRef" class="message-list" :class="{ compact: settingsStore.display.compact, 'no-stream': noStreamDisplay }">
     <div v-if="chatStore.messages.length === 0" class="empty-state">
       <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Hermes" class="empty-logo" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
       <p>{{ t("chat.emptyState", { name: profilesStore.activeProfileName || 'Brave' }) }}</p>
@@ -129,6 +141,7 @@ watch(currentToolCalls, () => {
       :key="msg.id"
       :message="msg"
       :highlight="chatStore.focusMessageId === msg.id"
+      :is-last-assistant="msg === lastAssistantMsg"
     />
     <Transition name="fade">
       <div v-if="chatStore.isRunActive" class="streaming-indicator">
@@ -260,6 +273,21 @@ watch(currentToolCalls, () => {
   flex-direction: column;
   gap: 16px;
   background-color: $bg-card;
+  transition: gap 0.2s ease, padding 0.2s ease;
+
+  &.compact {
+    gap: 6px;
+    padding: 12px 20px;
+  }
+
+  // Non-streaming: hide streaming content, show loading dots only
+  &.no-stream :deep(.message.assistant .message-bubble.is-streaming) {
+    .markdown-body,
+    .msg-attachments,
+    .thinking-block {
+      display: none;
+    }
+  }
 
   .dark & {
     background-color: #333333;

@@ -9,12 +9,14 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useAppStore } from '@/stores/hermes/app'
 import { useProfilesStore } from '@/stores/hermes/profiles'
+import { useSettingsStore } from '@/stores/hermes/settings'
 import SessionSearchModal from '@/components/hermes/chat/SessionSearchModal.vue'
 
 const { isDark } = useTheme()
 const { t } = useI18n()
 const appStore = useAppStore()
 const profilesStore = useProfilesStore()
+const settingsStore = useSettingsStore()
 const route = useRoute()
 const router = useRouter()
 const ready = ref(false)
@@ -44,6 +46,7 @@ onMounted(() => {
   if (!isLoginPage.value) {
     appStore.loadModels()
     appStore.startHealthPolling()
+    settingsStore.fetchSettings()
   }
 })
 

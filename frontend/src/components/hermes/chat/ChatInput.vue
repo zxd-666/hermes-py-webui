@@ -3,12 +3,14 @@ import type { Attachment } from '@/stores/hermes/chat'
 import { useChatStore } from '@/stores/hermes/chat'
 import { useAppStore } from '@/stores/hermes/app'
 import { useProfilesStore } from '@/stores/hermes/profiles'
+import { useSettingsStore } from '@/stores/hermes/settings'
 import { fetchContextLength } from '@/api/hermes/sessions'
 import { NButton, NTooltip } from 'naive-ui'
 import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const chatStore = useChatStore()
+const settingsStore = useSettingsStore()
 const { t } = useI18n()
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement>()
@@ -285,7 +287,7 @@ function isImage(type: string): boolean {
       ></textarea>
       <div class="input-actions">
         <NButton
-          v-if="chatStore.isStreaming"
+          v-if="chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt'"
           size="small"
           type="error"
           @click="chatStore.stopStreaming()"
@@ -295,7 +297,7 @@ function isImage(type: string): boolean {
         <NButton
           size="small"
           type="primary"
-          :disabled="!canSend || chatStore.isStreaming"
+          :disabled="!canSend || (chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt')"
           @click="handleSend"
         >
           <template #icon>

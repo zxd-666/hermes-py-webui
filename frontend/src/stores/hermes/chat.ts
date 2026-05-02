@@ -5,6 +5,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
 import { useProfilesStore } from './profiles'
+import { useSettingsStore } from './settings'
 import { detectThinkingBoundary } from '@/utils/thinking-parser'
 
 export interface Attachment {
@@ -734,7 +735,6 @@ export const useChatStore = defineStore('chat', () => {
                 const prev = last.content
                 const next = prev + (evt.delta || '')
                 noteThinkingDelta(last.id, prev, next)
-                // 若之前有 reasoning 累积，则 content 到达即视为推理结束。
                 if (last.reasoning) noteReasoningEnd(last.id)
                 last.content = next
               } else {
@@ -882,6 +882,15 @@ export const useChatStore = defineStore('chat', () => {
               cleanup()
               updateSessionTitle(sid)
               persistSessionTitle(sid)
+              // Completion sound
+              try {
+                const st = useSettingsStore()
+                if (st.display.bell_on_complete) {
+                  const audio = new Audio('/notification.wav')
+                  audio.volume = 0.4
+                  audio.play().catch(() => {})
+                }
+              } catch {}
               // the in-flight marker. If the browser is reloading right now
               // and kills us between the two localStorage writes, we want
               // the next page load to still see in-flight === true (so

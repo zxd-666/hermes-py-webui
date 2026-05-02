@@ -8,7 +8,6 @@ export interface DisplayConfig {
   bell_on_complete?: boolean
   show_reasoning?: boolean
   streaming?: boolean
-  inline_diffs?: boolean
   show_cost?: boolean
   skin?: string
 }

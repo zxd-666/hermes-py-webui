@@ -91,5 +91,5 @@ async def delete_workspace(request: Request, ws_id: str):
     new_list = [ws for ws in workspaces if ws["id"] != ws_id]
     if len(new_list) == len(workspaces):
         return JSONResponse(status_code=404, content={"error": "workspace not found"})
-    _save_workspaces(new_list)
+    _save_workspaces(request, new_list)
     return {"ok": True}

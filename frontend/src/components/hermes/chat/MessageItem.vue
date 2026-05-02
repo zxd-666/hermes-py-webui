@@ -18,7 +18,7 @@ import {
 
 const TOOL_PAYLOAD_DISPLAY_LIMIT = 2000;
 
-const props = defineProps<{ message: Message; highlight?: boolean }>();
+const props = defineProps<{ message: Message; highlight?: boolean; isLastAssistant?: boolean }>();
 const { t } = useI18n();
 const toast = useMessage();
 
@@ -31,6 +31,23 @@ const settingsStore = useSettingsStore();
 const profilesStore = useProfilesStore();
 
 const assistantAvatar = computed(() => profilesStore.activeAvatar || '/logo.png');
+
+const showCost = computed(() => !!settingsStore.display.show_cost);
+
+const sessionCost = computed(() => {
+  const session = chatStore.activeSession;
+  if (!session) return null;
+  const input = session.inputTokens || 0;
+  const output = session.outputTokens || 0;
+  if (input === 0 && output === 0) return null;
+  return { input, output };
+});
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return String(n)
+}
 
 // Copy entire bubble content
 const copyableContent = computed(() => {
@@ -357,7 +374,7 @@ const renderedToolResult = computed(() => {
           class="msg-avatar"
         />
         <div class="msg-content" :class="message.role">
-          <div class="message-bubble" :class="{ system: isSystem }">
+          <div class="message-bubble" :class="{ system: isSystem, 'is-streaming': message.isStreaming }">
             <div v-if="hasAttachments" class="msg-attachments">
               <div
                 v-for="att in message.attachments"
@@ -457,6 +474,10 @@ const renderedToolResult = computed(() => {
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
             </button>
+            <span
+              v-if="showCost && sessionCost && props.isLastAssistant && !message.isStreaming"
+              class="message-cost"
+            >{{ formatTokens(sessionCost.input) }} in · {{ formatTokens(sessionCost.output) }} out</span>
             <span class="message-time">{{ timeStr }}</span>
           </div>
         </div>
@@ -723,6 +744,13 @@ const renderedToolResult = computed(() => {
   .dark & {
     color: #999999;
   }
+}
+
+.message-cost {
+  font-size: 10px;
+  color: $text-muted;
+  font-family: $font-code;
+  opacity: 0.7;
 }
 
 .tool-line {
