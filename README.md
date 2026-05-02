@@ -51,6 +51,15 @@ In short: this project trades the Gateway's decoupling for **direct access to AI
 
 The complete web management interface for Hermes Agent, running on `localhost:9898`:
 
+### ✨ Highlights
+
+- **Custom User Avatar** — Upload and set a personalized avatar for your profile, displayed in the sidebar and chat interface
+- **Default Model Shortcut** — Set your preferred model as default right from the Models page, no config editing needed
+- **Friendly i18n** — Full interface translations in 8 languages (English, 中文, 日本語, 한국어, Français, Deutsch, Español, Português), with language switcher in the sidebar
+- **Dark / Light Theme** — System-following theme with manual toggle, one-click switch
+- **Collapsible Sidebar Groups** — Nav groups can be collapsed/expanded, keep your workspace clean
+- **Per-Profile Isolation** — Config, skills, memory, and workspaces are fully isolated per Agent group
+
 ### 💬 Chat
 
 - Real-time SSE streaming (text + reasoning + tool call events)

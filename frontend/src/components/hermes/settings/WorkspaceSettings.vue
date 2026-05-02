@@ -93,7 +93,11 @@ async function handleDelete(id: string) {
         </div>
         <NSpace size="small">
           <NButton size="tiny" quaternary @click="startEdit(ws)">{{ t('common.edit') }}</NButton>
-          <NPopconfirm @positive-click="handleDelete(ws.id)">
+          <NPopconfirm
+            :positive-text="t('common.confirm')"
+            :negative-text="t('common.cancel')"
+            @positive-click="handleDelete(ws.id)"
+          >
             <template #trigger>
               <NButton size="tiny" quaternary type="error">{{ t('common.delete') }}</NButton>
             </template>

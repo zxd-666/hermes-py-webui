@@ -70,7 +70,7 @@ export default {
 
   // 侧边栏
   sidebar: {
-    chat: '对话',
+    chat: '会话',
     search: '搜索',
     jobs: '任务',
     models: '模型',
@@ -84,9 +84,9 @@ export default {
     terminal: '终端',
     groupChat: '群聊',
     files: '文件',
-    groupConversation: '对话',
+    groupConversation: '会话',
     groupPlatform: '平台',
-    groupAgent: '代理',
+    groupAgent: 'Agent',
     groupSystem: '系统',
     groupMonitoring: '监控',
     groupTools: '工具',
@@ -199,12 +199,12 @@ export default {
     presetEveryMonth: '每月 1 日 09:00',
     prompt: '提示词',
     promptPlaceholder: '要执行的内容',
-    deliverTarget: '投递目标',
+    deliverTarget: '推送',
     origin: '来源',
     local: '本地',
     repeatCount: '重复次数（可选）',
-    modelPlaceholder: 'Default model',
-    model: 'Model',
+    modelPlaceholder: '默认模型',
+    model: '模型',
     repeatPlaceholder: '留空表示无限重复',
     jobCreated: '任务已创建',
     jobUpdated: '任务已更新',
@@ -223,11 +223,11 @@ export default {
       scheduled: '运行中',
     },
     info: {
-      model: 'Model',
-      schedule: 'Schedule',
+      model: '模型',
+      schedule: '时间',
       lastRun: '上次运行',
       nextRun: '下次运行',
-      deliver: '投递',
+      deliver: '推送',
       repeat: '重复',
     },
     action: {
@@ -362,7 +362,7 @@ export default {
 
   // 配置
   profiles: {
-    title: '配置',
+    title: '用户',
     create: '创建配置',
     import: '导入',
     export: '导出',
@@ -428,7 +428,7 @@ export default {
 
   // 设置
   settings: {
-    title: '设置',
+    title: '配置',
     saved: '已保存',
     saveFailed: '保存失败',
     tabs: {
@@ -633,7 +633,7 @@ export default {
 
   // 终端
   terminal: {
-    sessions: '会话',
+    sessions: '终端',
     newTab: '新建终端',
     closeSession: '关闭此会话？',
     sessionExited: '已退出',

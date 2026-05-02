@@ -111,8 +111,8 @@ function handleCardClick(e: MouseEvent) {
         <span class="info-label">{{ t('jobs.info.lastRun') }}</span>
         <span class="info-value">
           {{ formatTime(job.last_run_at) }}
-          <span v-if="job.last_status" class="run-status" :class="{ ok: job.last_status === 'ok', err: job.last_status !== 'ok' }">
-            {{ job.last_status === 'ok' ? t('common.ok') : job.last_status }}
+          <span v-if="job.last_status && job.last_status !== 'ok'" class="run-status err">
+            {{ job.last_status }}
           </span>
         </span>
       </div>

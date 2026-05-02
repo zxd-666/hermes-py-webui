@@ -204,7 +204,11 @@ watch(() => store.sortedMessages.length, async () => {
                         <span v-if="room.inviteCode" class="room-code">{{ room.inviteCode }}</span>
                         <span class="room-tokens">{{ formatTokens(room.totalTokens || 0) }}</span>
                     </div>
-                    <NPopconfirm @positive-click="handleDeleteRoom(room.id)">
+                    <NPopconfirm
+                        :positive-text="t('common.confirm')"
+                        :negative-text="t('common.cancel')"
+                        @positive-click="handleDeleteRoom(room.id)"
+                    >
                         <template #trigger>
                             <button class="room-delete-btn" @click.stop>
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

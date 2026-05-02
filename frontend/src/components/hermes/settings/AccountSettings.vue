@@ -158,7 +158,11 @@ function openChangeUsernameModal() {
         <div class="action-buttons">
           <NButton @click="openChangePasswordModal">{{ t("login.changePassword") }}</NButton>
           <NButton @click="openChangeUsernameModal">{{ t("login.changeUsername") }}</NButton>
-          <NPopconfirm @positive-click="handleRemove">
+          <NPopconfirm
+            :positive-text="t('common.confirm')"
+            :negative-text="t('common.cancel')"
+            @positive-click="handleRemove"
+          >
             <template #trigger>
               <NButton type="error" ghost :loading="loading">{{ t("login.removePasswordLogin") }}</NButton>
             </template>

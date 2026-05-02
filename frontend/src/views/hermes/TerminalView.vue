@@ -551,29 +551,26 @@ onUnmounted(() => {
           t("terminal.sessions")
         }}</span>
         <div class="session-list-actions">
-          <!-- <button class="session-close-btn" @click="showSessions = false">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button> -->
-          <NTooltip trigger="hover">
-            <template #trigger>
-              <NButton quaternary size="tiny" @click="createSession" circle>
-                <template #icon>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </template>
-              </NButton>
+          <NButton quaternary size="tiny" @click="createSession" circle>
+            <template #icon>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
             </template>
-            {{ t("terminal.newTab") }}
-          </NTooltip>
+          </NButton>
+          <NButton v-if="showSessions" quaternary size="tiny" @click="showSessions = false" circle>
+            <template #icon>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><path d="M18 6v12"/></svg>
+            </template>
+          </NButton>
         </div>
       </div>
       <div v-if="showSessions" class="session-items">
@@ -601,6 +598,8 @@ onUnmounted(() => {
           </div>
           <NPopconfirm
             v-if="sessions.length > 1"
+            :positive-text="t('common.confirm')"
+            :negative-text="t('common.cancel')"
             @positive-click="closeSession(s.id)"
           >
             <template #trigger>
@@ -629,25 +628,14 @@ onUnmounted(() => {
       <header class="terminal-header">
         <div class="header-left">
           <NButton
+            v-if="!showSessions"
             quaternary
             size="small"
-            @click="showSessions = !showSessions"
+            @click="showSessions = true"
             circle
           >
             <template #icon>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="13 17 18 12 13 7"/><path d="M6 6v12"/></svg>
             </template>
           </NButton>
           <span v-if="activeSession" class="header-session-title">{{

@@ -319,7 +319,11 @@ async function handleAvatarDelete() {
               <NTag v-if="detail.hasAvatar" size="tiny" :bordered="false">
                 ✓
                 <template #avatar>
-                  <NPopconfirm @positive-click="handleAvatarDelete">
+                  <NPopconfirm
+                    :positive-text="t('common.confirm')"
+                    :negative-text="t('common.cancel')"
+                    @positive-click="handleAvatarDelete"
+                  >
                     <template #trigger>
                       <NButton text size="tiny" class="avatar-remove-btn">×</NButton>
                     </template>
