@@ -368,6 +368,7 @@ function handleLogout() {
 .footer-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 8px 12px;
 }
