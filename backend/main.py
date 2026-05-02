@@ -28,12 +28,11 @@ from .routes.logs import router as logs_router
 from .routes.cron_history import router as cron_history_router
 from .routes.profiles import router as profiles_router
 from .routes.gateways import router as gateways_router
-from .routes.auth_providers import router as auth_providers_router
+from .routes.auth import check_auth, router as auth_router
 from .routes.weixin import router as weixin_router
 from .routes.terminal import router as terminal_router
 from .routes.channels import router as channels_router
 from .routes.workspaces import router as workspaces_router
-from .routes.auth import check_auth, router as auth_router
 from .routes.files import upload_files as _upload_files
 
 app = FastAPI(title="Hermes Py WebUI", version="0.1.0")
@@ -73,7 +72,6 @@ app.include_router(logs_router)
 app.include_router(cron_history_router)
 app.include_router(profiles_router)
 app.include_router(gateways_router)
-app.include_router(auth_providers_router)
 app.include_router(weixin_router)
 app.include_router(terminal_router)
 app.include_router(channels_router)

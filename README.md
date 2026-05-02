@@ -244,7 +244,6 @@ hermes-py-webui/
 │       ├── chat.py          # Chat: start + SSE stream
 │       ├── sessions.py      # Session management
 │       ├── auth.py          # Auth: password + Bearer token
-│       ├── auth_providers.py # OAuth login (Codex/Copilot/Nous)
 │       ├── terminal.py      # WebSocket terminal
 │       ├── config_route.py  # config.yaml + Provider/model management
 │       ├── skills.py        # Skills + Memory
