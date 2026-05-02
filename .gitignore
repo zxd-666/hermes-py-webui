@@ -28,3 +28,7 @@ Thumbs.db
 
 # Environment
 .env
+
+# Debug
+start_debug.sh
+test_profiles.py
