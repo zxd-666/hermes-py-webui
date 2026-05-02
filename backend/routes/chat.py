@@ -43,6 +43,9 @@ async def start_run(req: Request, body: StartRunRequest):
         from urllib.parse import unquote
         workspace = unquote(workspace_header)
 
+    # Get profile from header
+    profile = req.headers.get("x-hermes-profile", "").strip() or None
+
     # Get model (passed through to agent thread, which does full resolution)
     model = body.model or ""
 
@@ -55,6 +58,7 @@ async def start_run(req: Request, body: StartRunRequest):
             "msg_text": msg_text,
             "model": model,
             "workspace": workspace,
+            "profile": profile,
             "conversation_history": body.conversation_history,
         },
         daemon=True,

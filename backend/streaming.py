@@ -117,6 +117,7 @@ def run_agent_in_thread(
     msg_text: str,
     model: str,
     workspace: str,
+    profile: str | None = None,
     conversation_history: list[dict] | None = None,
 ):
     """Run AIAgent in a background thread, pushing SSE events to the stream queue."""
@@ -143,11 +144,15 @@ def run_agent_in_thread(
         # Resolve workspace
         workspace_path = str(Path(workspace).expanduser().resolve())
 
+        # Resolve HERMES_HOME for the given profile
+        hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
+        if profile and profile != "default":
+            hermes_home = str(os.path.expanduser("~/.hermes/profiles") / profile)
+
         # Set env for agent
         os.environ["TERMINAL_CWD"] = workspace_path
         os.environ["HERMES_SESSION_KEY"] = session_id
         os.environ["HERMES_EXEC_ASK"] = "1"
-        hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
         os.environ["HERMES_HOME"] = hermes_home
 
         # MCP discovery
