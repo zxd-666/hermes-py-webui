@@ -114,15 +114,16 @@ async def cancel_run(stream_id: str):
 
 
 @router.get("/resume/{session_id}")
-async def resume_session(session_id: str):
+async def resume_session(request: Request, session_id: str):
     """Resume a session — return current state from state.db."""
     from ..db import get_session, get_session_messages
 
-    s = get_session(session_id)
+    profile = request.headers.get("x-hermes-profile", "").strip() or None
+    s = get_session(session_id, profile=profile)
     if not s:
         return JSONResponse(status_code=404, content={"error": "session not found"})
 
-    messages = get_session_messages(session_id)
+    messages = get_session_messages(session_id, profile=profile)
     input_tokens = s.get("input_tokens", 0) or 0
     output_tokens = s.get("output_tokens", 0) or 0
 

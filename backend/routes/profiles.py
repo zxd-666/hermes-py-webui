@@ -191,6 +191,16 @@ async def list_profiles():
         except json.JSONDecodeError:
             pass
 
+    # Read active profile name from ~/.hermes/active_profile
+    # When file is missing/empty, active profile is "default"
+    _active_name = "default"
+    try:
+        content = (HERMES_HOME / "active_profile").read_text().strip()
+        if content:
+            _active_name = content
+    except Exception:
+        pass
+
     # Fallback: parse from directory listing
     if not PROFILES_DIR.exists():
         profiles = []
@@ -212,7 +222,7 @@ async def list_profiles():
                     pass
             profiles.append({
                 "name": entry.name,
-                "active": False,
+                "active": entry.name == _active_name,
                 "model": model,
                 "gateway": gateway,
                 "alias": entry.name,
@@ -235,7 +245,7 @@ async def list_profiles():
                 pass
         profiles.insert(0, {
             "name": "default",
-            "active": False,
+            "active": "default" == _active_name,
             "model": model,
             "gateway": gateway,
             "alias": "default",

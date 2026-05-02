@@ -39,11 +39,9 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     headers['Authorization'] = `Bearer ${apiKey}`
   }
 
-  // Inject active profile header for proxied gateway requests
-  const profileName = localStorage.getItem('hermes_active_profile_name')
-  if (profileName && profileName !== 'default') {
-    headers['X-Hermes-Profile'] = profileName
-  }
+  // Inject active profile header — backend uses it to select the correct state.db
+  const profileName = localStorage.getItem('hermes_active_profile_name') || 'default'
+  headers['X-Hermes-Profile'] = profileName
 
   const res = await fetch(url, { ...options, headers })
 

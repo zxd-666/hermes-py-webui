@@ -1,7 +1,7 @@
 """Session endpoints: list, get, delete, rename, search, usage, conversations."""
 import json
 from pathlib import Path
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from typing import Optional
 
@@ -13,6 +13,13 @@ from ..db import (
 )
 
 router = APIRouter(prefix="/api/hermes", tags=["sessions"])
+
+# ─── Profile helper ───
+
+def _get_profile(request: Request) -> str | None:
+    """Read profile name from X-Hermes-Profile header."""
+    name = request.headers.get("x-hermes-profile", "").strip()
+    return name if name else None
 
 # ─── Workspace persistence ───
 
@@ -36,16 +43,18 @@ def _save_workspace_map(data: dict):
 
 @router.get("/sessions/conversations")
 async def conversation_summaries(
+    request: Request,
     humanOnly: bool = Query(True),
     source: Optional[str] = Query(None),
     limit: int = Query(50),
 ):
     """List conversation summaries with richer data."""
-    sessions = list_sessions(source=source, limit=limit)
+    profile = _get_profile(request)
+    sessions = list_sessions(source=source, limit=limit, profile=profile)
     wmap = _load_workspace_map()
     summaries = []
     for s in sessions:
-        msgs = get_session_messages(s["id"], limit=3)
+        msgs = get_session_messages(s["id"], limit=3, profile=profile)
         preview = ""
         for m in reversed(msgs):
             if m.get("role") == "user" and m.get("content"):
@@ -76,12 +85,14 @@ async def conversation_summaries(
 
 @router.get("/sessions/conversations/{session_id}/messages")
 async def conversation_messages(
+    request: Request,
     session_id: str,
     humanOnly: bool = Query(True),
     source: Optional[str] = Query(None),
 ):
     """Get conversation messages."""
-    messages = get_session_messages(session_id, limit=1000)
+    profile = _get_profile(request)
+    messages = get_session_messages(session_id, limit=1000, profile=profile)
     roles = ["user", "assistant"] if humanOnly else None
     if roles:
         messages = [m for m in messages if m.get("role") in roles]
@@ -108,12 +119,13 @@ async def context_length():
 
 
 @router.get("/sessions/usage")
-async def sessions_usage(ids: str = Query("")):
+async def sessions_usage(request: Request, ids: str = Query("")):
     """Batch token usage for session IDs (comma-separated)."""
     if not ids:
         return {}
     from ..db import _conn
-    conn = _conn()
+    profile = _get_profile(request)
+    conn = _conn(profile)
     try:
         id_list = [i.strip() for i in ids.split(",") if i.strip()]
         if not id_list:
@@ -132,14 +144,16 @@ async def sessions_usage(ids: str = Query("")):
 
 @router.get("/sessions")
 async def sessions_list(
+    request: Request,
     source: Optional[str] = Query(None),
     limit: int = Query(50),
 ):
-    sessions = list_sessions(source=source, limit=limit)
+    profile = _get_profile(request)
+    sessions = list_sessions(source=source, limit=limit, profile=profile)
     wmap = _load_workspace_map()
     for s in sessions:
         s["workspace"] = wmap.get(s["id"])
-        msgs = get_session_messages(s["id"], limit=3)
+        msgs = get_session_messages(s["id"], limit=3, profile=profile)
         for m in reversed(msgs):
             if m.get("role") == "user" and m.get("content"):
                 s["preview"] = m["content"][:100]
@@ -148,23 +162,26 @@ async def sessions_list(
 
 
 @router.get("/sessions/{session_id}")
-async def session_detail(session_id: str):
-    s = get_session(session_id)
+async def session_detail(request: Request, session_id: str):
+    profile = _get_profile(request)
+    s = get_session(session_id, profile=profile)
     if not s:
         return JSONResponse(status_code=404, content={"error": "session not found"})
-    messages = get_session_messages(session_id)
+    messages = get_session_messages(session_id, profile=profile)
     return {"session": {**s, "messages": messages}}
 
 
 @router.delete("/sessions/{session_id}")
-async def session_delete(session_id: str):
-    return {"deleted": delete_session(session_id)}
+async def session_delete(request: Request, session_id: str):
+    profile = _get_profile(request)
+    return {"deleted": delete_session(session_id, profile=profile)}
 
 
 @router.post("/sessions/{session_id}/rename")
-async def session_rename(session_id: str, body: dict):
+async def session_rename(request: Request, session_id: str, body: dict):
+    profile = _get_profile(request)
     title = body.get("title", "")
-    return {"renamed": rename_session(session_id, title)}
+    return {"renamed": rename_session(session_id, title, profile=profile)}
 
 
 @router.post("/sessions/{session_id}/workspace")
@@ -219,9 +236,10 @@ async def workspace_folders(path: str = Query("")):
 
 
 @router.get("/sessions/{session_id}/usage")
-async def session_usage_single(session_id: str):
+async def session_usage_single(request: Request, session_id: str):
     from ..db import _conn
-    conn = _conn()
+    profile = _get_profile(request)
+    conn = _conn(profile)
     try:
         r = conn.execute(
             "SELECT COALESCE(input_tokens,0) as input_tokens, COALESCE(output_tokens,0) as output_tokens FROM sessions WHERE id = ?",
@@ -238,14 +256,17 @@ async def session_usage_single(session_id: str):
 
 @router.get("/search/sessions")
 async def sessions_search(
+    request: Request,
     q: str = Query(...),
     source: Optional[str] = Query(None),
     limit: int = Query(20),
 ):
-    results = search_sessions(q=q, source=source, limit=limit)
+    profile = _get_profile(request)
+    results = search_sessions(q=q, source=source, limit=limit, profile=profile)
     return {"results": results}
 
 
 @router.get("/usage/stats")
-async def usage_stats(days: int = Query(30)):
-    return get_usage_stats(days=days)
+async def usage_stats(request: Request, days: int = Query(30)):
+    profile = _get_profile(request)
+    return get_usage_stats(days=days, profile=profile)

@@ -3,20 +3,22 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Optional
-from .config import STATE_DB
+from .config import get_profile_state_db
 
 
-def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(STATE_DB))
+def _conn(profile: str | None = None) -> sqlite3.Connection:
+    db_path = get_profile_state_db(profile)
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     return conn
 
 
 # ── Sessions ──────────────────────────────────────────────
 
-def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict]:
+def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0,
+                  profile: str | None = None) -> list[dict]:
     """Return sessions ordered by started_at DESC."""
-    conn = _conn()
+    conn = _conn(profile)
     try:
         q = "SELECT * FROM sessions"
         params: list = []
@@ -31,8 +33,8 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
         conn.close()
 
 
-def get_session(session_id: str) -> Optional[dict]:
-    conn = _conn()
+def get_session(session_id: str, profile: str | None = None) -> Optional[dict]:
+    conn = _conn(profile)
     try:
         r = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         return _row_to_dict(r) if r else None
@@ -40,8 +42,9 @@ def get_session(session_id: str) -> Optional[dict]:
         conn.close()
 
 
-def get_session_messages(session_id: str, limit: int = 500) -> list[dict]:
-    conn = _conn()
+def get_session_messages(session_id: str, limit: int = 500,
+                         profile: str | None = None) -> list[dict]:
+    conn = _conn(profile)
     try:
         rows = conn.execute(
             "SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT ?",
@@ -52,8 +55,8 @@ def get_session_messages(session_id: str, limit: int = 500) -> list[dict]:
         conn.close()
 
 
-def delete_session(session_id: str) -> bool:
-    conn = _conn()
+def delete_session(session_id: str, profile: str | None = None) -> bool:
+    conn = _conn(profile)
     try:
         conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
         conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
@@ -63,8 +66,8 @@ def delete_session(session_id: str) -> bool:
         conn.close()
 
 
-def rename_session(session_id: str, title: str) -> bool:
-    conn = _conn()
+def rename_session(session_id: str, title: str, profile: str | None = None) -> bool:
+    conn = _conn(profile)
     try:
         conn.execute("UPDATE sessions SET title = ? WHERE id = ?", (title, session_id))
         conn.commit()
@@ -73,9 +76,10 @@ def rename_session(session_id: str, title: str) -> bool:
         conn.close()
 
 
-def search_sessions(q: str, source: Optional[str] = None, limit: int = 20) -> list[dict]:
+def search_sessions(q: str, source: Optional[str] = None, limit: int = 20,
+                    profile: str | None = None) -> list[dict]:
     """FTS5 full-text search on messages, return matching sessions with snippet."""
-    conn = _conn()
+    conn = _conn(profile)
     try:
         # Search messages for the query
         sql = """
@@ -103,8 +107,8 @@ def search_sessions(q: str, source: Optional[str] = None, limit: int = 20) -> li
         conn.close()
 
 
-def get_usage_stats(days: int = 30) -> dict:
-    conn = _conn()
+def get_usage_stats(days: int = 30, profile: str | None = None) -> dict:
+    conn = _conn(profile)
     try:
         since = time.time() - days * 86400
         row = conn.execute("""
