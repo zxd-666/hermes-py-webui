@@ -6,6 +6,35 @@
 
 **核心价值：会话可绑定工作区** — AIAgent 实例化时传 workdir 生效，Gateway 代理模式做不到。
 
+## 截图预览
+
+<table>
+<tr>
+<td><img src="docs/images/chat.jpg" width="400"></td>
+<td><img src="docs/images/jobs.jpg" width="400"></td>
+</tr>
+<tr>
+<td align="center">💬 聊天对话</td>
+<td align="center">🕐 定时任务</td>
+</tr>
+<tr>
+<td><img src="docs/images/memory.jpg" width="400"></td>
+<td><img src="docs/images/models.jpg" width="400"></td>
+</tr>
+<tr>
+<td align="center">🧠 技能与记忆</td>
+<td align="center">🤖 模型与 Provider</td>
+</tr>
+<tr>
+<td><img src="docs/images/usage.jpg" width="400"></td>
+<td><img src="docs/images/user-management.jpg" width="400"></td>
+</tr>
+<tr>
+<td align="center">📊 用量统计</td>
+<td align="center">👤 用户管理</td>
+</tr>
+</table>
+
 ## 功能概览
 
 Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
