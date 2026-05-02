@@ -32,6 +32,35 @@ HOST = os.environ.get("HERMES_PY_WEBUI_HOST", "127.0.0.1")
 DEFAULT_WORKSPACE = Path.home()
 
 
+def profile_from_request(request) -> str | None:
+    """Extract profile name from X-Hermes-Profile header or query param.
+
+    Returns None for 'default' so callers can avoid the extra join.
+    """
+    # Header takes priority (set by chat proxy / gateway)
+    header = request.headers.get("x-hermes-profile", "").strip()
+    if header and header.lower() != "default":
+        return header
+    # Query param fallback (for direct API calls)
+    qp = (getattr(request, "query_params", None)
+          or getattr(request, "query", {}))
+    qval = (qp.get("profile", "") if isinstance(qp, dict) else "").strip()
+    if qval and qval.lower() != "default":
+        return qval
+    return None
+
+
+def profile_home(profile_name: str | None) -> Path:
+    """Return the HERMES_HOME for a profile.
+
+    default / None  →  HERMES_ROOT  (i.e. ~/.hermes/)
+    named profile   →  HERMES_ROOT/profiles/<name>/
+    """
+    if profile_name:
+        return HERMES_ROOT / "profiles" / profile_name
+    return HERMES_ROOT
+
+
 def get_profile_state_db(profile_name: str | None = None) -> Path:
     """Return the state.db path for the given profile.
 

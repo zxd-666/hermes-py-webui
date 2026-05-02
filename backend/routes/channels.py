@@ -3,21 +3,20 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ..config import HERMES_HOME
+from ..config import profile_from_request, profile_home
 
 router = APIRouter(prefix="/api/hermes/channels", tags=["channels"])
 
-CHANNEL_DIR_PATH = HERMES_HOME / "channel_directory.json"
 
-
-def _load_directory() -> dict:
+def _load_directory(home: Path) -> dict:
     """Load channel directory from disk."""
-    if not CHANNEL_DIR_PATH.exists():
+    path = home / "channel_directory.json"
+    if not path.exists():
         return {"updated_at": None, "platforms": {}}
     try:
-        with open(CHANNEL_DIR_PATH, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"updated_at": None, "platforms": {}}
@@ -25,10 +24,12 @@ def _load_directory() -> dict:
 
 @router.get("")
 async def list_channels(
+    request: Request,
     platform: Optional[str] = Query(None, description="Filter by platform name"),
 ):
     """List all channels across platforms."""
-    directory = _load_directory()
+    home = profile_home(profile_from_request(request))
+    directory = _load_directory(home)
     platforms = directory.get("platforms", {})
 
     if platform:
@@ -55,9 +56,10 @@ async def list_channels(
 
 
 @router.get("/summary")
-async def channel_summary():
+async def channel_summary(request: Request):
     """Return channel count per platform."""
-    directory = _load_directory()
+    home = profile_home(profile_from_request(request))
+    directory = _load_directory(home)
     platforms = directory.get("platforms", {})
     summary = {}
     for name, channels in platforms.items():
@@ -74,9 +76,10 @@ async def channel_summary():
 
 
 @router.get("/{platform}")
-async def get_channels_by_platform(platform: str):
+async def get_channels_by_platform(platform: str, request: Request):
     """Get channels for a specific platform (path-based)."""
-    directory = _load_directory()
+    home = profile_home(profile_from_request(request))
+    directory = _load_directory(home)
     platforms = directory.get("platforms", {})
     channels = platforms.get(platform, [])
     return {

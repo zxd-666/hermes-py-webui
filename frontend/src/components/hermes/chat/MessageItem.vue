@@ -22,11 +22,11 @@ const props = defineProps<{ message: Message; highlight?: boolean }>();
 const { t } = useI18n();
 const toast = useMessage();
 
+const chatStore = useChatStore();
 const isSystem = computed(() => props.message.role === "system");
 const toolExpanded = ref(false);
 const previewUrl = ref<string | null>(null);
 
-const chatStore = useChatStore();
 const settingsStore = useSettingsStore();
 const profilesStore = useProfilesStore();
 
@@ -457,6 +457,7 @@ const renderedToolResult = computed(() => {
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
             </button>
+            <span v-if="message.model && message.role === 'assistant'" class="message-model">{{ message.model }}</span>
             <span class="message-time">{{ timeStr }}</span>
           </div>
         </div>
@@ -677,6 +678,13 @@ const renderedToolResult = computed(() => {
   .message:hover & {
     opacity: 1;
   }
+}
+
+.message-model {
+  font-size: 11px;
+  color: $text-muted;
+  user-select: text;
+  white-space: nowrap;
 }
 
 .copy-bubble-btn {

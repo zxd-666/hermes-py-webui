@@ -5,35 +5,39 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from ..config import HERMES_HOME
+from ..config import profile_from_request, profile_home
 
 router = APIRouter(prefix="/api/hermes/jobs", tags=["jobs"])
 
-JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
+
+def _jobs_file(home: Path) -> Path:
+    return home / "cron" / "jobs.json"
 
 
-def _load_jobs() -> dict:
+def _load_jobs(home: Path) -> dict:
     """Load jobs.json, return the full dict."""
-    if not JOBS_FILE.exists():
+    path = _jobs_file(home)
+    if not path.exists():
         return {"jobs": [], "updated_at": None}
     try:
-        with open(JOBS_FILE, encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
         return {"jobs": [], "updated_at": None}
 
 
-def _save_jobs(data: dict):
+def _save_jobs(home: Path, data: dict):
     """Save jobs.json atomically."""
+    path = _jobs_file(home)
     data["updated_at"] = time.time()
-    JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = JOBS_FILE.with_suffix(".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    tmp.rename(JOBS_FILE)
+    tmp.rename(path)
 
 
 def _find_job(jobs: list, job_id: str) -> Optional[dict]:
@@ -76,17 +80,19 @@ def _job_to_response(job: dict) -> dict:
 
 
 @router.get("")
-async def list_jobs(include_disabled: bool = Query(True)):
+async def list_jobs(request: Request, include_disabled: bool = Query(True)):
     """List all cron jobs."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     jobs = [_job_to_response(j) for j in data["jobs"]]
     return {"jobs": jobs}
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str):
+async def get_job(job_id: str, request: Request):
     """Get a single job by ID."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     job = _find_job(data["jobs"], job_id)
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
@@ -94,9 +100,10 @@ async def get_job(job_id: str):
 
 
 @router.post("")
-async def create_job(body: dict):
+async def create_job(body: dict, request: Request):
     """Create a new cron job."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     job_id = uuid.uuid4().hex[:12]
     now = time.time()
     job = {
@@ -120,14 +127,15 @@ async def create_job(body: dict):
         if key in body:
             job[key] = body[key]
     data["jobs"].append(job)
-    _save_jobs(data)
+    _save_jobs(home, data)
     return {"job": _job_to_response(job)}
 
 
 @router.patch("/{job_id}")
-async def update_job(job_id: str, body: dict):
+async def update_job(job_id: str, body: dict, request: Request):
     """Update an existing job."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     job = _find_job(data["jobs"], job_id)
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
@@ -139,57 +147,61 @@ async def update_job(job_id: str, body: dict):
             job[key] = value
         else:
             job[key] = value
-    _save_jobs(data)
+    _save_jobs(home, data)
     return {"job": _job_to_response(job)}
 
 
 @router.delete("/{job_id}")
-async def delete_job(job_id: str):
+async def delete_job(job_id: str, request: Request):
     """Delete a cron job."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     before = len(data["jobs"])
     data["jobs"] = [j for j in data["jobs"] if j.get("id") != job_id and j.get("job_id") != job_id]
     if len(data["jobs"]) == before:
         return JSONResponse(status_code=404, content={"error": "job not found"})
-    _save_jobs(data)
+    _save_jobs(home, data)
     return {"ok": True}
 
 
 @router.post("/{job_id}/pause")
-async def pause_job(job_id: str):
+async def pause_job(job_id: str, request: Request):
     """Pause a cron job."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     job = _find_job(data["jobs"], job_id)
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
     job["enabled"] = False
     job["paused_at"] = time.time()
-    _save_jobs(data)
+    _save_jobs(home, data)
     return {"job": _job_to_response(job)}
 
 
 @router.post("/{job_id}/resume")
-async def resume_job(job_id: str):
+async def resume_job(job_id: str, request: Request):
     """Resume a paused cron job."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     job = _find_job(data["jobs"], job_id)
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
     job["enabled"] = True
     job["paused_at"] = None
     job["paused_reason"] = None
-    _save_jobs(data)
+    _save_jobs(home, data)
     return {"job": _job_to_response(job)}
 
 
 @router.post("/{job_id}/run")
-async def run_job(job_id: str):
+async def run_job(job_id: str, request: Request):
     """Trigger a job run (note: actual execution requires the scheduler process)."""
-    data = _load_jobs()
+    home = profile_home(profile_from_request(request))
+    data = _load_jobs(home)
     job = _find_job(data["jobs"], job_id)
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
     # Mark as pending — actual execution is done by the hermes scheduler
     job["state"] = "pending"
-    _save_jobs(data)
+    _save_jobs(home, data)
     return {"job": _job_to_response(job)}

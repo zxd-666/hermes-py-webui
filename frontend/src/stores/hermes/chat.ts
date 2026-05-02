@@ -34,6 +34,7 @@ export interface Message {
   //   2) 流式：由 reasoning.delta / thinking.delta / reasoning.available 事件累加
   // 不含 <think> 包裹标签；内容自身可以为多段纯文本。
   reasoning?: string
+  model?: string  // 该消息使用的 LLM（前端在流式结束时写入）
 }
 
 export interface Session {
@@ -151,6 +152,7 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
       content: msg.content || '',
       timestamp: Math.round(msg.timestamp * 1000),
       reasoning: msg.reasoning ? msg.reasoning : undefined,
+      model: (msg as any).model || undefined,
     })
   }
   return result
@@ -799,6 +801,15 @@ export const useChatStore = defineStore('chat', () => {
                   target.outputTokens = (evt as any).outputTokens
                 }
               }
+              // Write model into last assistant message
+              if (sessionModel) {
+                const allMsgs = getSessionMsgs(sid)
+                const lastAsst = [...allMsgs].reverse().find(m => m.role === 'assistant')
+                if (lastAsst) {
+                  updateMessage(sid, lastAsst.id, { model: sessionModel })
+                }
+              }
+
               // Belt-and-suspenders: some providers may deliver the final
               // assistant text only via run.completed.output (no message.delta
               // stream). If we never produced assistant text but the gateway

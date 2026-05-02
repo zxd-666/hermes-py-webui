@@ -3,23 +3,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from ..config import HERMES_HOME
+from ..config import profile_from_request, profile_home
 
 router = APIRouter(prefix="/api/cron-history", tags=["cron-history"])
-
-OUTPUT_DIR = HERMES_HOME / "cron" / "output"
 
 # Only list these file extensions
 _OUTPUT_EXTENSIONS = {".md", ".txt", ".json", ".log"}
 
 
 @router.get("")
-async def list_cron_runs(jobId: Optional[str] = Query(None)):
+async def list_cron_runs(request: Request, jobId: Optional[str] = Query(None)):
     """List cron run output files, optionally filtered by job ID."""
-    if not OUTPUT_DIR.exists():
+    output_dir = profile_home(profile_from_request(request)) / "cron" / "output"
+    if not output_dir.exists():
         return {"runs": []}
 
     runs = []
@@ -50,9 +49,9 @@ async def list_cron_runs(jobId: Optional[str] = Query(None)):
             })
 
     if jobId:
-        _collect(OUTPUT_DIR / jobId, jobId)
+        _collect(output_dir / jobId, jobId)
     else:
-        for job_dir in sorted(OUTPUT_DIR.iterdir(), reverse=True):
+        for job_dir in sorted(output_dir.iterdir(), reverse=True):
             if not job_dir.is_dir():
                 continue
             _collect(job_dir, job_dir.name)
@@ -61,9 +60,10 @@ async def list_cron_runs(jobId: Optional[str] = Query(None)):
 
 
 @router.get("/{job_id}/{file_name}")
-async def read_cron_run(job_id: str, file_name: str):
+async def read_cron_run(job_id: str, file_name: str, request: Request):
     """Read the content of a specific cron run output file."""
-    target = OUTPUT_DIR / job_id / file_name
+    output_dir = profile_home(profile_from_request(request)) / "cron" / "output"
+    target = output_dir / job_id / file_name
     if not target.is_file():
         return JSONResponse(status_code=404, content={"error": "output file not found"})
 

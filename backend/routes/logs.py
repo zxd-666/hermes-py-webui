@@ -5,14 +5,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from ..config import HERMES_HOME
+from ..config import profile_from_request, profile_home
 
 router = APIRouter(prefix="/api/hermes/logs", tags=["logs"])
-
-LOGS_DIR = HERMES_HOME / "logs"
 
 # Log levels in priority order
 _LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
@@ -131,12 +129,13 @@ def _parse_log_line(line: str) -> Optional[dict]:
 
 
 @router.get("")
-async def list_logs():
+async def list_logs(request: Request):
     """List available log files."""
-    if not LOGS_DIR.exists():
+    logs_dir = profile_home(profile_from_request(request)) / "logs"
+    if not logs_dir.exists():
         return {"files": []}
     files = []
-    for entry in sorted(LOGS_DIR.iterdir()):
+    for entry in sorted(logs_dir.iterdir()):
         if entry.is_file() and entry.name.endswith((".log", ".txt")):
             stat = entry.stat()
             files.append({
@@ -150,16 +149,18 @@ async def list_logs():
 @router.get("/{name}")
 async def read_log(
     name: str,
+    request: Request,
     lines: int = Query(200, description="Max lines to return"),
     level: Optional[str] = Query(None, description="Minimum log level (DEBUG/INFO/WARNING/ERROR)"),
     session: Optional[str] = Query(None, description="Filter by session ID"),
     since: Optional[str] = Query(None, description="Only entries after this timestamp"),
 ):
     """Read log entries from a log file."""
-    target = LOGS_DIR / name
+    logs_dir = profile_home(profile_from_request(request)) / "logs"
+    target = logs_dir / name
     if not target.is_file():
         # Try appending .log extension
-        target = LOGS_DIR / f"{name}.log"
+        target = logs_dir / f"{name}.log"
     if not target.is_file():
         return JSONResponse(status_code=404, content={"error": "log file not found"})
 

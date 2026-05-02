@@ -5,26 +5,21 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from ..config import HERMES_HOME
+from ..config import profile_from_request, profile_home
 
 router = APIRouter(prefix="/api/hermes", tags=["skills"])
 
-SKILLS_DIR = HERMES_HOME / "skills"
-SOUL_PATH = HERMES_HOME / "SOUL.md"
-MEMORIES_DIR = HERMES_HOME / "memories"
-MEMORY_PATH = MEMORIES_DIR / "MEMORY.md"
-USER_PATH = MEMORIES_DIR / "USER.md"
 
-
-def _skill_dirs() -> list[Path]:
+def _skill_dirs(home: Path) -> list[Path]:
     """Return all immediate subdirectories under skills/."""
-    if not SKILLS_DIR.exists():
+    d = home / "skills"
+    if not d.exists():
         return []
     return sorted(
-        p for p in SKILLS_DIR.iterdir()
+        p for p in d.iterdir()
         if p.is_dir() and not p.name.startswith(".") and not p.name.startswith("_")
     )
 
@@ -80,10 +75,11 @@ def _file_mtime(path: Path) -> Optional[float]:
 # ── Skills ──────────────────────────────────────────────
 
 @router.get("/skills")
-async def list_skills():
+async def list_skills(request: Request):
     """List all skills grouped by category directory."""
+    home = profile_home(profile_from_request(request))
     categories = []
-    for cat_dir in _skill_dirs():
+    for cat_dir in _skill_dirs(home):
         skills = []
         for skill_dir in sorted(cat_dir.iterdir()):
             if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
@@ -104,9 +100,10 @@ async def list_skills():
 
 
 @router.get("/skills/{category}/{skill}/files")
-async def get_skill_files(category: str, skill: str):
+async def get_skill_files(category: str, skill: str, request: Request):
     """List files in a skill directory."""
-    skill_dir = SKILLS_DIR / category / skill
+    home = profile_home(profile_from_request(request))
+    skill_dir = home / "skills" / category / skill
     if not skill_dir.is_dir():
         return JSONResponse(status_code=404, content={"error": "skill directory not found"})
     files = []
@@ -122,26 +119,32 @@ async def get_skill_files(category: str, skill: str):
 
 
 @router.get("/skills/{skill_path:path}")
-async def get_skill_content(skill_path: str):
+async def get_skill_content(skill_path: str, request: Request):
     """Read SKILL.md content for a given skill path (e.g. 'content/AIwanfuye')."""
-    target = SKILLS_DIR / skill_path / "SKILL.md"
+    home = profile_home(profile_from_request(request))
+    # Frontend may include trailing 'SKILL.md' — strip it
+    skill_path = skill_path.removesuffix("/SKILL.md")
+    target = home / "skills" / skill_path / "SKILL.md"
     if not target.exists():
         return JSONResponse(status_code=404, content={"error": "skill not found"})
     return {"content": target.read_text(encoding="utf-8")}
 
 
 @router.put("/skills/toggle")
-async def toggle_skill(body: dict):
+async def toggle_skill(body: dict, request: Request):
     """Toggle skill enabled/disabled by moving to/from quarantine."""
     name = body.get("name", "")
     enabled = body.get("enabled", True)
     if not name:
         return JSONResponse(status_code=400, content={"error": "name required"})
 
+    home = profile_home(profile_from_request(request))
+    skills_dir = home / "skills"
+
     # Find the skill across all categories
-    quarantine = SKILLS_DIR / ".hub" / "quarantine"
+    quarantine = skills_dir / ".hub" / "quarantine"
     target = None
-    for cat_dir in _skill_dirs():
+    for cat_dir in _skill_dirs(home):
         for skill_dir in cat_dir.iterdir():
             if skill_dir.is_dir() and skill_dir.name == name:
                 target = skill_dir
@@ -161,7 +164,7 @@ async def toggle_skill(body: dict):
 
     if enabled and target.parent == quarantine:
         # Restore — move back to original category (best effort)
-        dest = SKILLS_DIR / name  # default category
+        dest = skills_dir / name  # default category
         shutil.move(str(target), str(dest))
         return {"ok": True}
     elif not enabled and target.parent != quarantine:
@@ -176,55 +179,42 @@ async def toggle_skill(body: dict):
 
 # ── Memory ──────────────────────────────────────────────
 
-def _read_memory_text() -> str:
-    """Read current memory content from MEMORY.md."""
-    if MEMORY_PATH.exists():
-        return MEMORY_PATH.read_text(encoding="utf-8")
-    return ""
-
-
-def _read_user_text() -> str:
-    """Read current user profile content from USER.md."""
-    if USER_PATH.exists():
-        return USER_PATH.read_text(encoding="utf-8")
-    return ""
-
-
-def _read_soul_text() -> str:
-    """Read SOUL.md content."""
-    if SOUL_PATH.exists():
-        return SOUL_PATH.read_text(encoding="utf-8")
-    return ""
-
-
 @router.get("/memory")
-async def get_memory():
+async def get_memory(request: Request):
     """Read MEMORY.md, USER.md, SOUL.md contents and mtimes."""
+    home = profile_home(profile_from_request(request))
+    mem_dir = home / "memories"
+    memory_path = mem_dir / "MEMORY.md"
+    user_path = mem_dir / "USER.md"
+    soul_path = home / "SOUL.md"
     return {
-        "memory": _read_memory_text(),
-        "user": _read_user_text(),
-        "soul": _read_soul_text(),
-        "memory_mtime": _file_mtime(MEMORY_PATH),
-        "user_mtime": _file_mtime(USER_PATH),
-        "soul_mtime": _file_mtime(SOUL_PATH),
+        "memory": memory_path.read_text(encoding="utf-8") if memory_path.exists() else "",
+        "user": user_path.read_text(encoding="utf-8") if user_path.exists() else "",
+        "soul": soul_path.read_text(encoding="utf-8") if soul_path.exists() else "",
+        "memory_mtime": _file_mtime(memory_path),
+        "user_mtime": _file_mtime(user_path),
+        "soul_mtime": _file_mtime(soul_path),
     }
 
 
 @router.post("/memory")
-async def save_memory(body: dict):
+async def save_memory(body: dict, request: Request):
     """Write content to MEMORY.md, USER.md, or SOUL.md."""
     section = body.get("section", "")
     content = body.get("content", "")
 
+    home = profile_home(profile_from_request(request))
+    mem_dir = home / "memories"
+
     if section == "soul":
-        SOUL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        SOUL_PATH.write_text(content, encoding="utf-8")
+        (home / "SOUL.md").parent.mkdir(parents=True, exist_ok=True)
+        (home / "SOUL.md").write_text(content, encoding="utf-8")
     elif section == "memory":
-        MEMORIES_DIR.mkdir(parents=True, exist_ok=True)
-        MEMORY_PATH.write_text(content, encoding="utf-8")
+        mem_dir.mkdir(parents=True, exist_ok=True)
+        (mem_dir / "MEMORY.md").write_text(content, encoding="utf-8")
     elif section == "user":
-        MEMORIES_DIR.mkdir(parents=True, exist_ok=True)
-        USER_PATH.write_text(content, encoding="utf-8")
+        mem_dir.mkdir(parents=True, exist_ok=True)
+        (mem_dir / "USER.md").write_text(content, encoding="utf-8")
     else:
         return JSONResponse(status_code=400, content={"error": "section must be memory|user|soul"})
 

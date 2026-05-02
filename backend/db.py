@@ -47,7 +47,9 @@ def get_session_messages(session_id: str, limit: int = 500,
     conn = _conn(profile)
     try:
         rows = conn.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT ?",
+            "SELECT m.*, s.model as model FROM messages m "
+            "LEFT JOIN sessions s ON s.id = m.session_id "
+            "WHERE m.session_id = ? ORDER BY m.timestamp ASC LIMIT ?",
             (session_id, limit),
         ).fetchall()
         return [_row_to_dict(r) for r in rows]
