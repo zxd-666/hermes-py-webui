@@ -103,7 +103,7 @@ if STATIC_DIR.exists():
         """SPA fallback — serve index.html for all non-API routes."""
         index = STATIC_DIR / "index.html"
         if index.exists():
-            return FileResponse(str(index))
+            return FileResponse(str(index), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
         return {"error": "Frontend not built"}
 
 

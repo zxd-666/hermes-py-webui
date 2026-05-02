@@ -37,6 +37,12 @@ const isMobile = ref(false)
 
 function handleSessionClick(sessionId: string) {
   chatStore.switchSession(sessionId)
+  // Expand the group containing this session
+  const session = chatStore.sessions.find(s => s.id === sessionId)
+  if (session?.source && collapsedGroups.value.has(session.source)) {
+    collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== session.source))
+    localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+  }
   if (mobileQuery?.matches) showSessions.value = false
 }
 
@@ -118,28 +124,35 @@ function toggleGroup(source: string) {
   if (isExpanded) {
     collapsedGroups.value = new Set([...collapsedGroups.value, source])
   } else {
-    collapsedGroups.value = new Set(
-      groupedSessions.value.map(g => g.source).filter(s => s !== source),
-    )
-    const group = groupedSessions.value.find(g => g.source === source)
-    if (group?.sessions.length) {
-      chatStore.switchSession(group.sessions[0].id)
-    }
+    collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== source))
   }
   localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
 }
 
-watch(groupedSessions, groups => {
-  if (localStorage.getItem('hermes_collapsed_groups') !== null) {
-    const activeSource = chatStore.activeSession?.source
-    if (activeSource && collapsedGroups.value.has(activeSource)) {
-      collapsedGroups.value = new Set([...collapsedGroups.value].filter(source => source !== activeSource))
-      localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
-    }
-    return
+// Whenever active session changes, ensure its group is expanded
+watch(() => chatStore.activeSessionId, () => {
+  const source = chatStore.activeSession?.source
+  if (source && collapsedGroups.value.has(source)) {
+    collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== source))
+    localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
   }
-  collapsedGroups.value = new Set(groups.slice(1).map(group => group.source))
+})
+
+watch(groupedSessions, groups => {
+  // On first load with no saved collapsed state: select the most recent session
+  // and only expand its group, collapse all others.
+  const allSources = groups.map(g => g.source)
+  const recentSession = chatStore.sessions
+    .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
+  const recentSource = recentSession?.source || ''
+  // Collapse all groups except the one containing the most recent session
+  collapsedGroups.value = new Set(allSources.filter(s => s !== recentSource))
   localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+  // Select the most recent session if none is active
+  if (recentSession && !chatStore.activeSessionId) {
+    chatStore.switchSession(recentSession.id)
+  }
 }, { once: true })
 
 watch(
