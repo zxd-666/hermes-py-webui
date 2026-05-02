@@ -144,35 +144,68 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 |------|------|------|
 | [Hermes Agent](https://github.com/NousResearch/hermes-agent) | 最新 | 必须先安装，本项目通过 `from run_agent import AIAgent` 直接调用 |
 | Python | 3.11+ | 后端运行时 |
-| Node.js | 18+ | 前端构建 |
 
 确保 Hermes Agent 已安装到 `~/.hermes/hermes-agent/`（含 `run_agent.py`），且已在 Hermes CLI 中完成初始化（至少配置了一个 Model Provider）。
 
 ## 快速开始
 
 ```bash
-# 1. Clone
-git clone https://github.com/zxd-666/hermes-py-webui.git
-cd hermes-py-webui
+# 1. 克隆到 ~/.hermes/
+git clone https://github.com/zxd-666/hermes-py-webui.git ~/.hermes/hermes-py-webui
+cd ~/.hermes/hermes-py-webui
 
 # 2. 创建虚拟环境
 python -m venv .venv
 source .venv/bin/activate
 
-# 3. 安装后端依赖
+# 3. 安装依赖
 pip install -r requirements.txt
 
-# 4. 安装前端依赖 & 构建
-cd frontend
-npm install
-npm run build
-cd ..
-
-# 5. 启动
+# 4. 启动
 python -m backend.main
 ```
 
 打开 http://127.0.0.1:9898
+
+> 前端已预构建（`backend/static/`），无需 Node.js。仅修改 UI 源码时才需要。
+
+### macOS 开机自启（launchd）
+
+```bash
+# 将 /Users/edy 替换为你的用户目录
+cat > ~/Library/LaunchAgents/com.hermes.py-webui.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hermes.py-webui</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/edy/.hermes/hermes-py-webui/.venv/bin/python3</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>backend.main:app</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>9898</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/edy/.hermes/hermes-py-webui</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/edy/.hermes/logs/hermes-py-webui.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/edy/.hermes/logs/hermes-py-webui.err.log</string>
+</dict>
+</plist>
+EOF
+launchctl load ~/Library/LaunchAgents/com.hermes.py-webui.plist
+```
 
 ### 开发模式
 

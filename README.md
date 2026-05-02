@@ -144,35 +144,68 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 |------------|---------|-------------|
 | [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Latest | Required. This project calls AIAgent via `from run_agent import AIAgent` |
 | Python | 3.11+ | Backend runtime |
-| Node.js | 18+ | Frontend build |
 
 Make sure Hermes Agent is installed at `~/.hermes/hermes-agent/` (with `run_agent.py`) and initialized via the Hermes CLI (at least one Model Provider configured).
 
 ## Quick Start
 
 ```bash
-# 1. Clone
-git clone https://github.com/zxd-666/hermes-py-webui.git
-cd hermes-py-webui
+# 1. Clone into ~/.hermes/
+git clone https://github.com/zxd-666/hermes-py-webui.git ~/.hermes/hermes-py-webui
+cd ~/.hermes/hermes-py-webui
 
 # 2. Create virtual environment
 python -m venv .venv
 source .venv/bin/activate
 
-# 3. Install backend dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Install frontend dependencies & build
-cd frontend
-npm install
-npm run build
-cd ..
-
-# 5. Start
+# 4. Start
 python -m backend.main
 ```
 
 Open http://127.0.0.1:9898
+
+> The frontend is pre-built (`backend/static/`). No Node.js needed unless you want to modify the UI source.
+
+### macOS Auto-Start (launchd)
+
+```bash
+# Replace /Users/edy with your home directory
+cat > ~/Library/LaunchAgents/com.hermes.py-webui.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hermes.py-webui</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/edy/.hermes/hermes-py-webui/.venv/bin/python3</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>backend.main:app</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>9898</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/edy/.hermes/hermes-py-webui</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/edy/.hermes/logs/hermes-py-webui.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/edy/.hermes/logs/hermes-py-webui.err.log</string>
+</dict>
+</plist>
+EOF
+launchctl load ~/Library/LaunchAgents/com.hermes.py-webui.plist
+```
 
 ### Development Mode
 
