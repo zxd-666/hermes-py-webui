@@ -169,7 +169,7 @@ function mapHermesSession(s: SessionSummary): Session {
     createdAt: Math.round(s.started_at * 1000),
     updatedAt: Math.round(((s as any).last_message_ts || s.last_active || s.ended_at || s.started_at) * 1000),
     model: s.model,
-    provider: undefined,  // don't inherit billing_provider; let Hermes resolve from profile config
+    provider: (s as any).billing_provider || undefined,
     messageCount: s.message_count,
     inputTokens: (s as any).input_tokens || undefined,
     outputTokens: (s as any).output_tokens || undefined,
