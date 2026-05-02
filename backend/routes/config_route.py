@@ -2,7 +2,7 @@
 import asyncio
 import sys
 from pathlib import Path as _P
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from typing import Optional
 
 # Ensure hermes_cli is importable from the hermes-agent install directory
@@ -13,26 +13,47 @@ if str(_HERMES_HOME) not in sys.path:
 router = APIRouter(prefix="/api/hermes", tags=["config"])
 
 
-def _load_hermes_config():
-    """Load hermes config.yaml via hermes CLI infrastructure."""
+def _profile_from_request(req: Request) -> str | None:
+    """Extract profile name from X-Hermes-Profile header."""
+    p = req.headers.get("x-hermes-profile", "").strip()
+    return p or None
+
+
+def _profile_home(profile: str | None = None) -> _P:
+    """Resolve HERMES_HOME for the given profile."""
+    if profile and profile != "default":
+        return _P.home() / ".hermes" / "profiles" / profile
+    return _P.home() / ".hermes"
+
+
+def _load_hermes_config(profile: str | None = None):
+    """Load hermes config.yaml for the given profile."""
     try:
-        from hermes_cli.config import load_config
-        return load_config()
+        import os
+        old = os.environ.get("HERMES_HOME", "")
+        try:
+            os.environ["HERMES_HOME"] = str(_profile_home(profile))
+            from hermes_cli.config import load_config
+            return load_config()
+        finally:
+            if old:
+                os.environ["HERMES_HOME"] = old
+            else:
+                os.environ.pop("HERMES_HOME", None)
     except Exception:
         import yaml
-        from pathlib import Path
-        config_path = Path.home() / ".hermes" / "config.yaml"
+        config_path = _profile_home(profile) / "config.yaml"
         if config_path.exists():
             with open(config_path) as f:
                 return yaml.safe_load(f) or {}
         return {}
 
 
-def _save_hermes_config(cfg: dict):
-    """Save hermes config.yaml atomically."""
+def _save_hermes_config(cfg: dict, profile: str | None = None):
+    """Save hermes config.yaml atomically for the given profile."""
     import yaml
-    from pathlib import Path
-    config_path = Path.home() / ".hermes" / "config.yaml"
+    config_path = _profile_home(profile) / "config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = config_path.with_suffix(".tmp")
     with open(tmp, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
@@ -40,8 +61,9 @@ def _save_hermes_config(cfg: dict):
 
 
 @router.get("/config")
-async def get_config(sections: Optional[str] = Query(None)):
-    cfg = _load_hermes_config()
+async def get_config(req: Request, sections: Optional[str] = Query(None)):
+    profile = _profile_from_request(req)
+    cfg = _load_hermes_config(profile)
     if sections:
         requested = [s.strip() for s in sections.split(",")]
         return {k: cfg.get(k) for k in requested if k in cfg}
@@ -49,23 +71,25 @@ async def get_config(sections: Optional[str] = Query(None)):
 
 
 @router.put("/config")
-async def update_config(body: dict):
+async def update_config(req: Request, body: dict):
+    profile = _profile_from_request(req)
     section = body.get("section", "")
     values = body.get("values", {})
     if not section or not values:
         return {"error": "section and values required"}
-    cfg = _load_hermes_config()
+    cfg = _load_hermes_config(profile)
     if section not in cfg:
         cfg[section] = {}
     cfg[section].update(values)
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
 @router.get("/config/models")
-async def get_config_models():
+async def get_config_models(req: Request):
     """Get configured model groups."""
-    cfg = _load_hermes_config()
+    profile = _profile_from_request(req)
+    cfg = _load_hermes_config(profile)
     model_cfg = cfg.get("model", {})
     default = model_cfg.get("default", "")
 
@@ -101,13 +125,14 @@ async def get_config_models():
 
 
 @router.put("/config/model")
-async def update_default_model(body: dict):
+async def update_default_model(req: Request, body: dict):
     """Update the default model and optionally provider."""
+    profile = _profile_from_request(req)
     default = body.get("default", "")
     if not default:
         return {"error": "default model name required"}
 
-    cfg = _load_hermes_config()
+    cfg = _load_hermes_config(profile)
     if "model" not in cfg:
         cfg["model"] = {}
     cfg["model"]["default"] = default
@@ -119,12 +144,12 @@ async def update_default_model(body: dict):
     if "api_key" in body:
         cfg["model"]["api_key"] = body["api_key"]
 
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
 @router.get("/available-models")
-async def get_available_models():
+async def get_available_models(req: Request):
     """Get all available models.
 
     Discovers providers from three sources:
@@ -134,7 +159,8 @@ async def get_available_models():
     """
     from pathlib import Path as P
 
-    cfg = _load_hermes_config()
+    profile = _profile_from_request(req)
+    cfg = _load_hermes_config(profile)
     model_cfg = cfg.get("model", {})
     default = model_cfg.get("default", "")
     default_provider = model_cfg.get("provider", "")
@@ -191,7 +217,7 @@ async def get_available_models():
         add_group(pool_key, label, base_url, models, api_key)
 
     # --- 2. .env API keys → builtin providers ---
-    env_path = P.home() / ".hermes" / ".env"
+    env_path = _profile_home(profile) / ".env"
     env_vars: dict[str, str] = {}
     if env_path.exists():
         for line in env_path.read_text().splitlines():
@@ -261,8 +287,9 @@ async def get_available_models():
 
 
 @router.post("/config/providers")
-async def add_provider(body: dict):
+async def add_provider(req: Request, body: dict):
     """Add a provider to the credentials pool."""
+    profile = _profile_from_request(req)
     name = body.get("name", "")
     base_url = body.get("base_url", "")
     api_key = body.get("api_key", "")
@@ -272,7 +299,7 @@ async def add_provider(body: dict):
     if not name:
         return {"error": "provider name required"}
 
-    cfg = _load_hermes_config()
+    cfg = _load_hermes_config(profile)
     pool = cfg.get("credentials_pool", {})
 
     # Preset provider: use registry key as pool_key (e.g. "zai", "anthropic")
@@ -291,14 +318,15 @@ async def add_provider(body: dict):
         pool[pool_key]["context_length"] = body["context_length"]
 
     cfg["credentials_pool"] = pool
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
 @router.delete("/config/providers/{pool_key:path}")
-async def remove_provider(pool_key: str):
+async def remove_provider(req: Request, pool_key: str):
     """Remove a provider from credentials_pool, custom_providers, or hide a builtin."""
-    cfg = _load_hermes_config()
+    profile = _profile_from_request(req)
+    cfg = _load_hermes_config(profile)
     removed = False
 
     # 1. Try credentials_pool (exact key match)
@@ -325,14 +353,15 @@ async def remove_provider(pool_key: str):
         hidden.add(pool_key)
         cfg["hidden_providers"] = sorted(hidden)
 
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
 @router.put("/config/providers/{pool_key:path}")
-async def update_provider(pool_key: str, body: dict):
+async def update_provider(req: Request, pool_key: str, body: dict):
     """Update a provider in the credentials pool."""
-    cfg = _load_hermes_config()
+    profile = _profile_from_request(req)
+    cfg = _load_hermes_config(profile)
     pool = cfg.get("credentials_pool", {})
     if pool_key not in pool:
         return {"error": "provider not found"}
@@ -342,19 +371,20 @@ async def update_provider(pool_key: str, body: dict):
             pool[pool_key][key] = body[key]
 
     cfg["credentials_pool"] = pool
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
 @router.put("/config/credentials")
-async def save_credentials(body: dict):
+async def save_credentials(req: Request, body: dict):
     """Save platform credentials (API keys for telegram, discord, etc.)."""
+    profile = _profile_from_request(req)
     platform = body.get("platform", "")
     values = body.get("values", {})
     if not platform or not values:
         return {"error": "platform and values required"}
 
-    cfg = _load_hermes_config()
+    cfg = _load_hermes_config(profile)
     platforms = cfg.get("platforms", {})
     if platform not in platforms:
         platforms[platform] = {}
@@ -362,7 +392,7 @@ async def save_credentials(body: dict):
     for key, value in values.items():
         platforms[platform][key] = value
     cfg["platforms"] = platforms
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
