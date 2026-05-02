@@ -70,6 +70,21 @@ const soulEmpty = computed(() => !data.value?.soul?.trim())
 const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '\n\n'))
 const displayUser = computed(() => (data.value?.user || '').replace(/§/g, '\n\n'))
 const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n'))
+
+// Character limits (from backend config.yaml)
+const MEMORY_LIMIT = computed(() => data.value?.memory_char_limit || 4000)
+const USER_LIMIT = computed(() => data.value?.user_char_limit || 2000)
+
+const memoryUsage = computed(() => ({
+  current: (data.value?.memory || '').length,
+  limit: MEMORY_LIMIT.value,
+  percent: Math.round(((data.value?.memory || '').length / MEMORY_LIMIT.value) * 100),
+}))
+const userUsage = computed(() => ({
+  current: (data.value?.user || '').length,
+  limit: USER_LIMIT.value,
+  percent: Math.round(((data.value?.user || '').length / USER_LIMIT.value) * 100),
+}))
 </script>
 
 <template>
@@ -103,17 +118,21 @@ const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n
                   </svg>
                 </span>
                 <span class="section-title">MEMORY.md</span>
+                <span class="usage-badge" :class="{ 'usage-warn': memoryUsage.percent > 80, 'usage-full': memoryUsage.percent >= 100 }">{{ memoryUsage.percent }}%</span>
                 <span v-if="data?.memory_mtime" class="section-mtime">{{ formatTime(data.memory_mtime) }}</span>
               </div>
-              <NButton v-if="editingSection !== 'memory'" size="tiny" quaternary @click="startEdit('memory')">
-                <template #icon>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </template>
-                {{ t('common.edit') }}
-              </NButton>
+              <div class="section-header-actions">
+                <span class="usage-detail">{{ memoryUsage.current.toLocaleString() }} / {{ memoryUsage.limit.toLocaleString() }}</span>
+                <NButton v-if="editingSection !== 'memory'" size="tiny" quaternary @click="startEdit('memory')">
+                  <template #icon>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </template>
+                  {{ t('common.edit') }}
+                </NButton>
+              </div>
             </div>
 
             <!-- View mode -->
@@ -148,17 +167,21 @@ const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n
                   </svg>
                 </span>
                 <span class="section-title">USER.md</span>
+                <span class="usage-badge" :class="{ 'usage-warn': userUsage.percent > 80, 'usage-full': userUsage.percent >= 100 }">{{ userUsage.percent }}%</span>
                 <span v-if="data?.user_mtime" class="section-mtime">{{ formatTime(data.user_mtime) }}</span>
               </div>
-              <NButton v-if="editingSection !== 'user'" size="tiny" quaternary @click="startEdit('user')">
-                <template #icon>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </template>
-                {{ t('common.edit') }}
-              </NButton>
+              <div class="section-header-actions">
+                <span class="usage-detail">{{ userUsage.current.toLocaleString() }} / {{ userUsage.limit.toLocaleString() }}</span>
+                <NButton v-if="editingSection !== 'user'" size="tiny" quaternary @click="startEdit('user')">
+                  <template #icon>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </template>
+                  {{ t('common.edit') }}
+                </NButton>
+              </div>
             </div>
 
             <!-- View mode -->
@@ -278,6 +301,37 @@ const displaySoul = computed(() => (data.value?.soul || '').replace(/§/g, '\n\n
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: $bg-secondary;
+  color: $text-secondary;
+
+  &.usage-warn {
+    background: rgba(250, 173, 20, 0.15);
+    color: #e8a317;
+  }
+
+  &.usage-full {
+    background: rgba(208, 48, 80, 0.15);
+    color: #d03050;
+  }
+}
+
+.usage-detail {
+  font-size: 11px;
+  color: $text-muted;
+  font-variant-numeric: tabular-nums;
 }
 
 .section-header {

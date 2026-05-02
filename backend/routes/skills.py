@@ -209,6 +209,22 @@ async def get_memory(request: Request):
     memory_path = mem_dir / "MEMORY.md"
     user_path = mem_dir / "USER.md"
     soul_path = home / "SOUL.md"
+
+    # Read char limits from config.yaml
+    cfg_path = home / "config.yaml"
+    memory_char_limit = 4000
+    user_char_limit = 2000
+    if cfg_path.exists():
+        try:
+            import yaml
+            with open(cfg_path) as f:
+                cfg = yaml.safe_load(f) or {}
+            mem_cfg = cfg.get("memory") or {}
+            memory_char_limit = mem_cfg.get("memory_char_limit", memory_char_limit)
+            user_char_limit = mem_cfg.get("user_char_limit", user_char_limit)
+        except Exception:
+            pass
+
     return {
         "memory": memory_path.read_text(encoding="utf-8") if memory_path.exists() else "",
         "user": user_path.read_text(encoding="utf-8") if user_path.exists() else "",
@@ -216,6 +232,8 @@ async def get_memory(request: Request):
         "memory_mtime": _file_mtime(memory_path),
         "user_mtime": _file_mtime(user_path),
         "soul_mtime": _file_mtime(soul_path),
+        "memory_char_limit": memory_char_limit,
+        "user_char_limit": user_char_limit,
     }
 
 
