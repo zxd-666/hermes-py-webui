@@ -68,7 +68,7 @@ const collapsedGroups = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem
 
 // Source sort order: api_server first, cron last, others alphabetical
 function sourceSortKey(source: string): number {
-  if (source === 'api_server') return -1
+  if (source === '9898') return -1
   if (source === 'cron') return 999
   return 0
 }

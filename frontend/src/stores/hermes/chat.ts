@@ -428,7 +428,7 @@ export const useChatStore = defineStore('chat', () => {
     const session: Session = {
       id: uid(),
       title: '',
-      source: 'api_server',
+      source: '9898',
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
