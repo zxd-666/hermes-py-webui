@@ -147,7 +147,7 @@ def run_agent_in_thread(
         # Resolve HERMES_HOME for the given profile
         hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
         if profile and profile != "default":
-            hermes_home = str(os.path.expanduser("~/.hermes/profiles") / profile)
+            hermes_home = str(Path(os.path.expanduser("~/.hermes")) / "profiles" / profile)
 
         # Set env for agent
         os.environ["TERMINAL_CWD"] = workspace_path
