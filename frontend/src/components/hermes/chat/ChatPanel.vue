@@ -37,12 +37,6 @@ const isMobile = ref(false)
 
 function handleSessionClick(sessionId: string) {
   chatStore.switchSession(sessionId)
-  // Expand the group containing this session
-  const session = chatStore.sessions.find(s => s.id === sessionId)
-  if (session?.source && collapsedGroups.value.has(session.source)) {
-    collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== session.source))
-    localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
-  }
   if (mobileQuery?.matches) showSessions.value = false
 }
 
@@ -128,15 +122,6 @@ function toggleGroup(source: string) {
   }
   localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
 }
-
-// Whenever active session changes, ensure its group is expanded
-watch(() => chatStore.activeSessionId, () => {
-  const source = chatStore.activeSession?.source
-  if (source && collapsedGroups.value.has(source)) {
-    collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== source))
-    localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
-  }
-})
 
 watch(groupedSessions, groups => {
   // If user has saved collapsed state, respect it — don't override.
