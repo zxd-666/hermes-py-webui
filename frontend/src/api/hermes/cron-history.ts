@@ -2,6 +2,8 @@ import { request } from '../client'
 
 export interface RunEntry {
   jobId: string
+  jobName: string
+  jobDeleted: boolean
   fileName: string
   runTime: string
   size: number

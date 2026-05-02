@@ -204,6 +204,7 @@ export default {
     local: 'Local',
     repeatCount: 'Repeat Count (optional)',
     modelPlaceholder: 'Default model',
+    model: 'Model',
     repeatPlaceholder: 'Leave empty for infinite',
     jobCreated: 'Job created',
     jobUpdated: 'Job updated',

@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   edit: [jobId: string]
   select: [jobId: string]
+  run: [jobId: string]
 }>()
 
 const { t } = useI18n()
@@ -68,6 +69,7 @@ async function handleRun() {
   try {
     await jobsStore.runJob(jobId.value)
     message.info(t('jobs.jobTriggered'))
+    emit('run', jobId.value)
   } catch (e: any) {
     message.error(e.message)
   }
@@ -122,10 +124,11 @@ function handleCardClick(e: MouseEvent) {
         <span class="info-label">{{ t('jobs.info.deliver') }}</span>
         <span class="info-value">{{ job.deliver }}<template v-if="job.origin"> ({{ job.origin.platform }})</template></span>
       </div>
-      <div v-if="job.repeat" class="info-row">
+      <div class="info-row">
         <span class="info-label">{{ t('jobs.info.repeat') }}</span>
         <span class="info-value">
-          <template v-if="typeof job.repeat === 'string'">{{ job.repeat }}</template>
+          <template v-if="!job.repeat">—</template>
+          <template v-else-if="typeof job.repeat === 'string'">{{ job.repeat }}</template>
           <template v-else>{{ job.repeat.completed }} / {{ job.repeat.times ?? '∞' }}</template>
         </span>
       </div>

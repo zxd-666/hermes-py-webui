@@ -41,6 +41,8 @@ export interface CreateJobRequest {
   deliver?: string
   skills?: string[]
   repeat?: number
+  model?: string
+  provider?: string
 }
 
 export interface UpdateJobRequest {

@@ -1,0 +1,1 @@
+import{$r as e,E as t,Tn as n}from"./index-DGKbwP2E.js";function r(){let r=e(t,null);return r===null&&n(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

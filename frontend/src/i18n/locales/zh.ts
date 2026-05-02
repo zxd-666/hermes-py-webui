@@ -204,6 +204,7 @@ export default {
     local: '本地',
     repeatCount: '重复次数（可选）',
     modelPlaceholder: 'Default model',
+    model: 'Model',
     repeatPlaceholder: '留空表示无限重复',
     jobCreated: '任务已创建',
     jobUpdated: '任务已更新',
@@ -219,7 +220,7 @@ export default {
       running: '运行中',
       paused: '已暂停',
       disabled: '已禁用',
-      scheduled: '已调度',
+      scheduled: '运行中',
     },
     info: {
       model: 'Model',

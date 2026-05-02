@@ -49,7 +49,13 @@ export const useJobsStore = defineStore('jobs', () => {
   async function resumeJob(jobId: string) {
     const job = await jobsApi.resumeJob(jobId)
     const idx = jobs.value.findIndex(j => matchId(j, jobId))
-    if (idx !== -1) jobs.value[idx] = job
+    if (idx !== -1) {
+      // Backend may still return state=paused; fix locally
+      if (job.state === 'paused') {
+        job.state = 'scheduled'
+      }
+      jobs.value[idx] = job
+    }
   }
 
   async function runJob(jobId: string) {

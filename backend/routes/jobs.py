@@ -102,23 +102,33 @@ async def get_job(job_id: str, request: Request):
 @router.post("")
 async def create_job(body: dict, request: Request):
     """Create a new cron job."""
+    from datetime import datetime, timezone
     home = profile_home(profile_from_request(request))
     data = _load_jobs(home)
     job_id = uuid.uuid4().hex[:12]
     now = time.time()
+    # Hermes scheduler expects schedule as a dict: {"kind": "cron", "expr": "...", "display": "..."}
+    raw_schedule = body.get("schedule", "")
+    if isinstance(raw_schedule, str) and raw_schedule:
+        schedule_obj = {"kind": "cron", "expr": raw_schedule, "display": raw_schedule}
+    elif isinstance(raw_schedule, dict):
+        schedule_obj = raw_schedule
+    else:
+        schedule_obj = ""
     job = {
         "id": job_id,
         "name": body.get("name", f"Job {job_id}"),
         "prompt": body.get("prompt", ""),
-        "schedule": body.get("schedule", ""),
-        "schedule_display": body.get("schedule_display", body.get("schedule", "")),
+        "schedule": schedule_obj,
+        "schedule_display": body.get("schedule_display", raw_schedule if isinstance(raw_schedule, str) else raw_schedule.get("display", raw_schedule.get("expr", ""))),
         "deliver": body.get("deliver", "origin"),
         "skills": body.get("skills", []),
-        "repeat": body.get("repeat"),
+        # Hermes expects repeat as dict: {"times": <int|null>, "completed": 0}
+        "repeat": body.get("repeat") if isinstance(body.get("repeat"), dict) else None,
         "enabled": True,
-        "state": "idle",
+        "state": "scheduled",
         "created_at": now,
-        "next_run_at": None,
+        "next_run_at": datetime.now(timezone.utc).isoformat(),
         "last_run_at": None,
         "last_status": None,
     }
@@ -141,8 +151,11 @@ async def update_job(job_id: str, body: dict, request: Request):
         return JSONResponse(status_code=404, content={"error": "job not found"})
     for key, value in body.items():
         if key == "schedule" and isinstance(value, dict):
-            job["schedule"] = value.get("expr", "")
+            job["schedule"] = value
             job["schedule_display"] = value.get("display", value.get("expr", ""))
+        elif key == "schedule" and isinstance(value, str):
+            job["schedule"] = {"kind": "cron", "expr": value, "display": value}
+            job["schedule_display"] = value
         elif key in ("repeat",) and isinstance(value, dict):
             job[key] = value
         else:
@@ -173,6 +186,7 @@ async def pause_job(job_id: str, request: Request):
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
     job["enabled"] = False
+    job["state"] = "paused"
     job["paused_at"] = time.time()
     _save_jobs(home, data)
     return {"job": _job_to_response(job)}
@@ -187,6 +201,7 @@ async def resume_job(job_id: str, request: Request):
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
     job["enabled"] = True
+    job["state"] = "scheduled"
     job["paused_at"] = None
     job["paused_reason"] = None
     _save_jobs(home, data)
@@ -195,13 +210,15 @@ async def resume_job(job_id: str, request: Request):
 
 @router.post("/{job_id}/run")
 async def run_job(job_id: str, request: Request):
-    """Trigger a job run (note: actual execution requires the scheduler process)."""
+    """Trigger a job run by setting next_run_at to now so the scheduler picks it up."""
+    from datetime import datetime, timezone
     home = profile_home(profile_from_request(request))
     data = _load_jobs(home)
     job = _find_job(data["jobs"], job_id)
     if not job:
         return JSONResponse(status_code=404, content={"error": "job not found"})
-    # Mark as pending — actual execution is done by the hermes scheduler
-    job["state"] = "pending"
+    job["state"] = "scheduled"
+    job["enabled"] = True
+    job["next_run_at"] = datetime.now(timezone.utc).isoformat()
     _save_jobs(home, data)
     return {"job": _job_to_response(job)}

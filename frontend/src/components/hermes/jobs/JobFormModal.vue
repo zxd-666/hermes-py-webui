@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { NModal, NForm, NFormItem, NInput, NButton, NSelect, NInputNumber, useMessage } from 'naive-ui'
 import { useJobsStore } from '@/stores/hermes/jobs'
+import { useAppStore } from '@/stores/hermes/app'
 import type { CreateJobRequest, UpdateJobRequest } from '@/api/hermes/jobs'
 import { useI18n } from 'vue-i18n'
 
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>()
 
 const jobsStore = useJobsStore()
+const appStore = useAppStore()
 const message = useMessage()
 
 const showModal = ref(true)
@@ -28,6 +30,8 @@ const formData = ref({
   prompt: '',
   deliver: 'origin',
   repeat_times: null as number | null,
+  model: '',
+  provider: '',
 })
 
 const presetValue = ref<string | null>(null)
@@ -43,6 +47,37 @@ const schedulePresets = computed(() => [
   { label: t('jobs.presetEveryMonday'), value: '0 9 * * 1' },
   { label: t('jobs.presetEveryMonth'), value: '0 9 1 * *' },
 ])
+
+const modelOptions = computed(() => {
+  const groups: { type: 'group'; label: string; key: string; children: { label: string; value: string }[] }[] = []
+  for (const g of appStore.modelGroups) {
+    const children: { label: string; value: string }[] = []
+    for (const m of g.models) {
+      const meta = g.model_meta?.[m]
+      if (!meta?.disabled) {
+        children.push({ label: m, value: `${g.provider}::${m}` })
+      }
+    }
+    if (children.length) {
+      groups.push({ type: 'group', label: g.label || g.provider, key: g.provider, children })
+    }
+  }
+  return groups
+})
+
+const modelSelectValue = computed(() => {
+  const { model, provider } = formData.value
+  if (!model) return undefined
+  if (provider) return `${provider}::${model}`
+  const group = appStore.modelGroups.find(g => g.models.includes(model))
+  return group ? `${group.provider}::${model}` : undefined
+})
+
+function handleModelChange(compound: string) {
+  const sep = compound.indexOf('::')
+  formData.value.provider = compound.substring(0, sep)
+  formData.value.model = compound.substring(sep + 2)
+}
 
 const targetOptions = computed(() => [
   { label: t('jobs.origin'), value: 'origin' },
@@ -61,7 +96,9 @@ onMounted(async () => {
         schedule: typeof job.schedule === 'string' ? job.schedule : (job.schedule?.expr || job.schedule_display || ''),
         prompt: job.prompt,
         deliver: job.deliver || 'origin',
-        repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),
+        repeat_times: typeof job.repeat === 'number' ? job.repeat : (job.repeat && typeof job.repeat === 'object' ? job.repeat.times : null),
+        model: job.model || '',
+        provider: job.provider || '',
       }
       if (typeof job.schedule === 'object' && job.schedule) {
         originalSchedule.value = job.schedule
@@ -90,6 +127,8 @@ async function handleSave() {
         prompt: formData.value.prompt,
         deliver: formData.value.deliver,
         repeat: formData.value.repeat_times ?? undefined,
+        model: formData.value.model || undefined,
+        provider: formData.value.provider || undefined,
       }
       if (originalSchedule.value) {
         payload.schedule = {
@@ -109,6 +148,8 @@ async function handleSave() {
         prompt: formData.value.prompt,
         deliver: formData.value.deliver,
         repeat: formData.value.repeat_times ?? undefined,
+        model: formData.value.model || undefined,
+        provider: formData.value.provider || undefined,
       }
       await jobsStore.createJob(payload)
       message.success(t('jobs.jobCreated'))
@@ -179,6 +220,18 @@ function handleClose() {
           v-model:value="formData.deliver"
           :options="targetOptions"
                          :show-tooltip="true"
+        />
+      </NFormItem>
+
+      <NFormItem :label="t('jobs.model')">
+        <NSelect
+          :value="modelSelectValue"
+          :options="modelOptions"
+          filterable
+          clearable
+          :placeholder="t('jobs.modelPlaceholder')"
+          :show-tooltip="true"
+          @update:value="handleModelChange"
         />
       </NFormItem>
 
