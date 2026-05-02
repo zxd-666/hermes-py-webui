@@ -107,9 +107,9 @@ async def _handle_ws(ws) -> None:
             or "/bin/sh"
         )
 
-    def _create(cols=80, rows=24) -> PtySession:
+    def _create(cols=80, rows=24, cwd=None) -> PtySession:
         s = PtySession(cols, rows)
-        s.spawn()
+        s.spawn(cwd=cwd)
         return s
 
     async def _read_loop():
@@ -182,7 +182,7 @@ async def _handle_ws(ws) -> None:
 
                     if t == "create":
                         s = _create(
-                            cols=cmd.get("cols", 80), rows=cmd.get("rows", 24)
+                            cols=cmd.get("cols", 80), rows=cmd.get("rows", 24),
                         )
                         new_id = str(uuid.uuid4())[:8]
                         sessions[new_id] = s

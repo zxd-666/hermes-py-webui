@@ -1,0 +1,1 @@
+import{A as e,kn as t,ri as n}from"./index-CVscToKo.js";function r(){let r=n(e,null);return r===null&&t(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

@@ -236,6 +236,7 @@ const activeSessionId = ref<string | null>(null);
 const selectedTheme = ref(localStorage.getItem(STORAGE_KEY_THEME) || "default");
 
 let ws: WebSocket | null = null;
+let disposed = false; // Prevent reconnect after unmount
 // Keep all terminal instances alive, only dispose on close
 const termMap = new Map<
   string,
@@ -306,12 +307,10 @@ function connect() {
     }
   };
 
-  // On reconnect, recreate all terminals for existing sessions
-  ws.onopen = () => {
-    // Server will auto-create the first session again
-  };
+  // On reconnect, sessions are restored from localStorage
 
   ws.onclose = () => {
+    if (disposed) return;
     // Reconnect after delay
     setTimeout(connect, 3000);
   };
@@ -521,6 +520,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  disposed = true;
   mobileQuery?.removeEventListener("change", handleMobileChange);
   unmountActiveTerminal();
   // Dispose all terminal instances

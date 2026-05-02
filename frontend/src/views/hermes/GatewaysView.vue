@@ -99,9 +99,6 @@ async function toggleRedactPii(name: string, value: boolean) {
               <div class="gateway-meta">
                 <span class="meta-item">{{ gw.host }}:{{ gw.port }}</span>
                 <span v-if="gw.pid" class="meta-item">PID: {{ gw.pid }}</span>
-                <span class="meta-item session-summary">
-                  {{ t('gateways.sessionReset') }}: {{ gw.session_reset?.mode || 'both' }}
-                </span>
               </div>
             </div>
             <div class="gateway-actions">

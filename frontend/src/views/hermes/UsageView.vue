@@ -35,8 +35,8 @@ onMounted(() => {
         <div class="usage-section"><StatCards /></div>
         <div class="usage-section"><SourceBreakdown /></div>
         <div class="usage-section"><ModelBreakdown /></div>
-        <div class="usage-section"><TopSessions /></div>
         <div class="usage-section"><DailyTrend /></div>
+        <div class="usage-section"><TopSessions /></div>
       </template>
 
       <div v-else class="usage-empty">

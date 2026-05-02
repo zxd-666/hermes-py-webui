@@ -124,13 +124,13 @@ import { computed } from 'vue'
 
 .bar-fill {
   width: 100%;
-  background: $text-primary;
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
   border-radius: 2px 2px 0 0;
   min-height: 0;
   transition: height 0.3s ease;
 
   .dark & {
-    background: #66bb6a;
+    background: linear-gradient(180deg, #fbbf24, #f59e0b);
   }
 }
 
