@@ -614,13 +614,18 @@ export const useChatStore = defineStore('chat', () => {
 
       const appStore = useAppStore()
       const sessionModel = activeSession.value?.model || appStore.selectedModel
+      // Only send provider if it matches a known credential pool key;
+      // billing_provider from DB may be a stale/ambiguous label (e.g. "custom")
+      // that doesn't resolve to the right endpoint.
+      const sessionProvider = activeSession.value?.provider
+      const validProvider = sessionProvider && appStore.modelGroups.some(g => g.provider === sessionProvider)
+        ? sessionProvider
+        : undefined
       const runPayload = {
         input: inputText,
         session_id: sid,
         model: sessionModel || undefined,
-        // Only send provider if the session has an explicit one (e.g. from billing);
-        // otherwise let Hermes resolve from the active profile's config.yaml.
-        provider: activeSession.value?.provider || undefined,
+        provider: validProvider,
         workspace: activeSession.value?.workspace || null,
       }
 
