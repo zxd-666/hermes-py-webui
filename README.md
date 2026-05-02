@@ -201,7 +201,6 @@ hermes-py-webui/
 | Channels | `/api/hermes/channels` | Channel 目录 |
 | Workspaces | `/api/hermes/workspaces` | 工作区预设 |
 | Terminal | `/api/hermes/terminal/ws` | WebSocket 终端 |
-| Auth | `/api/auth` | 登录/登出/状态 |
 
 ## SSE 事件类型
 
