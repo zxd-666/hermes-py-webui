@@ -139,14 +139,16 @@ watch(() => chatStore.activeSessionId, () => {
 })
 
 watch(groupedSessions, groups => {
-  // On first load with no saved collapsed state: select the most recent session
-  // and only expand its group, collapse all others.
+  // If user has saved collapsed state, respect it — don't override.
+  const saved = localStorage.getItem('hermes_collapsed_groups')
+  if (saved !== null) return
+
+  // First load with no saved state: expand only the most recent session's group
   const allSources = groups.map(g => g.source)
   const recentSession = chatStore.sessions
     .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
   const recentSource = recentSession?.source || ''
-  // Collapse all groups except the one containing the most recent session
   collapsedGroups.value = new Set(allSources.filter(s => s !== recentSource))
   localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
   // Select the most recent session if none is active
