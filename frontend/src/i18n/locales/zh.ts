@@ -619,6 +619,8 @@ export default {
     started: '已启动',
     startFailed: '启动失败',
     stopFailed: '停止失败',
+    sessionSettings: '会话设置',
+    sessionReset: '会话重置',
   },
 
   // 语言

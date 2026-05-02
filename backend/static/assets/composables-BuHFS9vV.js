@@ -1,0 +1,1 @@
+import{En as e,T as t,Yr as n}from"./index-_epVTX4A.js";function r(){let r=n(t,null);return r===null&&e(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

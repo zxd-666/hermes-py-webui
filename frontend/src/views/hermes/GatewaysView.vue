@@ -1,12 +1,44 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { NSpin, NButton, NTag, NSwitch, useMessage } from 'naive-ui'
+import { onMounted, ref, reactive } from 'vue'
+import { NSpin, NButton, NTag, NSwitch, NModal, NForm, NFormItem, NSelect, NInputNumber, NInputGroup, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useGatewayStore } from '@/stores/hermes/gateways'
 
 const { t } = useI18n()
 const message = useMessage()
 const gatewayStore = useGatewayStore()
+
+const sessionModal = ref(false)
+const sessionModalProfile = ref('')
+const sessionForm = reactive({
+  mode: 'both',
+  idle_minutes: 1440,
+  at_hour: 4,
+})
+
+function openSessionSettings(gw: any) {
+  sessionModalProfile.value = gw.profile
+  sessionForm.mode = gw.session_reset?.mode || 'both'
+  sessionForm.idle_minutes = gw.session_reset?.idle_minutes || 1440
+  sessionForm.at_hour = gw.session_reset?.at_hour ?? 4
+  sessionModal.value = true
+}
+
+async function saveSessionSettings() {
+  try {
+    await gatewayStore.updateSettings(sessionModalProfile.value, {
+      session_reset: {
+        mode: sessionForm.mode,
+        idle_minutes: sessionForm.idle_minutes,
+        at_hour: sessionForm.at_hour,
+      },
+    })
+    message.success(t('settings.saved'))
+    sessionModal.value = false
+  } catch (err: any) {
+    message.error(t('settings.saveFailed'))
+  }
+}
 
 onMounted(() => {
   gatewayStore.fetchStatus()
@@ -67,6 +99,9 @@ async function toggleRedactPii(name: string, value: boolean) {
               <div class="gateway-meta">
                 <span class="meta-item">{{ gw.host }}:{{ gw.port }}</span>
                 <span v-if="gw.pid" class="meta-item">PID: {{ gw.pid }}</span>
+                <span class="meta-item session-summary">
+                  {{ t('gateways.sessionReset') }}: {{ gw.session_reset?.mode || 'both' }}
+                </span>
               </div>
             </div>
             <div class="gateway-actions">
@@ -80,6 +115,13 @@ async function toggleRedactPii(name: string, value: boolean) {
               </div>
               <NButton
                 size="small"
+                quaternary
+                @click="openSessionSettings(gw)"
+              >
+                {{ t('gateways.sessionSettings') }}
+              </NButton>
+              <NButton
+                size="small"
                 :type="gw.running ? 'warning' : 'primary'"
                 round
                 @click="handleToggle(gw.profile, gw.running)"
@@ -91,6 +133,50 @@ async function toggleRedactPii(name: string, value: boolean) {
         </div>
       </NSpin>
     </div>
+
+    <NModal
+      v-model:show="sessionModal"
+      preset="dialog"
+      :title="t('gateways.sessionSettings')"
+      :show-icon="false"
+      style="width: 420px"
+    >
+      <NForm label-placement="left" label-width="110">
+        <NFormItem :label="t('settings.session.mode')">
+          <NSelect
+            v-model:value="sessionForm.mode"
+            :options="[
+              { label: t('settings.session.modeBoth'), value: 'both' },
+              { label: t('settings.session.modeIdle'), value: 'idle' },
+              { label: t('settings.session.modeHourly'), value: 'hourly' },
+            ]"
+            size="small"
+          />
+        </NFormItem>
+        <NFormItem :label="t('settings.session.idleMinutes')">
+          <NInputNumber
+            v-model:value="sessionForm.idle_minutes"
+            :min="10" :max="10080" :step="30"
+            size="small"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem :label="t('settings.session.atHour')">
+          <NInputGroup>
+            <NInputNumber
+              v-model:value="sessionForm.at_hour"
+              :min="0" :max="23" :step="1"
+              size="small"
+              style="width: 100%"
+            />
+          </NInputGroup>
+        </NFormItem>
+      </NForm>
+      <template #action>
+        <NButton size="small" @click="sessionModal = false">{{ t('common.cancel') }}</NButton>
+        <NButton size="small" type="primary" @click="saveSessionSettings">{{ t('common.save') }}</NButton>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -153,11 +239,17 @@ async function toggleRedactPii(name: string, value: boolean) {
 .gateway-meta {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .meta-item {
   font-size: 12px;
   color: $text-muted;
+}
+
+.session-summary {
+  color: $text-secondary;
+  font-style: italic;
 }
 
 .gateway-actions {

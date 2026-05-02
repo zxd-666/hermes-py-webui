@@ -367,6 +367,8 @@ export default {
     started: 'Started',
     startFailed: 'Failed to start gateway',
     stopFailed: 'Failed to stop gateway',
+    sessionSettings: 'Session Settings',
+    sessionReset: 'Session Reset',
   },
   profiles: {
     title: 'Profiles',

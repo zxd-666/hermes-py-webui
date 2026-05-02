@@ -1,5 +1,11 @@
 import { request } from '../client'
 
+export interface SessionResetConfig {
+  mode?: string
+  idle_minutes?: number
+  at_hour?: number
+}
+
 export interface GatewayStatus {
   profile: string
   port: number
@@ -8,6 +14,7 @@ export interface GatewayStatus {
   running: boolean
   pid?: number
   redact_pii: boolean
+  session_reset?: SessionResetConfig
 }
 
 export async function fetchGateways(): Promise<GatewayStatus[]> {

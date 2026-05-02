@@ -70,6 +70,7 @@ def _read_gateway_state(home: Path) -> dict:
             result["host"] = host
             result["url"] = f"http://{host}:{port}"
             result["redact_pii"] = bool((c.get("privacy") or {}).get("redact_pii", False))
+            result["session_reset"] = c.get("session_reset") or {}
         except Exception:
             pass
 
