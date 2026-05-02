@@ -214,7 +214,7 @@ export default {
     jobPaused: '任务已暂停',
     jobResumed: '任务已恢复',
     jobTriggered: '任务已触发',
-    modelUpdated: 'Model updated',
+    modelUpdated: '模型已更新',
     jobDeleted: '任务已删除',
     status: {
       running: '运行中',

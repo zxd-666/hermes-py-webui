@@ -609,7 +609,7 @@ export default {
     qrRelogin: 'Re-login',
     qrFetching: 'Fetching QR code...',
     qrScanHint: 'Scan with WeChat to login',
-    qrScanedHint: 'Scaned, please confirm on phone...',
+    qrScanedHint: 'Scanned, please confirm on phone...',
     // QQ
     qqAppId: 'App ID',
     qqAppIdHint: 'QQ Open Platform Bot App ID',
