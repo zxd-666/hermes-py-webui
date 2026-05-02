@@ -1,12 +1,14 @@
 # hermes-py-webui
 
-**Hermes Agent 的官方 WebUI** — FastAPI 后端 + Vue 3 前端，直接 import AIAgent，不走 Gateway。
+**The Official WebUI for [Hermes Agent](https://github.com/zxd-666/hermes)** — FastAPI backend + Vue 3 frontend. Directly imports AIAgent, bypassing the Gateway.
 
-> 本项目是 [Hermes Agent](https://github.com/zxd-666/hermes) 的附属 Web 管理界面，不能独立运行。使用前需先安装 Hermes Agent。
+> This project is a companion web interface for Hermes Agent and **cannot run standalone**. Install Hermes Agent first.
 
-**核心价值：会话可绑定工作区** — AIAgent 实例化时传 workdir 生效，Gateway 代理模式做不到。
+**Core value: Workdir-bound sessions** — AIAgent instances receive `workdir` at initialization, something Gateway proxy mode cannot achieve.
 
-## 截图预览
+[**中文**](README_zh.md) | English
+
+## Screenshots
 
 <table>
 <tr>
@@ -14,237 +16,247 @@
 <td><img src="docs/images/jobs.jpg" width="400"></td>
 </tr>
 <tr>
-<td align="center">💬 聊天对话</td>
-<td align="center">🕐 定时任务</td>
+<td align="center">💬 Chat</td>
+<td align="center">🕐 Cron Jobs</td>
 </tr>
 <tr>
 <td><img src="docs/images/memory.jpg" width="400"></td>
 <td><img src="docs/images/models.jpg" width="400"></td>
 </tr>
 <tr>
-<td align="center">🧠 技能与记忆</td>
-<td align="center">🤖 模型与 Provider</td>
+<td align="center">🧠 Skills & Memory</td>
+<td align="center">🤖 Models & Providers</td>
 </tr>
 <tr>
 <td><img src="docs/images/usage.jpg" width="400"></td>
 <td><img src="docs/images/user-management.jpg" width="400"></td>
 </tr>
 <tr>
-<td align="center">📊 用量统计</td>
-<td align="center">👤 用户管理</td>
+<td align="center">📊 Usage Stats</td>
+<td align="center">👤 User Management</td>
 </tr>
 </table>
 
-## 功能概览
+## Features
 
-Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
+The complete web management interface for Hermes Agent, running on `localhost:9898`:
 
-### 💬 聊天对话
+### 💬 Chat
 
-- SSE 实时流式输出（文本 + 推理 + 工具调用事件）
-- 会话可选择模型与工作区
-- 会话列表：浏览、搜索、重命名、删除历史会话
-- 会话数据直读 `~/.hermes/state.db`，与 CLI 会话互通
+- Real-time SSE streaming (text + reasoning + tool call events)
+- Per-session model and workspace selection
+- Session management: browse, search, rename, delete
+- Reads directly from `~/.hermes/state.db`, shared with CLI sessions
 
-### 📊 用量统计
+### 📊 Usage Stats
 
-- 统计卡片：总会话数、总消息数、活跃天数
-- 来源分布：按平台（飞书、Telegram、Discord 等）统计会话数
-- 模型分布：按模型统计使用占比
-- 每日趋势：过去 30 天的会话活跃度折线图
-- 热门会话：消息数 Top 10 会话排行
+- Summary cards: total sessions, messages, active days
+- Source breakdown: sessions by platform (Feishu, Telegram, Discord, etc.)
+- Model breakdown: usage share by model
+- Daily trend: 30-day session activity chart
+- Top sessions: Top 10 sessions by message count
 
-### 🤖 模型与 Provider
+### 🤖 Models & Providers
 
-- Provider 管理：添加、编辑、删除自定义模型供应商
-- 预设 Provider 快速配置（OpenAI、Anthropic、Google 等）
-- API Key 管理：查看、更新凭证（脱敏显示）
-- Copilot / Codex / Nous 等 OAuth Provider 的 Token 登录
+- Provider management: add, edit, delete custom model providers
+- Preset provider quick setup (OpenAI, Anthropic, Google, etc.)
+- API key management with masked display
+- OAuth login for Copilot / Codex / Nous providers
 
-### 👤 Profiles（代理组）
+### 👤 Profiles (Agent Groups)
 
-- 创建、重命名、导入、删除 Profile
-- 按 Profile 隔离配置：config.yaml、Skills、Memory、工作区
-- Profile 卡片展示关键配置概览
+- Create, rename, import, delete profiles
+- Profile-isolated configuration: config.yaml, Skills, Memory, workspaces
+- Profile cards with key configuration overview
 
-### ⚙️ 设置
+### ⚙️ Settings
 
-- **账号设置**：WebUI 登录密码、会话过期时间
-- **平台配置**：飞书、Telegram、Discord 等连接平台的管理
-- **模型配置**：默认模型选择、可用模型列表
-- **Agent 配置**：人格(Personality)、推理模式(Reasoning)
-- **记忆配置**：记忆维护策略、自动晋升阈值
-- **会话配置**：上下文窗口、压缩策略
-- **工作区配置**：默认工作区路径、AGENTS.md 关联
-- **隐私配置**：数据保留策略
-- **显示配置**：界面语言、主题
+- **Account**: WebUI login password, session expiry
+- **Platforms**: Connected platform management (Feishu, Telegram, Discord, etc.)
+- **Models**: Default model selection, available model list
+- **Agent**: Personality, Reasoning mode
+- **Memory**: Memory maintenance strategy, auto-promotion threshold
+- **Sessions**: Context window, compression strategy
+- **Workspaces**: Default workspace path, AGENTS.md association
+- **Privacy**: Data retention policy
+- **Display**: Interface language, theme
 
-### 🔧 技能与记忆
+### 🔧 Skills & Memory
 
-- Skill 列表浏览：按分类查看已安装技能
-- Skill 详情：查看 SKILL.md 完整内容、关联文件
-- Memory 查看：MEMORY.md / USER.md 实时读取
+- Skill browser: view installed skills by category
+- Skill detail: full SKILL.md content, linked files
+- Memory viewer: real-time MEMORY.md / USER.md
 
-### 📁 文件管理
+### 📁 File Management
 
-- 浏览工作区文件树
-- 在线查看和编辑文件
-- 文件上传/下载
+- Workspace file tree browser
+- Online file viewing and editing
+- File upload/download
 
-### 🕐 定时任务（Cron）
+### 🕐 Cron Jobs
 
-- 查看、创建、编辑、暂停、删除定时任务
-- Cron 执行历史记录
+- Create, edit, pause, delete scheduled tasks
+- Cron execution history
 
-### 🖥️ 终端
+### 🖥️ Terminal
 
-- WebSocket + PTY 的浏览器终端
-- 实时命令执行，与本地 Shell 等效
+- WebSocket + PTY browser terminal
+- Real-time command execution, equivalent to local shell
 
-### 🌐 Gateway 监控
+### 🌐 Gateway Monitor
 
-- 查看各 Profile 下 Gateway 运行状态
+- View Gateway status per profile
 
-### 📋 日志
+### 📋 Logs
 
-- 实时日志查看与搜索
+- Real-time log viewing and search
 
-## 前置条件
+## Prerequisites
 
-| 依赖 | 版本 | 说明 |
-|------|------|------|
-| [Hermes Agent](https://github.com/zxd-666/hermes) | 最新 | 必须先安装，本项目通过 `from run_agent import AIAgent` 直接调用 |
-| Python | 3.11+ | 后端运行时 |
-| Node.js | 18+ | 前端构建 |
+| Dependency | Version | Description |
+|------------|---------|-------------|
+| [Hermes Agent](https://github.com/zxd-666/hermes) | Latest | Required. This project calls AIAgent via `from run_agent import AIAgent` |
+| Python | 3.11+ | Backend runtime |
+| Node.js | 18+ | Frontend build |
 
-确保 Hermes Agent 已安装到 `~/.hermes/hermes-agent/`（含 `run_agent.py`），且已在 Hermes CLI 中完成初始化（至少配置了一个 Model Provider）。
+Make sure Hermes Agent is installed at `~/.hermes/hermes-agent/` (with `run_agent.py`) and initialized via the Hermes CLI (at least one Model Provider configured).
 
-## 快速开始
+## Quick Start
 
 ```bash
 # 1. Clone
 git clone https://github.com/zxd-666/hermes-py-webui.git
 cd hermes-py-webui
 
-# 2. 创建虚拟环境
+# 2. Create virtual environment
 python -m venv .venv
 source .venv/bin/activate
 
-# 3. 安装后端依赖
+# 3. Install backend dependencies
 pip install -r requirements.txt
 
-# 4. 安装前端依赖 & 构建
+# 4. Install frontend dependencies & build
 cd frontend
 npm install
 npm run build
 cd ..
 
-# 5. 启动
+# 5. Start
 python -m backend.main
 ```
 
-打开 http://127.0.0.1:9898
+Open http://127.0.0.1:9898
 
-### 开发模式
+### Development Mode
 
 ```bash
-# 终端 1：后端（热重载）
+# Terminal 1: Backend (hot reload)
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 9898 --reload
 
-# 终端 2：前端（Vite dev server）
+# Terminal 2: Frontend (Vite dev server)
 cd frontend && npm run dev
 ```
 
-## 架构
+## Architecture
 
 ```
-前端 (Vue 3 + Naive UI)  ←── SSE ──→  FastAPI 后端  ←── import ──→  AIAgent
+Frontend (Vue 3 + Naive UI)  ←── SSE ──→  FastAPI Backend  ←── import ──→  AIAgent
        │                                        │
     Port 9898                              state.db (SQLite)
 ```
 
-- **后端**：FastAPI，端口 9898，直接 `from run_agent import AIAgent`
-- **前端**：Vue 3 + Pinia + Naive UI
-- **通信**：POST `/api/chat/start` → GET `/api/chat/stream/{run_id}` (SSE)
-- **终端**：WebSocket + ptyprocess
-- **数据库**：直读 `~/.hermes/state.db`，与 CLI 会话互通
+- **Backend**: FastAPI, port 9898, directly imports AIAgent
+- **Frontend**: Vue 3 + Pinia + Naive UI
+- **Communication**: POST `/api/chat/start` → GET `/api/chat/stream/{run_id}` (SSE)
+- **Terminal**: WebSocket + ptyprocess
+- **Database**: Reads `~/.hermes/state.db` directly, shared with CLI sessions
 
-## 项目结构
+## Project Structure
 
 ```
 hermes-py-webui/
 ├── backend/
-│   ├── main.py              # FastAPI app，路由注册，启动预热
-│   ├── config.py            # 常量：端口、路径
-│   ├── db.py                # state.db 读写
-│   ├── streaming.py         # SSE 引擎：AIAgent 后台线程 + 事件队列
+│   ├── main.py              # FastAPI app, route registration, startup warmup
+│   ├── config.py            # Constants: port, paths
+│   ├── db.py                # state.db read/write
+│   ├── streaming.py         # SSE engine: AIAgent background thread + event queue
 │   └── routes/
-│       ├── chat.py          # 聊天：start + SSE stream
-│       ├── sessions.py      # 会话管理
-│       ├── auth.py          # 认证：密码 + Bearer token
-│       ├── auth_providers.py # OAuth 登录（Codex/Copilot/Nous）
-│       ├── terminal.py      # WebSocket 终端
-│       ├── config_route.py  # config.yaml + Provider/模型管理
+│       ├── chat.py          # Chat: start + SSE stream
+│       ├── sessions.py      # Session management
+│       ├── auth.py          # Auth: password + Bearer token
+│       ├── auth_providers.py # OAuth login (Codex/Copilot/Nous)
+│       ├── terminal.py      # WebSocket terminal
+│       ├── config_route.py  # config.yaml + Provider/model management
 │       ├── skills.py        # Skills + Memory
-│       ├── files.py         # 文件管理
-│       ├── jobs.py          # Cron Job
-│       ├── cron_history.py  # Cron 执行历史
-│       ├── logs.py          # 日志
-│       ├── profiles.py      # Profile 管理
-│       ├── gateways.py      # Gateway 监控
-│       ├── channels.py      # Channel 目录
-│       ├── workspaces.py    # 工作区预设
-│       └── system.py        # 健康检查
-│   └── static/              # 前端构建产物
-├── frontend/                # Vue 3 源码
+│       ├── files.py         # File management
+│       ├── jobs.py          # Cron jobs
+│       ├── cron_history.py  # Cron execution history
+│       ├── logs.py          # Logs
+│       ├── profiles.py      # Profile management
+│       ├── gateways.py      # Gateway monitor
+│       ├── channels.py      # Channel directory
+│       ├── workspaces.py    # Workspace presets
+│       └── system.py        # Health check
+│   └── static/              # Frontend build output
+├── frontend/                # Vue 3 source
 │   ├── src/
-│   │   ├── api/hermes/      # API 客户端
-│   │   ├── views/hermes/    # 页面视图
-│   │   ├── components/      # 组件
+│   │   ├── api/hermes/      # API client
+│   │   ├── views/hermes/    # Page views
+│   │   ├── components/      # Components
 │   │   ├── stores/hermes/   # Pinia stores
-│   │   └── i18n/            # 多语言（中/英/日/韩/法/德/西/葡）
+│   │   └── i18n/            # i18n (zh/en/ja/ko/fr/de/es/pt)
 │   └── vite.config.ts
 ├── requirements.txt
 ├── LICENSE
-└── README.md
+├── README.md
+└── README_zh.md
 ```
 
-## API 概览
+## API Reference
 
-| 模块 | 前缀 | 功能 |
-|------|------|------|
-| Chat | `/api/chat` | 开始对话 + SSE 流 |
-| Sessions | `/api/hermes/sessions` | 会话管理 |
-| Config | `/api/hermes/config` | config.yaml 读写 |
-| Models | `/api/hermes/models` | Provider/模型管理 |
-| Credentials | `/api/hermes/credentials` | API Key 管理 |
-| Skills | `/api/hermes/skills` | Skill 列表/详情 |
+| Module | Prefix | Description |
+|--------|--------|-------------|
+| Chat | `/api/chat` | Start conversation + SSE stream |
+| Sessions | `/api/hermes/sessions` | Session management |
+| Config | `/api/hermes/config` | config.yaml read/write |
+| Models | `/api/hermes/models` | Provider/model management |
+| Credentials | `/api/hermes/credentials` | API key management |
+| Skills | `/api/hermes/skills` | Skill list/detail |
 | Memory | `/api/hermes/memory` | MEMORY.md / USER.md |
-| Files | `/api/hermes/files` | 文件浏览/编辑 |
-| Jobs | `/api/hermes/jobs` | Cron 任务 |
-| Cron History | `/api/hermes/cron-history` | 执行历史 |
-| Logs | `/api/hermes/logs` | 日志 |
-| Profiles | `/api/hermes/profiles` | Profile 管理 |
-| Gateways | `/api/hermes/gateways` | Gateway 监控 |
-| Channels | `/api/hermes/channels` | Channel 目录 |
-| Workspaces | `/api/hermes/workspaces` | 工作区预设 |
-| Terminal | `/api/hermes/terminal/ws` | WebSocket 终端 |
-| Auth | `/api/auth` | 登录/登出/状态 |
+| Files | `/api/hermes/files` | File browse/edit |
+| Jobs | `/api/hermes/jobs` | Cron jobs |
+| Cron History | `/api/hermes/cron-history` | Execution history |
+| Logs | `/api/hermes/logs` | Logs |
+| Profiles | `/api/hermes/profiles` | Profile management |
+| Gateways | `/api/hermes/gateways` | Gateway monitor |
+| Channels | `/api/hermes/channels` | Channel directory |
+| Workspaces | `/api/hermes/workspaces` | Workspace presets |
+| Terminal | `/api/hermes/terminal/ws` | WebSocket terminal |
+| Auth | `/api/auth` | Login/logout/status |
 
-## SSE 事件类型
+## SSE Event Types
 
-| 事件 | 说明 |
-|------|------|
-| `message.delta` | 文本增量 |
-| `reasoning.delta` | 推理/思考增量 |
-| `tool.started` | 工具调用开始 |
-| `tool.completed` | 工具调用完成 |
-| `tool.output` | 工具输出片段 |
-| `run.completed` | 对话完成 |
-| `run.failed` | 对话失败 |
-| `compression.started` | 上下文压缩开始 |
-| `compression.completed` | 上下文压缩完成 |
-| `cancel` | 用户取消 |
+| Event | Description |
+|-------|-------------|
+| `message.delta` | Text delta |
+| `reasoning.delta` | Reasoning/thinking delta |
+| `tool.started` | Tool call started |
+| `tool.completed` | Tool call completed |
+| `tool.output` | Tool output fragment |
+| `run.completed` | Run completed |
+| `run.failed` | Run failed |
+| `compression.started` | Context compression started |
+| `compression.completed` | Context compression completed |
+| `cancel` | User cancelled |
+
+## Acknowledgements
+
+This project draws inspiration from and builds upon the work of:
+
+- [hermes-webui](https://github.com/nesquena/hermes-webui) by **nesquena** — the original Hermes WebUI that laid the foundation for this interface
+- [hermes-web-ui](https://github.com/EKKOLearnAI/hermes-web-ui) by **EKKOLearnAI** — whose frontend components and design patterns were referenced during development
+
+Thank you to both authors for their open-source contributions to the Hermes ecosystem.
 
 ## License
 
