@@ -614,18 +614,22 @@ export const useChatStore = defineStore('chat', () => {
 
       const appStore = useAppStore()
       const sessionModel = activeSession.value?.model || appStore.selectedModel
-      // Only send provider if it matches a known credential pool key;
-      // billing_provider from DB may be a stale/ambiguous label (e.g. "custom")
-      // that doesn't resolve to the right endpoint.
+      // Resolve provider: prefer session's saved value, but if it's stale
+      // (e.g. "custom" from billing_provider instead of "custom:minimax"),
+      // fall back to reverse-lookup from the model name in credential pool.
       const sessionProvider = activeSession.value?.provider
-      const validProvider = sessionProvider && appStore.modelGroups.some(g => g.provider === sessionProvider)
+      let resolvedProvider = sessionProvider && appStore.modelGroups.some(g => g.provider === sessionProvider)
         ? sessionProvider
         : undefined
+      if (!resolvedProvider && sessionModel) {
+        const group = appStore.modelGroups.find(g => g.models.includes(sessionModel))
+        resolvedProvider = group?.provider || undefined
+      }
       const runPayload = {
         input: inputText,
         session_id: sid,
         model: sessionModel || undefined,
-        provider: validProvider,
+        provider: resolvedProvider,
         workspace: activeSession.value?.workspace || null,
       }
 
