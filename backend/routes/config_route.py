@@ -1,5 +1,7 @@
 """Config endpoints: read/write hermes config.yaml, model management, providers."""
 import asyncio
+import json
+import os
 import sys
 from pathlib import Path as _P
 from fastapi import APIRouter, Query, Request
@@ -60,6 +62,57 @@ def _save_hermes_config(cfg: dict, profile: str | None = None):
     tmp.rename(config_path)
 
 
+# Platform sections that affect gateway runtime (not just display settings)
+_GATEWAY_PLATFORM_SECTIONS = {
+    "telegram", "discord", "slack", "whatsapp", "matrix",
+    "feishu", "dingtalk", "weixin", "wecom", "signal",
+    "qqbot", "api_server",
+}
+
+
+async def _restart_gateway_if_running(profile: str | None = None):
+    """Background: restart Hermes gateway if it's currently running."""
+    try:
+        home = _profile_home(profile)
+        pid_file = home / "gateway.pid"
+        if not pid_file.exists():
+            return
+        with open(pid_file) as f:
+            pid_data = json.load(f)
+        pid = pid_data.get("pid")
+        if not pid:
+            return
+        os.kill(pid, 0)  # check if alive
+    except Exception:
+        return  # not running, nothing to do
+
+    hermes_bin = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+    env = {**os.environ}
+    if profile and profile != "default":
+        env["HERMES_HOME"] = str(_profile_home(profile))
+
+    try:
+        # Stop
+        proc = await asyncio.create_subprocess_exec(
+            hermes_bin, "gateway", "stop",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=10)
+
+        # Start
+        proc = await asyncio.create_subprocess_exec(
+            hermes_bin, "gateway", "start",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=15)
+    except Exception:
+        pass  # best-effort, don't block the caller
+
+
 @router.get("/config")
 async def get_config(req: Request, sections: Optional[str] = Query(None)):
     profile = _profile_from_request(req)
@@ -82,6 +135,8 @@ async def update_config(req: Request, body: dict):
         cfg[section] = {}
     cfg[section].update(values)
     _save_hermes_config(cfg, profile)
+    if section in _GATEWAY_PLATFORM_SECTIONS:
+        asyncio.create_task(_restart_gateway_if_running(profile))
     return {"ok": True}
 
 
@@ -375,6 +430,135 @@ async def update_provider(req: Request, pool_key: str, body: dict):
     return {"ok": True}
 
 
+@router.get("/config/credentials")
+async def get_credentials(req: Request):
+    """Return platform credentials from .env (masked) merged with config.yaml platforms section.
+
+    Each platform key maps to { token?, extra?: { ... }, ... }.
+    Tokens are masked to the first 8 chars for display.
+    """
+    profile = _profile_from_request(req)
+    home = _profile_home(profile)
+    env_path = home / ".env"
+
+    env_vars: dict[str, str] = {}
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, _, v = line.partition("=")
+                env_vars[k.strip()] = v.strip()
+
+    # Environment variable → platform credential mapping
+    PLATFORM_ENV_MAP: dict[str, dict[str, list[str]]] = {
+        "telegram": {
+            "token": ["TELEGRAM_BOT_TOKEN"],
+        },
+        "discord": {
+            "token": ["DISCORD_BOT_TOKEN"],
+        },
+        "slack": {
+            "token": ["SLACK_BOT_TOKEN"],
+        },
+        "whatsapp": {
+            "enabled": [],  # whatsapp uses file-based auth, check enabled
+        },
+        "matrix": {
+            "token": ["MATRIX_ACCESS_TOKEN"],
+        },
+        "feishu": {
+            "extra": {
+                "app_id": "FEISHU_APP_ID",
+                "app_secret": "FEISHU_APP_SECRET",
+            },
+        },
+        "weixin": {
+            "token": ["WEIXIN_TOKEN"],
+            "extra": {
+                "account_id": "WEIXIN_ACCOUNT_ID",
+                "base_url": "WEIXIN_BASE_URL",
+            },
+        },
+        "wecom": {
+            "extra": {
+                "bot_id": "WECOM_BOT_ID",
+                "secret": "WECOM_APP_SECRET",
+            },
+        },
+        "dingtalk": {
+            "extra": {
+                "client_id": "DINGTALK_CLIENT_ID",
+                "client_secret": "DINGTALK_CLIENT_SECRET",
+            },
+        },
+    }
+
+    result: dict[str, dict] = {}
+    cfg = _load_hermes_config(profile)
+    yaml_platforms = cfg.get("platforms", {})
+
+    for platform, mapping in PLATFORM_ENV_MAP.items():
+        creds: dict[str, any] = {}
+
+        # token field
+        token_envs = mapping.get("token", [])
+        if isinstance(token_envs, list):
+            for env_key in token_envs:
+                val = env_vars.get(env_key, "")
+                if val:
+                    creds["token"] = _mask(val)
+                    break
+
+        # extra fields
+        extra_map = mapping.get("extra")
+        if extra_map and isinstance(extra_map, dict):
+            extra: dict[str, str] = {}
+            for field_name, env_key in extra_map.items():
+                val = env_vars.get(env_key, "")
+                if val:
+                    # Only mask secrets, not IDs or URLs
+                    if any(k in field_name for k in ("secret", "token", "key", "password")):
+                        extra[field_name] = _mask(val)
+                    else:
+                        extra[field_name] = val
+            if extra:
+                creds["extra"] = extra
+
+        # Also merge config.yaml platforms section (non-sensitive fields)
+        yaml_plat = yaml_platforms.get(platform, {})
+        if isinstance(yaml_plat, dict):
+            for k, v in yaml_plat.items():
+                if k == "token":
+                    if "token" not in creds and v:
+                        creds["token"] = _mask(v)
+                elif k == "extra" and isinstance(v, dict):
+                    if "extra" not in creds:
+                        creds["extra"] = {}
+                    for ek, ev in v.items():
+                        if ek not in creds["extra"] and ev:
+                            creds["extra"][ek] = ev
+                elif v is not None:
+                    creds[k] = v
+
+        # Clean up empty extra
+        if not creds.get("extra"):
+            creds.pop("extra", None)
+
+        if creds:
+            result[platform] = creds
+
+    return result
+
+
+def _mask(value: str) -> str:
+    """Mask a sensitive value, showing first 8 chars."""
+    if not value or len(value) <= 8:
+        return "••••••••" if value else ""
+    return value[:8] + "••••••••"
+
+
 @router.put("/config/credentials")
 async def save_credentials(req: Request, body: dict):
     """Save platform credentials (API keys for telegram, discord, etc.)."""
@@ -393,6 +577,7 @@ async def save_credentials(req: Request, body: dict):
         platforms[platform][key] = value
     cfg["platforms"] = platforms
     _save_hermes_config(cfg, profile)
+    asyncio.create_task(_restart_gateway_if_running(profile))
     return {"ok": True}
 
 

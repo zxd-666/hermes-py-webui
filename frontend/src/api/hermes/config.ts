@@ -82,6 +82,10 @@ export async function saveCredentials(
   })
 }
 
+export async function fetchCredentials(): Promise<Record<string, any>> {
+  return request<Record<string, any>>('/api/hermes/config/credentials')
+}
+
 export interface WeixinQrCode {
   qrcode: string
   qrcode_url: string

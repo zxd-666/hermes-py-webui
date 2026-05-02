@@ -142,6 +142,9 @@ async function handleDelete() {
 @use '@/styles/variables' as *;
 
 .provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   background-color: $bg-card;
   border: 1px solid $border-color;
   border-radius: $radius-md;
@@ -191,7 +194,7 @@ async function handleDelete() {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  margin-bottom: 8px;
+  flex: 1;
 }
 
 .info-row {

@@ -26,7 +26,10 @@ export const useSettingsStore = defineStore('settings', () => {
   async function fetchSettings() {
     loading.value = true
     try {
-      const data = await configApi.fetchConfig()
+      const [data, creds] = await Promise.all([
+        configApi.fetchConfig(),
+        configApi.fetchCredentials().catch(() => ({})),
+      ])
       display.value = data.display || {}
       agent.value = data.agent || {}
       memory.value = data.memory || {}
@@ -41,7 +44,7 @@ export const useSettingsStore = defineStore('settings', () => {
       feishu.value = data.feishu || {}
       dingtalk.value = data.dingtalk || {}
       weixin.value = data.weixin || {}
-      platforms.value = data.platforms || {}
+      platforms.value = creds
     } catch (err) {
       console.error('Failed to fetch settings:', err)
     } finally {

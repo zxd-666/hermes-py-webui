@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
-import { useMessage } from 'naive-ui'
+import { ref, reactive, onUnmounted } from 'vue'
+import { NSwitch, NInput, NButton, NSpin, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
-import { saveCredentials as saveCredsApi } from '@/api/hermes/config'
+import { saveCredentials as saveCredsApi, fetchWeixinQrCode, pollWeixinQrStatus } from '@/api/hermes/config'
 import PlatformCard from './PlatformCard.vue'
 import SettingRow from './SettingRow.vue'
 
@@ -52,7 +52,90 @@ function getCreds(key: string) {
   return (settingsStore.platforms[key] || {}) as Record<string, any>
 }
 
+// Weixin QR code login
+const wxQrUrl = ref('')
+const wxQrId = ref('')
+const wxQrImage = ref('')
+const wxQrStatus = ref<'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'>('idle')
+let wxPollTimer: ReturnType<typeof setTimeout> | null = null
+
+async function startWeixinQrLogin() {
+  wxQrStatus.value = 'loading'
+  wxQrUrl.value = ''
+  wxQrId.value = ''
+  wxQrImage.value = ''
+  stopWeixinPoll()
+
+  try {
+    const data = await fetchWeixinQrCode()
+    wxQrId.value = data.qrcode
+    wxQrUrl.value = data.qrcode_url
+    wxQrImage.value = data.qrcode_image || ''
+    wxQrStatus.value = 'waiting'
+    pollWeixinStatus()
+  } catch (err: any) {
+    wxQrStatus.value = 'error'
+    message.error(err.message || t('platform.qrFetching'))
+  }
+}
+
+function pollWeixinStatus() {
+  if (!wxQrId.value) return
+  wxPollTimer = setTimeout(async () => {
+    try {
+      const data = await pollWeixinQrStatus(wxQrId.value)
+      if (data.status === 'wait') {
+        pollWeixinStatus()
+      } else if (data.status === 'scaned') {
+        wxQrStatus.value = 'scaned'
+        pollWeixinStatus()
+      } else if (data.status === 'expired') {
+        // Backend may return a refreshed QR code
+        const resp = data as any
+        if (resp.new_qrcode) {
+          wxQrId.value = resp.new_qrcode
+          wxQrUrl.value = resp.new_qrcode_url || ''
+          wxQrImage.value = resp.new_qrcode_image || ''
+          wxQrStatus.value = 'waiting'
+          pollWeixinStatus()
+        } else {
+          wxQrStatus.value = 'expired'
+        }
+      } else if (data.status === 'confirmed' && data.account_id) {
+        wxQrStatus.value = 'confirmed'
+        await settingsStore.fetchSettings()
+        message.success(t('settings.saved'))
+      }
+    } catch {
+      pollWeixinStatus()
+    }
+  }, 3000)
+}
+
+function stopWeixinPoll() {
+  if (wxPollTimer) {
+    clearTimeout(wxPollTimer)
+    wxPollTimer = null
+  }
+}
+
+onUnmounted(() => {
+  stopWeixinPoll()
+})
+
 const platforms = [
+  {
+    key: 'feishu',
+    name: 'Feishu',
+    exclusive: true,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.59 3.41a2.25 2.25 0 0 1 3.182 0L13.5 7.14l-3.182 3.182L6.59 7.59a2.25 2.25 0 0 1 0-3.182zm5.303 5.303L15.075 5.53a2.25 2.25 0 0 1 3.182 3.182L15.075 11.894 11.893 8.713zM3.41 6.59a2.25 2.25 0 0 1 3.182 0l3.182 3.182-3.182 3.182a2.25 2.25 0 0 1-3.182-3.182L3.41 6.59zm5.303 5.303L11.894 15.075a2.25 2.25 0 0 1-3.182 3.182L5.53 15.075 8.713 11.893zm5.303-5.303L17.478 9.778a2.25 2.25 0 0 1-3.182 3.182L10.53 10.075l3.182-3.182 0 .023z"/></svg>',
+  },
+  {
+    key: 'weixin',
+    name: 'Weixin',
+    exclusive: true,
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm3.68 4.025c-3.694 0-6.69 2.462-6.69 5.496 0 3.034 2.996 5.496 6.69 5.496.753 0 1.477-.1 2.158-.28a.66.66 0 01.548.074l1.46.854a.25.25 0 00.127.041.224.224 0 00.221-.225c0-.055-.022-.109-.037-.162l-.298-1.131a.453.453 0 01.163-.509C21.81 18.613 22.77 16.973 22.77 15.512c0-3.034-2.996-5.496-6.69-5.496h.198zm-2.454 3.347c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902zm4.912 0c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902z"/></svg>',
+  },
   {
     key: 'telegram',
     name: 'Telegram',
@@ -83,21 +166,9 @@ const platforms = [
     icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M.632.55v22.9H2.28V24H0V0h2.28v.55zm7.043 7.26v1.157h.033c.309-.443.683-.784 1.117-1.024.433-.245.936-.365 1.5-.365.54 0 1.033.107 1.48.324.448.217.786.619 1.017 1.205.24-.376.558-.702.956-.98.398-.277.872-.414 1.424-.414.41 0 .784.065 1.122.194.34.13.629.325.87.588.241.263.428.59.56.984.132.393.198.85.198 1.368v5.89h-2.49v-4.893c0-.268-.016-.525-.048-.77a1.627 1.627 0 00-.2-.63 1.028 1.028 0 00-.392-.426 1.294 1.294 0 00-.616-.134c-.277 0-.508.05-.693.15a1.043 1.043 0 00-.43.41 1.768 1.768 0 00-.214.616 4.15 4.15 0 00-.06.74v4.937H9.29v-4.937c0-.25-.01-.498-.032-.742a1.84 1.84 0 00-.166-.638.998.998 0 00-.363-.448 1.206 1.206 0 00-.624-.154c-.26 0-.483.048-.67.144a1.055 1.055 0 00-.436.402 1.744 1.744 0 00-.227.616 4.108 4.108 0 00-.063.74v4.937H5.21V7.81zm15.693 15.64V.55H21.72V0H24v24h-2.28v-.55z"/></svg>',
   },
   {
-    key: 'feishu',
-    name: 'Feishu',
-    exclusive: true,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.59 3.41a2.25 2.25 0 0 1 3.182 0L13.5 7.14l-3.182 3.182L6.59 7.59a2.25 2.25 0 0 1 0-3.182zm5.303 5.303L15.075 5.53a2.25 2.25 0 0 1 3.182 3.182L15.075 11.894 11.893 8.713zM3.41 6.59a2.25 2.25 0 0 1 3.182 0l3.182 3.182-3.182 3.182a2.25 2.25 0 0 1-3.182-3.182L3.41 6.59zm5.303 5.303L11.894 15.075a2.25 2.25 0 0 1-3.182 3.182L5.53 15.075 8.713 11.893zm5.303-5.303L17.478 9.778a2.25 2.25 0 0 1-3.182 3.182L10.53 10.075l3.182-3.182 0 .023z"/></svg>',
-  },
-  {
-    key: 'weixin',
-    name: 'Weixin',
-    exclusive: true,
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm3.68 4.025c-3.694 0-6.69 2.462-6.69 5.496 0 3.034 2.996 5.496 6.69 5.496.753 0 1.477-.1 2.158-.28a.66.66 0 01.548.074l1.46.854a.25.25 0 00.127.041.224.224 0 00.221-.225c0-.055-.022-.109-.037-.162l-.298-1.131a.453.453 0 01.163-.509C21.81 18.613 22.77 16.973 22.77 15.512c0-3.034-2.996-5.496-6.69-5.496h.198zm-2.454 3.347c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902zm4.912 0c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902z"/></svg>',
-  },
-  {
     key: 'wecom',
     name: 'WeCom',
-    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm3.68 4.025c-3.694 0-6.69 2.462-6.69 5.496 0 3.034 2.996 5.496 6.69 5.496.753 0 1.477-.1 2.158-.28a.66.66 0 01.548.074l1.46.854a.25.25 0 00.127.041.224.224 0 00.221-.225c0-.055-.022-.109-.037-.162l-.298-1.131a.453.453 0 01.163-.509C21.81 18.613 22.77 16.973 22.77 15.512c0-3.034-2.996-5.496-6.69-5.496h.198zm-2.454 3.347c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902zm4.912 0c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902z"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm3.68 4.025c-3.694 0-6.69 2.462-6.69 5.496 0 3.034 2.996 5.496 6.69 5.496.753 0 1.477-.1 2.158-.28a.66.66 0 01.548.074l1.46.854a.25.25 0 00.127.041.224.224 0 00.221-.225c0-.055-.022-.109-.037-.162l-.298-1.131a.453.453 0 01.163-.509C21.81 18.613 22.77 16.973 22.77 15.512c0-3.034-2.996-5.496-6.69-5.496h.198zm-2.454 3.347c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902zm4.912 0c.491 0 .889.404.889.902a.896.896 0 01-.889.903.896.896 0 01-.889-.903c0-.498.398-.902.889-.902z"/></svg>',
   },
 ]
 </script>
@@ -248,6 +319,24 @@ const platforms = [
 
       <!-- Weixin -->
       <template v-if="p.key === 'weixin'">
+        <div class="weixin-qr-section">
+          <NButton
+            v-if="wxQrStatus === 'idle' || wxQrStatus === 'error' || wxQrStatus === 'expired' || wxQrStatus === 'confirmed'"
+            type="primary"
+            size="small"
+            @click="startWeixinQrLogin"
+          >
+            {{ wxQrStatus === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
+          </NButton>
+          <div v-if="wxQrStatus === 'loading'" class="weixin-qr-loading">
+            <NSpin size="small" />
+            <span>{{ t('platform.qrFetching') }}</span>
+          </div>
+          <div v-if="wxQrStatus === 'waiting' || wxQrStatus === 'scaned'" class="weixin-qr-hint">
+            <img v-if="wxQrImage" :src="wxQrImage" alt="QR Code" class="weixin-qr-img" />
+            <p>{{ wxQrStatus === 'scaned' ? t('platform.qrScanedHint') : t('platform.qrScanHint') }}</p>
+          </div>
+        </div>
         <SettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')">
           <NInput :value="getCreds('weixin').token || ''" :loading="isSaving('weixin', 'token')" clearable size="small" class="input-lg" placeholder="Token" @change="v => saveCredentials('weixin', 'token', { token: v })" />
         </SettingRow>
@@ -274,5 +363,32 @@ const platforms = [
 
 .settings-section {
   margin-top: 16px;
+}
+
+.weixin-qr-section {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.weixin-qr-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: $text-muted;
+  font-size: 13px;
+}
+
+.weixin-qr-hint {
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+.weixin-qr-img {
+  display: block;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 8px;
+  border-radius: 4px;
+  image-rendering: pixelated;
 }
 </style>
