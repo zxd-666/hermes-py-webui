@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import MarkdownRenderer from '@/components/hermes/chat/MarkdownRenderer.vue'
 import { fetchSkillContent, fetchSkillFiles, type SkillFileEntry } from '@/api/hermes/skills'
 import { useI18n } from 'vue-i18n'
@@ -18,12 +18,88 @@ const fileContent = ref('')
 const viewingFile = ref<string | null>(null)
 const fileLoading = ref(false)
 
+interface SkillMeta {
+  name: string
+  description: string
+  tags: string[]
+  [key: string]: any
+}
+
+const meta = ref<SkillMeta>({ name: '', description: '', tags: [] })
+
+/** Parse YAML frontmatter from SKILL.md content, return [meta, body] */
+function parseFrontmatter(raw: string): { meta: SkillMeta; body: string } {
+  if (!raw.startsWith('---')) return { meta: { name: '', description: '', tags: [] }, body: raw }
+  const end = raw.indexOf('---', 3)
+  if (end < 0) return { meta: { name: '', description: '', tags: [] }, body: raw }
+  const fm = raw.slice(3, end).trim()
+  const body = raw.slice(end + 3).trim()
+
+  const result: SkillMeta = { name: '', description: '', tags: [] }
+
+  // Simple YAML parser — handles key: value, key: |, key: >, key: "..."
+  const lines = fm.split('\n')
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const m = line.match(/^(\w[\w.-]*)\s*:\s*(.*)/)
+    if (!m) { i++; continue }
+    const [, key, val] = m
+    if (val === '|' || val === '|2' || val === '|+') {
+      // Literal block: subsequent indented lines
+      const blockLines: string[] = []
+      i++
+      while (i < lines.length && (lines[i].startsWith('  ') || lines[i].startsWith('\t') || lines[i] === '')) {
+        blockLines.push(lines[i].replace(/^ {2}/, ''))
+        i++
+      }
+      result[key] = blockLines.join('\n').trim()
+    } else if (val === '>' || val === '>2' || val === '>+') {
+      // Folded block
+      const blockLines: string[] = []
+      i++
+      while (i < lines.length && (lines[i].startsWith('  ') || lines[i].startsWith('\t') || lines[i] === '')) {
+        blockLines.push(lines[i].replace(/^ {2}/, ''))
+        i++
+      }
+      result[key] = blockLines.join(' ').trim()
+    } else if (val.startsWith('"') && val.endsWith('"')) {
+      result[key] = val.slice(1, -1)
+      i++
+    } else if (val.startsWith('[')) {
+      // Inline array like [a, b, c]
+      result[key] = val.slice(1, -1).split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean)
+      i++
+    } else if (val.trim() === '') {
+      // Could be a nested mapping or block — skip (e.g. metadata:)
+      i++
+    } else {
+      result[key] = val.trim()
+      i++
+    }
+  }
+
+  // Normalize tags
+  if (typeof result.tags === 'string') {
+    result.tags = result.tags.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  return { meta: result, body }
+}
+
+const skillBody = computed(() => {
+  if (!content.value || viewingFile.value) return content.value
+  const { body } = parseFrontmatter(content.value)
+  return body
+})
+
 async function loadSkill() {
   loading.value = true
   viewingFile.value = null
   fileContent.value = ''
   files.value = []
   content.value = ''
+  meta.value = { name: '', description: '', tags: [] }
   try {
     const skillPath = `${props.category}/${props.skill}/SKILL.md`
     const [skillContent, skillFiles] = await Promise.all([
@@ -31,7 +107,9 @@ async function loadSkill() {
       fetchSkillFiles(props.category, props.skill),
     ])
     content.value = skillContent
-    files.value = skillFiles.filter(f => !f.isDir && f.path !== 'SKILL.md')
+    files.value = skillFiles
+    const { meta: parsed } = parseFrontmatter(skillContent)
+    meta.value = parsed
   } catch (err: any) {
     content.value = t('skills.loadFailed') + `: ${err.message}`
   } finally {
@@ -43,18 +121,9 @@ async function viewFile(filePath: string) {
   fileLoading.value = true
   viewingFile.value = filePath
   try {
-    // filePath might be absolute or relative; normalize to relative under category/skill/
-    const base = `${props.category}/${props.skill}/`
-    let relPath = filePath
-    if (filePath.startsWith('/')) {
-      // Strip absolute prefix to get relative path
-      const segments = filePath.split('/.hermes/skills/')[1]
-      if (segments) {
-        const afterSkillDir = segments.split('/').slice(2).join('/')
-        relPath = afterSkillDir
-      }
-    }
-    fileContent.value = await fetchSkillContent(`${base}${relPath}`)
+    // filePath is relative under category/skill/ (e.g. "references/api.md")
+    const skillPath = `${props.category}/${props.skill}/${filePath}`
+    fileContent.value = await fetchSkillContent(skillPath)
   } catch (err: any) {
     fileContent.value = t('skills.fileLoadFailed') + `: ${err.message}`
   } finally {
@@ -82,6 +151,18 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
     <div v-if="loading && !content" class="detail-loading">{{ t('common.loading') }}</div>
 
     <template v-else>
+      <!-- Metadata card (SKILL.md frontmatter) -->
+      <div v-if="!viewingFile && meta.description" class="meta-card">
+        <div class="meta-description">{{ meta.description }}</div>
+        <div v-if="meta.tags && meta.tags.length > 0" class="meta-tags">
+          <span v-for="tag in meta.tags" :key="tag" class="meta-tag">{{ tag }}</span>
+        </div>
+        <div v-if="meta.license" class="meta-extra">
+          <span class="meta-label">license</span>
+          <span>{{ meta.license }}</span>
+        </div>
+      </div>
+
       <!-- Breadcrumb for file view -->
       <div v-if="viewingFile" class="detail-breadcrumb">
         <button class="back-btn" @click="backToSkill">
@@ -96,7 +177,7 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
       <!-- Skill content -->
       <div class="detail-content">
         <MarkdownRenderer v-if="viewingFile" :content="fileContent" />
-        <MarkdownRenderer v-else :content="content" />
+        <MarkdownRenderer v-else :content="skillBody" />
       </div>
 
       <!-- Attached files -->
@@ -151,6 +232,55 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
 .detail-name {
   color: $text-primary;
   font-weight: 600;
+}
+
+.meta-card {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: $radius-sm;
+  background: rgba(var(--accent-primary-rgb), 0.04);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.08);
+}
+
+.meta-description {
+  font-size: 13px;
+  line-height: 1.6;
+  color: $text-secondary;
+  white-space: pre-line;
+}
+
+.meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.meta-tag {
+  font-size: 11px;
+  color: $accent-primary;
+  background: rgba(var(--accent-primary-rgb), 0.08);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.meta-extra {
+  margin-top: 6px;
+  font-size: 12px;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: $text-muted;
 }
 
 .detail-loading {

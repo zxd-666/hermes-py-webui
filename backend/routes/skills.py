@@ -101,32 +101,54 @@ async def list_skills(request: Request):
 
 @router.get("/skills/{category}/{skill}/files")
 async def get_skill_files(category: str, skill: str, request: Request):
-    """List files in a skill directory."""
+    """List files in a skill directory recursively."""
     home = profile_home(profile_from_request(request))
     skill_dir = home / "skills" / category / skill
     if not skill_dir.is_dir():
         return JSONResponse(status_code=404, content={"error": "skill directory not found"})
     files = []
-    for entry in sorted(skill_dir.iterdir()):
+    for entry in sorted(skill_dir.rglob("*")):
+        if not entry.is_file():
+            continue
         if entry.name.startswith(".") or entry.name == "SKILL.md":
             continue
+        # Skip compiled / cache files
+        if entry.suffix in (".pyc", ".pyo") or "__pycache__" in entry.parts:
+            continue
+        rel = str(entry.relative_to(skill_dir))
         files.append({
             "name": entry.name,
-            "path": str(entry),
-            "isDir": entry.is_dir(),
+            "path": rel,
+            "isDir": False,
         })
     return {"files": files}
 
 
 @router.get("/skills/{skill_path:path}")
 async def get_skill_content(skill_path: str, request: Request):
-    """Read SKILL.md content for a given skill path (e.g. 'content/AIwanfuye')."""
+    """Read a file within a skill directory (SKILL.md or any attached file)."""
     home = profile_home(profile_from_request(request))
-    # Frontend may include trailing 'SKILL.md' — strip it
+    base = home / "skills"
+
+    # Try exact path first (for attached files like references/api.md)
+    target = (base / skill_path).resolve()
+    # Security: ensure the resolved path stays within skills/
+    try:
+        target.relative_to(base.resolve())
+    except ValueError:
+        return JSONResponse(status_code=403, content={"error": "access denied"})
+
+    if target.is_file():
+        try:
+            return {"content": target.read_text(encoding="utf-8")}
+        except UnicodeDecodeError:
+            return JSONResponse(status_code=400, content={"error": "binary file"})
+
+    # Fall back to SKILL.md in the directory
     skill_path = skill_path.removesuffix("/SKILL.md")
-    target = home / "skills" / skill_path / "SKILL.md"
+    target = base / skill_path / "SKILL.md"
     if not target.exists():
-        return JSONResponse(status_code=404, content={"error": "skill not found"})
+        return JSONResponse(status_code=404, content={"error": "file not found"})
     return {"content": target.read_text(encoding="utf-8")}
 
 
