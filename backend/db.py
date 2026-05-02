@@ -8,6 +8,8 @@ from .config import get_profile_state_db
 
 def _conn(profile: str | None = None) -> sqlite3.Connection:
     db_path = get_profile_state_db(profile)
+    if not db_path.exists():
+        raise FileNotFoundError(f"profile database not found: {db_path}")
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     return conn
@@ -192,4 +194,7 @@ def get_usage_stats(days: int = 30, profile: str | None = None) -> dict:
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
-    return dict(row)
+    """Convert sqlite3.Row to dict, filtering out sensitive fields."""
+    d = dict(row)
+    d.pop("system_prompt", None)
+    return d

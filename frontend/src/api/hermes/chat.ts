@@ -11,6 +11,7 @@ export interface StartRunRequest {
   instructions?: string
   session_id?: string
   model?: string
+  provider?: string
   workspace?: string | null
 }
 

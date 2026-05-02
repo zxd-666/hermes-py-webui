@@ -3,11 +3,13 @@ import { ref, computed, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import MessageItem from "./MessageItem.vue";
 import { useChatStore } from "@/stores/hermes/chat";
+import { useProfilesStore } from "@/stores/hermes/profiles";
 import thinkingVideoLight from "@/assets/thinking-light.mp4";
 import thinkingVideoDark from "@/assets/thinking-dark.mp4";
 import { useTheme } from "@/composables/useTheme";
 
 const chatStore = useChatStore();
+const profilesStore = useProfilesStore();
 const { t } = useI18n();
 const { isDark } = useTheme();
 const listRef = ref<HTMLElement>();
@@ -123,8 +125,8 @@ watch(currentToolCalls, () => {
 <template>
   <div ref="listRef" class="message-list">
     <div v-if="chatStore.messages.length === 0" class="empty-state">
-      <img src="/logo.png" alt="Hermes" class="empty-logo" />
-      <p>{{ t("chat.emptyState") }}</p>
+      <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Hermes" class="empty-logo" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
+      <p>{{ t("chat.emptyState", { name: profilesStore.activeProfileName || 'Brave' }) }}</p>
     </div>
     <MessageItem
       v-for="msg in displayMessages"
@@ -289,6 +291,12 @@ watch(currentToolCalls, () => {
     width: 48px;
     height: 48px;
     opacity: 0.25;
+
+    &.avatar-logo {
+      border-radius: 12px;
+      object-fit: cover;
+      opacity: 0.5;
+    }
   }
 
   p {

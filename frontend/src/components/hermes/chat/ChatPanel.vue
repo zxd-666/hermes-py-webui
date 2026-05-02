@@ -61,6 +61,9 @@ const showRenameModal = ref(false)
 const renameValue = ref('')
 const renameSessionId = ref<string | null>(null)
 const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
+const isEditingTitle = ref(false)
+const editTitleValue = ref('')
+const editTitleRef = ref<HTMLInputElement | null>(null)
 const collapsedGroups = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem('hermes_collapsed_groups') || '[]')))
 
 // Source sort order: api_server first, cron last, others alphabetical
@@ -227,7 +230,7 @@ async function loadHeaderWorkspaces() {
   }
 }
 
-async function handleHeaderWorkspaceChange(path: string) {
+async function handleHeaderWorkspaceChange(path: string | null) {
   const sid = chatStore.activeSessionId
   if (!sid) return
   const ok = await setSessionWorkspace(sid, path || null)
@@ -332,6 +335,34 @@ async function handleRenameConfirm() {
   showRenameModal.value = false
 }
 
+async function startEditTitle() {
+  const session = chatStore.activeSession
+  if (!session || currentMode.value !== 'chat') return
+  editTitleValue.value = session.title || ''
+  isEditingTitle.value = true
+  await nextTick()
+  editTitleRef.value?.focus()
+  editTitleRef.value?.select()
+}
+
+async function confirmEditTitle() {
+  isEditingTitle.value = false
+  const session = chatStore.activeSession
+  if (!session) return
+  const newTitle = editTitleValue.value.trim()
+  if (!newTitle || newTitle === session.title) return
+  const ok = await renameSession(session.id, newTitle)
+  if (ok) {
+    const s = chatStore.sessions.find(s => s.id === session.id)
+    if (s) s.title = newTitle
+    chatStore.activeSession.title = newTitle
+  }
+}
+
+function cancelEditTitle() {
+  isEditingTitle.value = false
+}
+
 const showWorkspaceModal = ref(false)
 const workspaceValue = ref('')
 const workspaceSessionId = ref<string | null>(null)
@@ -401,12 +432,14 @@ function handleWorkspaceSelect(val: string) {
       <div class="session-list-header">
         <span v-if="showSessions" class="session-list-title">{{ t('chat.sessions') }}</span>
         <div class="session-list-actions">
-          <button class="session-close-btn" @click="showSessions = false">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
           <NButton quaternary size="tiny" @click="handleNewChat" circle>
             <template #icon>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </template>
+          </NButton>
+          <NButton v-if="showSessions" quaternary size="tiny" @click="showSessions = false" circle>
+            <template #icon>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><path d="M18 6v12"/></svg>
             </template>
           </NButton>
         </div>
@@ -533,12 +566,21 @@ function handleWorkspaceSelect(val: string) {
     <div class="chat-main">
       <header class="chat-header">
         <div class="header-left">
-          <NButton v-if="currentMode === 'chat'" quaternary size="small" @click="showSessions = !showSessions" circle>
+          <NButton v-if="currentMode === 'chat' && !showSessions" quaternary size="small" @click="showSessions = true" circle>
             <template #icon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="13 17 18 12 13 7"/><path d="M6 6v12"/></svg>
             </template>
           </NButton>
-          <span class="header-session-title">{{ headerTitle }}</span>
+          <input
+            v-if="isEditingTitle"
+            ref="editTitleRef"
+            v-model="editTitleValue"
+            class="header-title-input"
+            @keydown.enter="confirmEditTitle"
+            @keydown.escape="cancelEditTitle"
+            @blur="confirmEditTitle"
+          />
+          <span v-else class="header-session-title" @dblclick="startEditTitle">{{ headerTitle }}</span>
           <span v-if="activeSessionSource" class="source-badge">{{ getSourceLabel(activeSessionSource) }}</span>
         </div>
         <div class="header-actions">
@@ -555,7 +597,7 @@ function handleWorkspaceSelect(val: string) {
                 @update:value="handleModelChange"
               />
               <NSelect
-                :value="chatStore.activeSession?.workspace || ''"
+                :value="chatStore.activeSession?.workspace || undefined"
                 :options="headerWorkspaceOptions"
                 size="small"
                 filterable
@@ -883,6 +925,24 @@ function handleWorkspaceSelect(val: string) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default;
+
+  &:hover {
+    cursor: text;
+  }
+}
+
+.header-title-input {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+  background: rgba(var(--accent-primary-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 80px;
+  max-width: 300px;
 }
 
 .source-badge {
@@ -910,7 +970,7 @@ function handleWorkspaceSelect(val: string) {
 }
 
 .header-model-select {
-  width: 240px;
+  width: 160px;
 }
 
 .header-workspace-select {

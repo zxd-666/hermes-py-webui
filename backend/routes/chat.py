@@ -19,6 +19,7 @@ class StartRunRequest(BaseModel):
     instructions: str | None = None
     session_id: str | None = None
     model: str | None = None
+    provider: str | None = None
 
 
 @router.post("/start")
@@ -46,8 +47,9 @@ async def start_run(req: Request, body: StartRunRequest):
     # Get profile from header
     profile = req.headers.get("x-hermes-profile", "").strip() or None
 
-    # Get model (passed through to agent thread, which does full resolution)
+    # Get model & provider (passed through to agent thread, which does full resolution)
     model = body.model or ""
+    provider = body.provider or None
 
     # Start agent in background thread
     thread = threading.Thread(
@@ -57,6 +59,7 @@ async def start_run(req: Request, body: StartRunRequest):
             "session_id": session_id,
             "msg_text": msg_text,
             "model": model,
+            "provider": provider,
             "workspace": workspace,
             "profile": profile,
             "conversation_history": body.conversation_history,

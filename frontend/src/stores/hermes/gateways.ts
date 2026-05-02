@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { fetchGateways, startGateway, stopGateway, type GatewayStatus } from '@/api/hermes/gateways'
+import { fetchGateways, startGateway, stopGateway, updateGatewaySettings, type GatewayStatus } from '@/api/hermes/gateways'
 
 export const useGatewayStore = defineStore('gateways', () => {
   const gateways = ref<GatewayStatus[]>([])
@@ -16,36 +16,45 @@ export const useGatewayStore = defineStore('gateways', () => {
     }
   }
 
-  async function start(name: string) {
+  async function start(name: string): Promise<boolean> {
     loading.value = true
     try {
-      const status = await startGateway(name)
-      // Update the specific gateway in the list
-      const idx = gateways.value.findIndex(g => g.profile === name)
-      if (idx >= 0) {
-        gateways.value[idx] = status
-      } else {
-        gateways.value.push(status)
+      await startGateway(name)
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 500))
+        const data = await fetchGateways()
+        gateways.value = Array.isArray(data) ? data : Object.values(data || {})
+        if (gateways.value.find(g => g.profile === name)?.running) return true
       }
+      return false
     } finally {
       loading.value = false
     }
   }
 
-  async function stop(name: string) {
+  async function stop(name: string): Promise<boolean> {
     loading.value = true
     try {
       await stopGateway(name)
-      // Update the specific gateway in the list
-      const gw = gateways.value.find(g => g.profile === name)
-      if (gw) {
-        gw.running = false
-        gw.pid = undefined
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 500))
+        const data = await fetchGateways()
+        gateways.value = Array.isArray(data) ? data : Object.values(data || {})
+        if (!gateways.value.find(g => g.profile === name)?.running) return true
       }
+      return false
     } finally {
       loading.value = false
     }
   }
 
-  return { gateways, loading, fetchStatus, start, stop }
+  async function updateSettings(name: string, values: Record<string, any>) {
+    const updated = await updateGatewaySettings(name, values)
+    const idx = gateways.value.findIndex(g => g.profile === name)
+    if (idx >= 0) {
+      gateways.value[idx] = updated
+    }
+  }
+
+  return { gateways, loading, fetchStatus, start, stop, updateSettings }
 })

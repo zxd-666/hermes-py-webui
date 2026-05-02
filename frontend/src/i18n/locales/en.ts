@@ -91,6 +91,7 @@ export default {
     groupMonitoring: 'Monitoring',
     groupTools: 'Tools',
     settings: 'Settings',
+    config: 'Config',
     connected: 'Connected',
     disconnected: 'Disconnected',
     collapse: 'Collapse menu',
@@ -109,7 +110,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'remaining',
-    emptyState: 'Start a conversation with Hermes Agent',
+    emptyState: 'Start a conversation with {name}',
     inputPlaceholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
     attachFiles: 'Attach files',
     stop: 'Stop',

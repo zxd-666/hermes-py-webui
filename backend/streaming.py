@@ -119,6 +119,7 @@ def run_agent_in_thread(
     workspace: str,
     profile: str | None = None,
     conversation_history: list[dict] | None = None,
+    provider: str | None = None,
 ):
     """Run AIAgent in a background thread, pushing SSE events to the stream queue."""
     AIAgent = _get_ai_agent()
@@ -167,16 +168,18 @@ def run_agent_in_thread(
         resolved_provider = None
         resolved_base_url = None
         resolved_api_key = None
+        resolved_api_mode = None
         enabled_toolsets = None
         try:
             from hermes_cli.runtime_provider import resolve_runtime_provider
             from hermes_cli.config import load_config
-            rt = resolve_runtime_provider(requested=None)
+            rt = resolve_runtime_provider(requested=provider)
             cfg = load_config()
             if rt:
                 resolved_provider = rt.get("provider")
                 resolved_base_url = rt.get("base_url")
                 resolved_api_key = rt.get("api_key")
+                resolved_api_mode = rt.get("api_mode")
                 if not resolved_model:
                     resolved_model = rt.get("model", "")
             if not resolved_model:
@@ -309,7 +312,8 @@ def run_agent_in_thread(
             provider=resolved_provider,
             base_url=resolved_base_url,
             api_key=resolved_api_key,
-            platform="cli",
+            api_mode=resolved_api_mode,
+            platform="api_server",
             quiet_mode=True,
             session_id=session_id,
             session_db=session_db,
@@ -326,7 +330,9 @@ def run_agent_in_thread(
         if "api_mode" in _agent_params:
             try:
                 from hermes_cli.runtime_provider import resolve_runtime_provider as _rrp
-                rt2 = _rrp(requested=resolved_provider)
+                # Use original provider hint (e.g. "custom:minimax"), not the
+                # resolved "custom" label, so the correct custom provider is found.
+                rt2 = _rrp(requested=provider)
                 if rt2.get("api_mode"):
                     agent_kwargs["api_mode"] = rt2["api_mode"]
             except Exception:
@@ -334,7 +340,7 @@ def run_agent_in_thread(
         if "credential_pool" in _agent_params:
             try:
                 from hermes_cli.runtime_provider import resolve_runtime_provider as _rrp
-                rt3 = _rrp(requested=resolved_provider)
+                rt3 = _rrp(requested=provider)
                 if rt3.get("credential_pool"):
                     agent_kwargs["credential_pool"] = rt3["credential_pool"]
             except Exception:

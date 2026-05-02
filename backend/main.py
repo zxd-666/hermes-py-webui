@@ -48,25 +48,17 @@ app.add_middleware(
 )
 
 # Auth middleware for API routes
+@app.exception_handler(FileNotFoundError)
+async def not_found_handler(request, exc):
+    return JSONResponse(status_code=404, content={"error": str(exc)})
+
+
 @app.middleware("http")
 async def auth_middleware(request, call_next):
-    path = request.url.path
-    # Skip auth for static files and health
-    if path.startswith("/assets") or path == "/health" or path == "/favicon.ico":
-        return await call_next(request)
-    # Skip auth for login page
-    if path == "/login.html" or path == "/":
-        return await call_next(request)
-    # Check auth for API routes (but allow /api/auth/* endpoints)
-    if path.startswith("/api/") and not path.startswith("/api/auth/"):
-        try:
-            await check_auth(request)
-        except Exception:
-            from fastapi.responses import JSONResponse
-            return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    # Auth disabled — all requests pass through
     return await call_next(request)
 
-# Auth routes FIRST — /api/auth/* bypasses middleware auth check
+# Auth routes (available but not enforced — auth is disabled)
 app.include_router(auth_router)
 
 # API routes

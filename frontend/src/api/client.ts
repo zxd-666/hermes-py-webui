@@ -51,12 +51,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     !path.startsWith('/api/hermes/jobs') &&
     !path.startsWith('/api/hermes/skills')
 
-  if (res.status === 401 && isLocalBff) {
-    clearApiKey()
-    if (router.currentRoute.value.name !== 'login') {
-      router.replace({ name: 'login' })
-    }
-    throw new Error('Unauthorized')
+  if (res.status === 401) {
+    // Auth disabled — no redirect
   }
 
   if (!res.ok) {

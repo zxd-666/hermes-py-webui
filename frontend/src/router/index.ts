@@ -83,24 +83,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to, _from, next) => {
-  // Public pages don't need auth
-  if (to.meta.public) {
-    // Already has key, skip login
-    if (to.name === 'login' && hasApiKey()) {
-      next({ path: '/hermes/chat' })
-      return
-    }
-    next()
-    return
-  }
-
-  // All other pages require token
-  if (!hasApiKey()) {
-    next({ name: 'login' })
-    return
-  }
-
+router.beforeEach((_to, _from, next) => {
   next()
 })
 

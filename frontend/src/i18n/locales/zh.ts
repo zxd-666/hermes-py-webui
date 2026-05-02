@@ -91,6 +91,7 @@ export default {
     groupMonitoring: '监控',
     groupTools: '工具',
     settings: '设置',
+    config: '配置',
     connected: '已连接',
     disconnected: '未连接',
     collapse: '收起菜单',
@@ -109,7 +110,7 @@ export default {
   // 对话
   chat: {
     contextRemaining: '剩余',
-    emptyState: '开始与 Hermes Agent 对话',
+    emptyState: '开始与 {name} 对话',
     inputPlaceholder: '输入消息... (Enter 发送，Shift+Enter 换行)',
     attachFiles: '添加附件',
     stop: '停止',

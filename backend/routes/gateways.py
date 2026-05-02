@@ -24,6 +24,7 @@ def _read_gateway_state(home: Path) -> dict:
         "url": "",
         "running": False,
         "pid": None,
+        "redact_pii": False,
     }
 
     # Read gateway_state.json
@@ -54,7 +55,7 @@ def _read_gateway_state(home: Path) -> dict:
         except Exception:
             pass
 
-    # Read port from config.yaml
+    # Read redact_pii from config.yaml
     cfg = home / "config.yaml"
     if cfg.exists():
         try:
@@ -68,6 +69,7 @@ def _read_gateway_state(home: Path) -> dict:
             result["port"] = port
             result["host"] = host
             result["url"] = f"http://{host}:{port}"
+            result["redact_pii"] = bool((c.get("privacy") or {}).get("redact_pii", False))
         except Exception:
             pass
 
@@ -85,7 +87,7 @@ async def list_gateways():
     # Profile gateways
     if PROFILES_DIR.exists():
         for entry in sorted(PROFILES_DIR.iterdir()):
-            if not entry.is_dir():
+            if not entry.is_dir() or entry.name == "default":
                 continue
             gw = _read_gateway_state(entry)
             gw["profile"] = entry.name
@@ -97,26 +99,39 @@ async def list_gateways():
 @router.post("/{name}/start")
 async def start_gateway(name: str):
     """Start a gateway (via hermes CLI)."""
+    hermes_bin = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+    home = PROFILES_DIR / name if name != "default" else HERMES_HOME
+    env = {**os.environ}
+    env["HERMES_HOME"] = str(home)
+    cmd = [hermes_bin, "gateway", "start"]
     proc = await asyncio.create_subprocess_exec(
-        "hermes", "gateway", "start",
+        *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=env,
     )
-    await proc.communicate()
+    stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        return JSONResponse(status_code=500, content={"error": "failed to start gateway"})
+        msg = stderr.decode().strip() or stdout.decode().strip() or "failed to start gateway"
+        return JSONResponse(status_code=500, content={"error": msg})
 
-    home = PROFILES_DIR / name if name != "default" else HERMES_HOME
-    return {"success": True, "gateway": _read_gateway_state(home)}
+    status = _read_gateway_state(home)
+    status["profile"] = name
+    return {"success": True, "gateway": status}
 
 
 @router.post("/{name}/stop")
 async def stop_gateway(name: str):
     """Stop a gateway (via hermes CLI)."""
+    hermes_bin = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+    home = PROFILES_DIR / name if name != "default" else HERMES_HOME
+    env = {**os.environ}
+    env["HERMES_HOME"] = str(home)
     proc = await asyncio.create_subprocess_exec(
-        "hermes", "gateway", "stop",
+        hermes_bin, "gateway", "stop",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=env,
     )
     await proc.communicate()
     return {"ok": True}
@@ -126,6 +141,40 @@ async def stop_gateway(name: str):
 async def check_gateway_health(name: str):
     """Check gateway health by reading state file."""
     home = PROFILES_DIR / name if name != "default" else HERMES_HOME
+    status = _read_gateway_state(home)
+    status["profile"] = name
+    return {"gateway": status}
+
+
+@router.put("/{name}/settings")
+async def update_gateway_settings(name: str, body: dict):
+    """Update per-gateway settings (e.g. redact_pii) in the profile's config.yaml."""
+    home = PROFILES_DIR / name if name != "default" else HERMES_HOME
     if not home.is_dir():
         return JSONResponse(status_code=404, content={"error": "profile not found"})
-    return {"gateway": _read_gateway_state(home)}
+
+    import yaml
+    config_path = home / "config.yaml"
+    cfg = {}
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
+    # Merge incoming values into existing config
+    for key, value in body.items():
+        if isinstance(value, dict) and key in cfg and isinstance(cfg[key], dict):
+            cfg[key].update(value)
+        else:
+            cfg[key] = value
+
+    tmp = config_path.with_suffix(".tmp")
+    with open(tmp, "w") as f:
+        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+    tmp.rename(config_path)
+
+    status = _read_gateway_state(home)
+    status["profile"] = name
+    return {"ok": True, "gateway": status}

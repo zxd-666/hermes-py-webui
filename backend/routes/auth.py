@@ -99,6 +99,26 @@ async def check_auth(request: Request):
         tokens = data.get("tokens", {})
         if token not in tokens:
             raise HTTPException(status_code=401, detail="Invalid token")
+        # Enforce profile isolation: if token has a profile binding,
+        # the request must match (or be absent = default).
+        token_entry = tokens[token]
+        if isinstance(token_entry, dict):
+            bound_profile = token_entry.get("profile")
+        else:
+            bound_profile = None
+
+        if bound_profile is not None:
+            req_profile = request.headers.get("x-hermes-profile", "").strip() or None
+            if req_profile and req_profile.lower() == "default":
+                req_profile = None
+            if req_profile != bound_profile:
+                raise HTTPException(status_code=403, detail="Token not authorized for this profile")
+
+        # Attach profile to request.state for downstream use
+        from starlette.datastructures import State
+        if not hasattr(request, "state") or request.state is None:
+            request.state = type("State", (), {})()
+        request.state.auth_profile = bound_profile
 
     return True
 
@@ -114,7 +134,11 @@ def require_current_password(request: Request) -> str:
 
     data = _load()
     tokens = data.get("tokens", {})
-    username = tokens.get(token)
+    entry = tokens.get(token)
+    if isinstance(entry, dict):
+        username = entry.get("username")
+    else:
+        username = entry
     if not username:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return username
@@ -179,7 +203,12 @@ async def login(request: Request):
         # Generate session token
         token = _generate_token(username)
         tokens = data.get("tokens", {})
-        tokens[token] = username
+        # Bind token to the requesting profile for isolation
+        req_profile = request.headers.get("x-hermes-profile", "").strip()
+        if req_profile and req_profile.lower() != "default":
+            tokens[token] = {"username": username, "profile": req_profile}
+        else:
+            tokens[token] = {"username": username, "profile": None}
         data["tokens"] = tokens
         _save(data)
 

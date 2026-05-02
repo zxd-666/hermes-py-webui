@@ -110,7 +110,7 @@ a {
   z-index: 999;
 }
 
-// Hamburger button (mobile only)
+// Hamburger button
 .hamburger-btn {
   display: none;
   position: fixed;
@@ -126,6 +126,11 @@ a {
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+// Show hamburger on desktop when sidebar is hidden
+.hamburger-btn.force-show {
+  display: flex;
 }
 
 // Mobile responsive

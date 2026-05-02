@@ -7,6 +7,7 @@ export interface GatewayStatus {
   url: string
   running: boolean
   pid?: number
+  redact_pii: boolean
 }
 
 export async function fetchGateways(): Promise<GatewayStatus[]> {
@@ -25,5 +26,13 @@ export async function stopGateway(name: string): Promise<void> {
 
 export async function checkGatewayHealth(name: string): Promise<GatewayStatus> {
   const res = await request<{ gateway: GatewayStatus }>(`/api/hermes/gateways/${name}/health`)
+  return res.gateway
+}
+
+export async function updateGatewaySettings(name: string, values: Record<string, any>): Promise<GatewayStatus> {
+  const res = await request<{ gateway: GatewayStatus }>(`/api/hermes/gateways/${name}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify(values),
+  })
   return res.gateway
 }

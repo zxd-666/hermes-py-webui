@@ -12,8 +12,6 @@ import AgentSettings from "@/components/hermes/settings/AgentSettings.vue";
 import MemorySettings from "@/components/hermes/settings/MemorySettings.vue";
 import SessionSettings from "@/components/hermes/settings/SessionSettings.vue";
 import WorkspaceSettings from "@/components/hermes/settings/WorkspaceSettings.vue";
-import PrivacySettings from "@/components/hermes/settings/PrivacySettings.vue";
-import AccountSettings from "@/components/hermes/settings/AccountSettings.vue";
 
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
@@ -36,9 +34,6 @@ onMounted(() => {
         :description="t('common.loading')"
       >
         <NTabs type="line" animated>
-          <NTabPane name="account" :tab="t('settings.tabs.account')">
-            <AccountSettings />
-          </NTabPane>
           <NTabPane name="display" :tab="t('settings.tabs.display')">
             <DisplaySettings />
           </NTabPane>
@@ -53,9 +48,6 @@ onMounted(() => {
           </NTabPane>
           <NTabPane name="workspace" :tab="t('settings.tabs.workspace')">
             <WorkspaceSettings />
-          </NTabPane>
-          <NTabPane name="privacy" :tab="t('settings.tabs.privacy')">
-            <PrivacySettings />
           </NTabPane>
         </NTabs>
       </NSpin>

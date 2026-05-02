@@ -614,6 +614,7 @@ export const useChatStore = defineStore('chat', () => {
         input: inputText,
         session_id: sid,
         model: sessionModel || undefined,
+        provider: activeSession.value?.provider || undefined,
         workspace: activeSession.value?.workspace || null,
       }
 
