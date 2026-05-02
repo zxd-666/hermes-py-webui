@@ -54,6 +54,7 @@ async function save(values: Record<string, any>) {
         ]"
         size="small" class="input-sm"
         @update:value="v => save({ tool_use_enforcement: v })"
+                       :show-tooltip="true"
       />
     </SettingRow>
   </section>

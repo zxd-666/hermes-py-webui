@@ -408,6 +408,7 @@ function handleClose() {
           :placeholder="t('models.chooseProvider')"
           :disabled="isEditMode"
           filterable
+                         :show-tooltip="true"
         />
       </NFormItem>
 

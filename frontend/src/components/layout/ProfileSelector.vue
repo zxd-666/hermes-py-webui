@@ -43,6 +43,7 @@ onMounted(() => {
       :loading="profilesStore.switching"
       size="small"
       @update:value="handleChange"
+                     :show-tooltip="true"
     />
   </div>
 </template>

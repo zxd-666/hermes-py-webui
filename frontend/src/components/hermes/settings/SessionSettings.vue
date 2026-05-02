@@ -32,6 +32,7 @@ async function save(values: Record<string, any>) {
         ]"
         size="small" class="input-md"
         @update:value="v => save({ mode: v })"
+                       :show-tooltip="true"
       />
     </SettingRow>
     <SettingRow :label="t('settings.session.idleMinutes')" :hint="t('settings.session.idleMinutesHint')">

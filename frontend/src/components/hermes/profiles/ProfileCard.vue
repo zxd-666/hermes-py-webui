@@ -26,6 +26,7 @@ const detail = ref<HermesProfileDetail | null>(null)
 // Profile-level providers (fetched per-card, not global)
 const profileProviders = ref<ProfileProvider[]>([])
 const providersLoading = ref(false)
+const selectedProvider = ref('')
 
 const isDefault = computed(() => props.profile.name === 'default')
 
@@ -43,10 +44,7 @@ const providerOptions = computed(() =>
   })),
 )
 
-const currentProvider = computed(() => {
-  if (detail.value?.provider) return detail.value.provider
-  return ''
-})
+const currentProvider = computed(() => selectedProvider.value)
 
 const currentModels = computed(() => {
   const prov = profileProviders.value.find(p => p.provider === currentProvider.value)
@@ -66,6 +64,7 @@ onMounted(async () => {
     fetchProviders(),
     fetchProfileDetail(),
   ])
+  selectedProvider.value = detail.value?.provider || ''
 })
 
 async function fetchProfileDetail() {
@@ -103,6 +102,8 @@ async function toggleDetail() {
 }
 
 async function handleProviderChange(providerKey: string) {
+  // Immediately update local state for instant UI feedback
+  selectedProvider.value = providerKey
   const prov = profileProviders.value.find(p => p.provider === providerKey)
   if (!prov || prov.models.length === 0) return
   const model = prov.models[0]
@@ -259,6 +260,7 @@ async function handleAvatarDelete() {
           :loading="savingModel || providersLoading"
           style="max-width: 180px"
           @update:value="handleProviderChange"
+                         :show-tooltip="true"
         />
       </div>
       <div class="info-row">
@@ -271,6 +273,7 @@ async function handleAvatarDelete() {
           :placeholder="currentProvider ? t('profiles.selectModel') : t('profiles.selectProviderFirst')"
           style="max-width: 180px"
           @update:value="handleModelChange"
+                         :show-tooltip="true"
         />
       </div>
       <div class="info-row">
@@ -345,6 +348,7 @@ async function handleAvatarDelete() {
       <NButton
         size="tiny"
         quaternary
+        :disabled="isDefault"
         @click="emit('rename', profile.name)"
       >
         {{ t('profiles.rename') }}
@@ -358,7 +362,7 @@ async function handleAvatarDelete() {
       >
         {{ t('common.delete') }}
       </NButton>
-      <NButton size="tiny" quaternary :loading="exporting" @click="handleExport">
+      <NButton size="tiny" quaternary :loading="exporting" :disabled="isDefault" @click="handleExport">
         {{ t('profiles.export') }}
       </NButton>
     </div>

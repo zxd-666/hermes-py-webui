@@ -167,7 +167,7 @@ function mapHermesSession(s: SessionSummary): Session {
     createdAt: Math.round(s.started_at * 1000),
     updatedAt: Math.round(((s as any).last_message_ts || s.last_active || s.ended_at || s.started_at) * 1000),
     model: s.model,
-    provider: (s as any).billing_provider || '',
+    provider: undefined,  // don't inherit billing_provider; let Hermes resolve from profile config
     messageCount: s.message_count,
     endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
     lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
@@ -614,6 +614,8 @@ export const useChatStore = defineStore('chat', () => {
         input: inputText,
         session_id: sid,
         model: sessionModel || undefined,
+        // Only send provider if the session has an explicit one (e.g. from billing);
+        // otherwise let Hermes resolve from the active profile's config.yaml.
         provider: activeSession.value?.provider || undefined,
         workspace: activeSession.value?.workspace || null,
       }

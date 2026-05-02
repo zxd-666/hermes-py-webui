@@ -29,5 +29,6 @@ function handleChange(val: string) {
     :consistent-menu-width="false"
     class="input-sm"
     @update:value="handleChange"
+                   :show-tooltip="true"
   />
 </template>

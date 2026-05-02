@@ -159,6 +159,7 @@ function handleClose() {
           :options="schedulePresets"
           :placeholder="t('jobs.selectPreset')"
           @update:value="v => formData.schedule = v"
+                         :show-tooltip="true"
         />
       </NFormItem>
 
@@ -177,6 +178,7 @@ function handleClose() {
         <NSelect
           v-model:value="formData.deliver"
           :options="targetOptions"
+                         :show-tooltip="true"
         />
       </NFormItem>
 

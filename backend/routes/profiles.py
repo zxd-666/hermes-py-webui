@@ -415,8 +415,8 @@ async def import_profile(file: UploadFile = File(...)):
 @router.patch("/{name}/model")
 async def update_profile_model(name: str, body: dict):
     """Update model config for a profile."""
-    target = PROFILES_DIR / name
-    if not target.is_dir():
+    target = _profile_dir(name)
+    if name != "default" and not target.is_dir():
         return JSONResponse(status_code=404, content={"error": "profile not found"})
 
     import yaml

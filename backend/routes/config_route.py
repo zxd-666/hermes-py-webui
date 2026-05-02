@@ -94,7 +94,7 @@ async def get_config_models(req: Request):
     default = model_cfg.get("default", "")
 
     # Build groups from credentials pool
-    pool = cfg.get("credentials_pool", {})
+    pool = cfg.get("credentials_pool") or {}
     groups = []
 
     if pool:
@@ -204,7 +204,7 @@ async def get_available_models(req: Request):
         add_group(pool_key, name, base_url, models, api_key)
 
     # --- 1b. credentials_pool providers ---
-    pool = cfg.get("credentials_pool", {})
+    pool = cfg.get("credentials_pool") or {}
     for pool_key, pool_cfg in pool.items():
         if not isinstance(pool_cfg, dict):
             continue
@@ -300,7 +300,7 @@ async def add_provider(req: Request, body: dict):
         return {"error": "provider name required"}
 
     cfg = _load_hermes_config(profile)
-    pool = cfg.get("credentials_pool", {})
+    pool = cfg.get("credentials_pool") or {}
 
     # Preset provider: use registry key as pool_key (e.g. "zai", "anthropic")
     # Custom provider: prefix with "custom:" (e.g. "custom:My Provider")
@@ -330,7 +330,7 @@ async def remove_provider(req: Request, pool_key: str):
     removed = False
 
     # 1. Try credentials_pool (exact key match)
-    pool = cfg.get("credentials_pool", {})
+    pool = cfg.get("credentials_pool") or {}
     if pool_key in pool:
         del pool[pool_key]
         cfg["credentials_pool"] = pool
@@ -362,7 +362,7 @@ async def update_provider(req: Request, pool_key: str, body: dict):
     """Update a provider in the credentials pool."""
     profile = _profile_from_request(req)
     cfg = _load_hermes_config(profile)
-    pool = cfg.get("credentials_pool", {})
+    pool = cfg.get("credentials_pool") or {}
     if pool_key not in pool:
         return {"error": "provider not found"}
 

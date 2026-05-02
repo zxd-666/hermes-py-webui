@@ -547,6 +547,7 @@ function handleWorkspaceSelect(val: string) {
             placeholder=""
             filterable
             @update:value="handleWorkspaceSelect"
+            :show-tooltip="true"
           />
         </div>
         <div v-else>
@@ -595,6 +596,7 @@ function handleWorkspaceSelect(val: string) {
                 class="header-model-select"
                 :placeholder="t('models.title')"
                 @update:value="handleModelChange"
+                :show-tooltip="true"
               />
               <NSelect
                 :value="chatStore.activeSession?.workspace || undefined"
@@ -605,6 +607,7 @@ function handleWorkspaceSelect(val: string) {
                 class="header-workspace-select"
                 :placeholder="t('chat.workspace')"
                 @update:value="handleHeaderWorkspaceChange"
+                :show-tooltip="true"
               />
             </div>
           </template>
