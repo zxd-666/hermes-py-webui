@@ -53,8 +53,10 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
         rows = conn.execute(q, params).fetchall()
         results = [_row_to_dict(r) for r in rows]
 
-        # For each result, walk parent chain to compute lineage stats.
+        # For each result, walk parent chain to build ancestor list.
         # Skip ancestor sessions that have no messages (deleted/orphaned shells).
+        all_ancestor_ids: set[str] = set()
+        raw_ancestors: dict[str, list[dict]] = {}
         for s in results:
             count = 1
             ancestors = []
@@ -71,20 +73,46 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
                 if parent_mc == 0:
                     current_pid = d.get("parent_session_id")
                     continue
+                all_ancestor_ids.add(d["id"])
                 ancestors.append({
-                    "id": d.get("id"),
+                    "id": d["id"],
                     "title": d.get("title") or "",
-                    "message_count": parent_mc,
+                    "message_count": parent_mc,  # placeholder, overwritten below
                     "started_at": d.get("started_at"),
                     "ended_at": d.get("ended_at"),
                 })
                 count += 1
                 current_pid = d.get("parent_session_id")
+            raw_ancestors[s["id"]] = ancestors
             s["lineage_count"] = count
+
+        # Batch-query real message counts for all ancestor IDs.
+        count_map: dict[str, int] = {}
+        if all_ancestor_ids:
+            id_list = list(all_ancestor_ids)
+            placeholders = ",".join("?" * len(id_list))
+            count_rows = conn.execute(
+                f"SELECT session_id, COUNT(*) AS cnt FROM messages "
+                f"WHERE session_id IN ({placeholders}) "
+                f"AND role IN ('user', 'assistant') "
+                f"AND content IS NOT NULL AND content != '' "
+                f"GROUP BY session_id",
+                id_list,
+            ).fetchall()
+            count_map: dict[str, int] = {
+                r["session_id"] if hasattr(r, "keys") else r[0]:
+                r["cnt"] if hasattr(r, "keys") else r[1]
+                for r in count_rows
+            }
+
+        # Fill in real counts and attach to results.
+        for s in results:
+            for a in raw_ancestors[s["id"]]:
+                a["message_count"] = count_map.get(a["id"], 0)
+            s["ancestors"] = raw_ancestors[s["id"]]
             # lineage_message_count is loaded asynchronously via
             # /api/sessions/:id/message-count to avoid blocking list queries.
             s["lineage_message_count"] = None
-            s["ancestors"] = ancestors
 
         return results
     finally:
