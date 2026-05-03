@@ -409,18 +409,17 @@ function handleWorkspaceSelect(val: string) {
     <div v-if="currentMode === 'chat'" class="session-backdrop" :class="{ active: showSessions }" @click="showSessions = false" />
     <aside v-if="currentMode === 'chat'" class="session-list" :class="{ collapsed: !showSessions }">
       <div class="session-list-header">
-        <span v-if="showSessions" class="session-list-title">{{ t('chat.sessions') }}</span>
+        <NSelect
+          v-if="showSessions && sourceFilterOptions.length > 1"
+          :value="selectedSourceFilter"
+          :options="sourceFilterOptions"
+          size="tiny"
+          clearable
+          :placeholder="t('chat.allSources')"
+          class="source-filter-select"
+          @update:value="v => selectedSourceFilter = v"
+        />
         <div class="session-list-actions">
-          <NSelect
-            v-if="showSessions && sourceFilterOptions.length > 1"
-            :value="selectedSourceFilter"
-            :options="sourceFilterOptions"
-            size="tiny"
-            clearable
-            :placeholder="t('chat.allSources')"
-            class="source-filter-select"
-            @update:value="v => selectedSourceFilter = v"
-          />
           <NButton quaternary size="tiny" @click="handleNewChat" circle>
             <template #icon>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -687,7 +686,18 @@ function handleWorkspaceSelect(val: string) {
 }
 
 .source-filter-select {
-  width: 80px;
+  width: 110px;
+
+  :deep(.n-base-selection) {
+    border-color: transparent !important;
+
+    &--focus,
+    &:hover,
+    &.n-base-selection--active {
+      border-color: transparent !important;
+      box-shadow: none !important;
+    }
+  }
 }
 
 .session-close-btn {
