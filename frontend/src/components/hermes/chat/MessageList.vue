@@ -17,6 +17,10 @@ const hasLineage = computed(() => {
   if (!s) return false;
   const parentId = s.parentSessionId;
   if (!parentId) return false;
+  // Only show on leaf sessions (those visible in sidebar, with ancestors loaded).
+  // Ancestor sessions (which users navigate into via the ancestor list)
+  // should not show this prompt.
+  if ((s.ancestors?.length || 0) === 0) return false;
   return !s.loadedParentIds?.includes(parentId);
 });
 
