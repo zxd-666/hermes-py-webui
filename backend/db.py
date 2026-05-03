@@ -58,24 +58,33 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
         for s in results:
             count = 1
             msg_count = s.get("message_count") or 0
+            ancestors = []
             current_pid = s.get("parent_session_id")
             while current_pid:
                 parent_row = conn.execute(
-                    "SELECT message_count, parent_session_id FROM sessions WHERE id = ?",
+                    "SELECT id, title, message_count, started_at, ended_at, parent_session_id FROM sessions WHERE id = ?",
                     (current_pid,),
                 ).fetchone()
                 if not parent_row:
                     break
-                parent_mc = dict(parent_row).get("message_count") or 0
+                d = dict(parent_row)
+                parent_mc = d.get("message_count") or 0
                 if parent_mc == 0:
-                    # Empty shell — keep walking to see if there's a real ancestor
-                    current_pid = dict(parent_row).get("parent_session_id")
+                    current_pid = d.get("parent_session_id")
                     continue
+                ancestors.append({
+                    "id": d.get("id"),
+                    "title": d.get("title") or "",
+                    "message_count": parent_mc,
+                    "started_at": d.get("started_at"),
+                    "ended_at": d.get("ended_at"),
+                })
                 count += 1
                 msg_count += parent_mc
-                current_pid = dict(parent_row).get("parent_session_id")
+                current_pid = d.get("parent_session_id")
             s["lineage_count"] = count
             s["lineage_message_count"] = msg_count
+            s["ancestors"] = ancestors
 
         return results
     finally:
@@ -117,12 +126,36 @@ def delete_session(session_id: str, profile: str | None = None) -> bool:
         conn.close()
 
 
-def rename_session(session_id: str, title: str, profile: str | None = None) -> bool:
+def rename_session(session_id: str, title: str, profile: str | None = None) -> dict:
+    """Rename a session. If the session has descendants, update the
+    **leaf** (last) session in the lineage chain instead, so the
+    title is visible in the sidebar (ancestors are hidden).
+
+    Returns {"ok": bool, "target_id": str} where target_id is the
+    session that was actually updated (may differ from session_id)."""
     conn = _conn(profile)
     try:
-        conn.execute("UPDATE sessions SET title = ? WHERE id = ?", (title, session_id))
+        # Walk down the lineage to find the leaf session
+        target = session_id
+        seen = {target}
+        while True:
+            child = conn.execute(
+                "SELECT id FROM sessions WHERE parent_session_id = ? LIMIT 1",
+                (target,),
+            ).fetchone()
+            if child and child["id"] not in seen:
+                target = child["id"]
+                seen.add(target)
+            else:
+                break
+
+        conn.execute("UPDATE sessions SET title = ? WHERE id = ?", (title, target))
         conn.commit()
-        return conn.total_changes > 0
+        return {"ok": conn.total_changes > 0, "target_id": target}
+    except Exception as e:
+        if "UNIQUE constraint" in str(e):
+            return {"ok": False, "target_id": session_id}
+        raise
     finally:
         conn.close()
 

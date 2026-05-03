@@ -189,7 +189,8 @@ async def session_delete(request: Request, session_id: str):
 async def session_rename(request: Request, session_id: str, body: dict):
     profile = _get_profile(request)
     title = body.get("title", "")
-    return {"renamed": rename_session(session_id, title, profile=profile)}
+    result = rename_session(session_id, title, profile=profile)
+    return {"renamed": result["ok"], "target_id": result["target_id"]}
 
 
 @router.post("/sessions/{session_id}/workspace")

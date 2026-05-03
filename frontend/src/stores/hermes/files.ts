@@ -79,6 +79,8 @@ export const useFilesStore = defineStore('files', () => {
   const sortBy = ref<'name' | 'size' | 'modTime'>('name')
   const sortOrder = ref<'asc' | 'desc'>('asc')
 
+  const selectedPath = ref<string | null>(null)
+
   const editingFile = ref<{
     path: string
     content: string
@@ -118,6 +120,7 @@ export const useFilesStore = defineStore('files', () => {
       // file list becomes visible again. The editor has its own dirty-check
       // (see hasUnsavedChanges), so we leave editingFile alone here.
       previewFile.value = null
+      selectedPath.value = null
     }
     if (path !== undefined) currentPath.value = path
     loading.value = true
@@ -229,7 +232,7 @@ export const useFilesStore = defineStore('files', () => {
   })
 
   return {
-    currentPath, entries, loading, sortBy, sortOrder,
+    currentPath, entries, loading, sortBy, sortOrder, selectedPath,
     editingFile, previewFile,
     pathSegments, sortedEntries, hasUnsavedChanges,
     fetchEntries, navigateTo, navigateUp,

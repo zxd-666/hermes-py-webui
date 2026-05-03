@@ -67,10 +67,11 @@ const editTitleRef = ref<HTMLInputElement | null>(null)
 const collapsedGroups = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem('hermes_collapsed_groups') || '[]')))
 
 // Source sort order: api_server first, cron last, others alphabetical
+const SOURCE_ORDER = ['9898', 'webui', 'feishu', 'cli', 'cron']
+
 function sourceSortKey(source: string): number {
-  if (source === '9898') return -1
-  if (source === 'cron') return 999
-  return 0
+  const idx = SOURCE_ORDER.indexOf(source.toLowerCase())
+  return idx >= 0 ? idx : SOURCE_ORDER.length
 }
 
 function sortSessionsWithActiveFirst(items: Session[]): Session[] {
@@ -295,12 +296,14 @@ const contextSessionPinned = computed(() =>
 
 const contextMenuOptions = computed(() => {
   const canDel = contextSessionId.value !== chatStore.activeSessionId || chatStore.visibleSessions.length > 1
+  // ancestor sessions are not top-level items — hide pin/workspace/delete for them
+  const isAncestor = contextSessionId.value && !chatStore.sessions.find(s => s.id === contextSessionId.value)
   return [
-    { label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' },
+    ...(!isAncestor ? [{ label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' }] : []),
     { label: t('chat.rename'), key: 'rename' },
-    { label: t('chat.setWorkspace'), key: 'workspace' },
+    ...(!isAncestor ? [{ label: t('chat.setWorkspace'), key: 'workspace' }] : []),
     { label: t('chat.copySessionId'), key: 'copy-id' },
-    ...(canDel ? [{ label: t('common.delete'), key: 'delete' }] : []),
+    ...(canDel && !isAncestor ? [{ label: t('common.delete'), key: 'delete' }] : []),
   ]
 })
 
@@ -346,11 +349,11 @@ function handleClickOutside() {
 
 async function handleRenameConfirm() {
   if (!renameSessionId.value || !renameValue.value.trim()) return
-  const ok = await renameSession(renameSessionId.value, renameValue.value.trim())
-  if (ok) {
-    const session = chatStore.sessions.find(s => s.id === renameSessionId.value)
+  const { ok, targetId } = await renameSession(renameSessionId.value, renameValue.value.trim())
+  if (ok && targetId) {
+    const session = chatStore.sessions.find(s => s.id === targetId)
     if (session) session.title = renameValue.value.trim()
-    if (chatStore.activeSession?.id === renameSessionId.value) {
+    if (chatStore.activeSession?.id === targetId) {
       chatStore.activeSession.title = renameValue.value.trim()
     }
     message.success(t('chat.renamed'))
@@ -376,11 +379,13 @@ async function confirmEditTitle() {
   if (!session) return
   const newTitle = editTitleValue.value.trim()
   if (!newTitle || newTitle === session.title) return
-  const ok = await renameSession(session.id, newTitle)
-  if (ok) {
-    const s = chatStore.sessions.find(s => s.id === session.id)
+  const { ok, targetId } = await renameSession(session.id, newTitle)
+  if (ok && targetId) {
+    const s = chatStore.sessions.find(s => s.id === targetId)
     if (s) s.title = newTitle
-    chatStore.activeSession.title = newTitle
+    if (chatStore.activeSession?.id === targetId) {
+      chatStore.activeSession.title = newTitle
+    }
   }
 }
 
@@ -487,6 +492,8 @@ function handleWorkspaceSelect(val: string) {
             :streaming="chatStore.isSessionLive(s.id)"
             @select="handleSessionClick(s.id)"
             @contextmenu="handleContextMenu($event, s.id)"
+            @select-ancestor="handleSessionClick"
+            @ancestor-contextmenu="(e, id) => handleContextMenu(e, id)"
           />
         </template>
 
@@ -506,6 +513,8 @@ function handleWorkspaceSelect(val: string) {
               :streaming="chatStore.isSessionLive(s.id)"
               @select="handleSessionClick(s.id)"
               @contextmenu="handleContextMenu($event, s.id)"
+              @select-ancestor="handleSessionClick"
+              @ancestor-contextmenu="(e, id) => handleContextMenu(e, id)"
             />
           </template>
         </template>

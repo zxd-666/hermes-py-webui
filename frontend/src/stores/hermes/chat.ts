@@ -58,6 +58,13 @@ export interface Session {
   parentSessionId?: string | null
   lineageCount?: number
   lineageMessageCount?: number
+  ancestors?: Array<{
+    id: string
+    title: string
+    messageCount: number
+    startedAt: number
+    endedAt: number | null
+  }>
   loadedParentIds?: string[]
 }
 
@@ -184,6 +191,13 @@ function mapHermesSession(s: SessionSummary): Session {
     parentSessionId: s.parent_session_id || null,
     lineageCount: (s as any).lineage_count || 0,
     lineageMessageCount: (s as any).lineage_message_count || 0,
+    ancestors: (s as any).ancestors?.map((a: any) => ({
+      id: a.id,
+      title: a.title || '',
+      messageCount: a.message_count || 0,
+      startedAt: Math.round((a.ended_at || a.started_at) * 1000),
+      endedAt: a.ended_at != null ? Math.round(a.ended_at * 1000) : null,
+    })) || [],
   }
 }
 
@@ -471,9 +485,17 @@ export const useChatStore = defineStore('chat', () => {
       // Load messages via HTTP resume (server loads from DB if not in memory)
       const data = await resumeSession(sessionId)
 
-      // If session wasn't in local list (e.g. search result for an ancestor),
-      // create a stub from resume data so the UI can render it
+      // If session wasn't in local list (e.g. ancestor click),
+      // create a stub from resume data so the UI can render it.
+      // Inherit source from the session that owns this ancestor so it
+      // stays in the same group.
       if (!activeSession.value) {
+        // Find the child session that references this ancestor
+        const parentChild = sessions.value.find(
+          s => s.ancestors?.some(a => a.id === sessionId)
+        ) || sessions.value.find(
+          s => s.id === data.parentSessionId
+        )
         const stub: Session = {
           id: sessionId,
           title: '',
@@ -492,8 +514,10 @@ export const useChatStore = defineStore('chat', () => {
           lineageCount: 0,
           lineageMessageCount: 0,
           loadedParentIds: [],
+          source: parentChild?.source || '',
         }
-        sessions.value.unshift(stub)
+        // Don't insert ancestor stubs into the session list — they should
+        // stay nested under their parent session, not appear as top-level items.
         activeSession.value = stub
       }
 

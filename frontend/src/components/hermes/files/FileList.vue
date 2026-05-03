@@ -60,6 +60,10 @@ function handleContextMenu(e: MouseEvent, entry: FileEntry) {
   emit('contextmenu-entry', e, entry)
 }
 
+function handleClick(entry: FileEntry) {
+  filesStore.selectedPath = filesStore.selectedPath === entry.path ? null : entry.path
+}
+
 async function handleDownload(entry: FileEntry) {
   try {
     await downloadFile(entry.path, entry.name)
@@ -93,6 +97,8 @@ async function handleDownload(entry: FileEntry) {
           v-for="entry in filesStore.sortedEntries"
           :key="entry.path"
           class="file-list-row"
+          :class="{ active: filesStore.selectedPath === entry.path }"
+          @click="handleClick(entry)"
           @dblclick="handleDoubleClick(entry)"
           @contextmenu="handleContextMenu($event, entry)"
         >
@@ -158,9 +164,19 @@ async function handleDownload(entry: FileEntry) {
   cursor: pointer;
   gap: 16px;
   font-size: 13px;
+  transition: background-color 0.15s ease;
 
   &:hover {
     background-color: rgba(var(--accent-primary-rgb), 0.06);
+
+    .file-actions {
+      opacity: 1;
+    }
+  }
+
+  &.active {
+    background-color: rgba(var(--accent-primary-rgb), 0.12);
+    color: var(--accent-primary);
 
     .file-actions {
       opacity: 1;

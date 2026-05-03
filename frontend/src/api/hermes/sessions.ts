@@ -24,6 +24,13 @@ export interface SessionSummary {
   parent_session_id?: string | null
   lineage_count?: number
   lineage_message_count?: number
+  ancestors?: Array<{
+    id: string
+    title: string
+    message_count: number
+    started_at: number
+    ended_at: number | null
+  }>
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -87,15 +94,15 @@ export async function deleteSession(id: string): Promise<boolean> {
   }
 }
 
-export async function renameSession(id: string, title: string): Promise<boolean> {
+export async function renameSession(id: string, title: string): Promise<{ ok: boolean; targetId: string | null }> {
   try {
-    await request(`/api/hermes/sessions/${id}/rename`, {
+    const res = await request<{ renamed: boolean; target_id: string }>(`/api/hermes/sessions/${id}/rename`, {
       method: 'POST',
       body: JSON.stringify({ title }),
     })
-    return true
+    return { ok: !!res?.renamed, targetId: res?.target_id ?? null }
   } catch {
-    return false
+    return { ok: false, targetId: null }
   }
 }
 
