@@ -347,36 +347,51 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 
 def get_lineage_message_count(session_id: str, profile: str | None = None) -> int:
-    """Count user+assistant messages (non-empty content) across the lineage chain."""
+    """Count user+assistant messages (non-empty content) across the full lineage tree.
+
+    Walks both ancestor chain (parent_session_id) and descendant tree (children)
+    to cover compressed sessions where new messages live in child sessions.
+    """
     conn = _conn(profile)
     try:
-        # Collect chain IDs: session itself + ancestors
-        chain_ids: list[str] = []
+        all_ids: set[str] = set()
+
+        # 1. Walk ancestors (parent_session_id)
         current = session_id
         seen: set[str] = set()
         while current and current not in seen:
-            chain_ids.append(current)
+            all_ids.add(current)
             seen.add(current)
             row = conn.execute(
-                "SELECT parent_session_id, message_count FROM sessions WHERE id = ?",
+                "SELECT parent_session_id FROM sessions WHERE id = ?",
                 (current,),
             ).fetchone()
             if not row:
                 break
-            pid = row["parent_session_id"] if hasattr(row, "keys") else row[0]
-            mc = row["message_count"] if hasattr(row, "keys") else row[1]
-            if mc == 0 and pid:
-                current = pid
-                continue
-            current = pid
-        if not chain_ids:
+            current = row["parent_session_id"] if hasattr(row, "keys") else row[0]
+
+        # 2. Walk descendants (children whose parent_session_id is in the tree)
+        queue = list(all_ids)
+        while queue:
+            parent = queue.pop(0)
+            children = conn.execute(
+                "SELECT id FROM sessions WHERE parent_session_id = ?",
+                (parent,),
+            ).fetchall()
+            for child in children:
+                cid = child["id"] if hasattr(child, "keys") else child[0]
+                if cid not in all_ids:
+                    all_ids.add(cid)
+                    queue.append(cid)
+
+        if not all_ids:
             return 0
-        placeholders = ",".join("?" * len(chain_ids))
+        placeholders = ",".join("?" * len(all_ids))
         row = conn.execute(
             f"SELECT COUNT(*) FROM messages WHERE session_id IN ({placeholders}) "
             "AND role IN ('user', 'assistant') "
             "AND content IS NOT NULL AND content != ''",
-            chain_ids,
+            list(all_ids),
         ).fetchone()
         return row[0] if row else 0
     finally:
