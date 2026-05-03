@@ -19,9 +19,17 @@ def _conn(profile: str | None = None) -> sqlite3.Connection:
 
 def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0,
                   profile: str | None = None) -> list[dict]:
-    """Return sessions ordered by last message time DESC."""
+    """Return sessions ordered by last message time DESC.
+    Hides ancestor sessions (sessions referenced as parent_session_id by others).
+    Adds lineage_count and lineage_message_count for chain depth."""
     conn = _conn(profile)
     try:
+        # Find all ancestor session IDs (referenced as parent_session_id)
+        ancestor_rows = conn.execute(
+            "SELECT DISTINCT parent_session_id FROM sessions WHERE parent_session_id IS NOT NULL"
+        ).fetchall()
+        ancestor_ids = {r[0] for r in ancestor_rows}
+
         q = """
             SELECT s.*,
               (SELECT MAX(m.timestamp) FROM messages m WHERE m.session_id = s.id)
@@ -29,13 +37,47 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
             FROM sessions s
         """
         params: list = []
+        conditions: list[str] = []
         if source:
-            q += " WHERE s.source = ?"
+            conditions.append("s.source = ?")
             params.append(source)
+        # Exclude ancestor sessions
+        if ancestor_ids:
+            placeholders = ",".join("?" * len(ancestor_ids))
+            conditions.append(f"s.id NOT IN ({placeholders})")
+            params.extend(ancestor_ids)
+        if conditions:
+            q += " WHERE " + " AND ".join(conditions)
         q += " ORDER BY last_message_ts DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         rows = conn.execute(q, params).fetchall()
-        return [_row_to_dict(r) for r in rows]
+        results = [_row_to_dict(r) for r in rows]
+
+        # For each result, walk parent chain to compute lineage stats.
+        # Skip ancestor sessions that have no messages (deleted/orphaned shells).
+        for s in results:
+            count = 1
+            msg_count = s.get("message_count") or 0
+            current_pid = s.get("parent_session_id")
+            while current_pid:
+                parent_row = conn.execute(
+                    "SELECT message_count, parent_session_id FROM sessions WHERE id = ?",
+                    (current_pid,),
+                ).fetchone()
+                if not parent_row:
+                    break
+                parent_mc = dict(parent_row).get("message_count") or 0
+                if parent_mc == 0:
+                    # Empty shell — keep walking to see if there's a real ancestor
+                    current_pid = dict(parent_row).get("parent_session_id")
+                    continue
+                count += 1
+                msg_count += parent_mc
+                current_pid = dict(parent_row).get("parent_session_id")
+            s["lineage_count"] = count
+            s["lineage_message_count"] = msg_count
+
+        return results
     finally:
         conn.close()
 
@@ -194,6 +236,72 @@ def get_usage_stats(days: int = 30, profile: str | None = None) -> dict:
 
         result["period_days"] = days
         return result
+    finally:
+        conn.close()
+
+
+def get_session_lineage(session_id: str, profile: str | None = None) -> dict:
+    """Get full lineage chain for a session (walk parent_session_id up to root).
+    Returns { root_id, chain: [session dicts oldest→newest], messages: [all messages merged] }.
+    """
+    conn = _conn(profile)
+    try:
+        # Walk up the parent chain to find root, skip empty shells
+        chain_ids: list[str] = []
+        current = session_id
+        seen = set()
+        while current and current not in seen:
+            chain_ids.append(current)
+            seen.add(current)
+            row = conn.execute(
+                "SELECT parent_session_id, message_count FROM sessions WHERE id = ?", (current,)
+            ).fetchone()
+            if not row:
+                break
+            mc = (row["message_count"] if hasattr(row, "keys") else row[1]) or 0
+            pid = (row["parent_session_id"] if hasattr(row, "keys") else row[0])
+            if mc == 0 and pid:
+                # Empty shell — skip to grandparent
+                current = pid
+                continue
+            current = pid
+        chain_ids.reverse()  # oldest first
+
+        # Fetch all session dicts in chain
+        placeholders = ",".join("?" * len(chain_ids))
+        rows = conn.execute(
+            f"SELECT * FROM sessions WHERE id IN ({placeholders}) ORDER BY started_at ASC",
+            chain_ids,
+        ).fetchall()
+        chain = [_row_to_dict(r) for r in rows]
+
+        # Fetch all messages across the lineage
+        msg_rows = conn.execute(
+            f"SELECT m.*, s.model as model FROM messages m "
+            f"LEFT JOIN sessions s ON s.id = m.session_id "
+            f"WHERE m.session_id IN ({placeholders}) ORDER BY m.timestamp ASC",
+            chain_ids,
+        ).fetchall()
+        messages = [_row_to_dict(r) for r in msg_rows]
+
+        return {
+            "root_id": chain_ids[0] if chain_ids else session_id,
+            "chain": chain,
+            "messages": messages,
+            "chain_ids": chain_ids,
+        }
+    finally:
+        conn.close()
+
+
+def get_child_session_ids(session_id: str, profile: str | None = None) -> list[str]:
+    """Get all direct children of a session (sessions whose parent_session_id = session_id)."""
+    conn = _conn(profile)
+    try:
+        rows = conn.execute(
+            "SELECT id FROM sessions WHERE parent_session_id = ?", (session_id,)
+        ).fetchall()
+        return [r["id"] for r in rows]
     finally:
         conn.close()
 

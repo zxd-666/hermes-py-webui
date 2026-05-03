@@ -9,7 +9,7 @@ from ..config import HERMES_HOME
 from ..db import (
     list_sessions, get_session, get_session_messages,
     delete_session, rename_session, search_sessions,
-    get_usage_stats,
+    get_usage_stats, get_session_lineage, get_child_session_ids,
 )
 
 router = APIRouter(prefix="/api/hermes", tags=["sessions"])
@@ -159,6 +159,14 @@ async def sessions_list(
                 s["preview"] = m["content"][:100]
                 break
     return {"sessions": sessions}
+
+
+@router.get("/sessions/{session_id}/lineage")
+async def session_lineage(request: Request, session_id: str):
+    """Get full lineage chain and merged messages for a session."""
+    profile = _get_profile(request)
+    data = get_session_lineage(session_id, profile=profile)
+    return data
 
 
 @router.get("/sessions/{session_id}")

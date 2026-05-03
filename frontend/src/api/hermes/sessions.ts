@@ -21,6 +21,9 @@ export interface SessionSummary {
   actual_cost_usd: number | null
   cost_status: string
   workspace?: string | null
+  parent_session_id?: string | null
+  lineage_count?: number
+  lineage_message_count?: number
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -185,4 +188,15 @@ export async function fetchContextLength(profile?: string): Promise<number> {
   const query = params.toString()
   const res = await request<{ context_length: number }>(`/api/hermes/sessions/context-length${query ? `?${query}` : ''}`)
   return res.context_length
+}
+
+export interface SessionLineage {
+  root_id: string
+  chain: SessionSummary[]
+  messages: HermesMessage[]
+  chain_ids: string[]
+}
+
+export async function fetchSessionLineage(sessionId: string): Promise<SessionLineage> {
+  return request(`/api/hermes/sessions/${sessionId}/lineage`)
 }

@@ -36,6 +36,7 @@ export interface Message {
   // 不含 <think> 包裹标签；内容自身可以为多段纯文本。
   reasoning?: string
   model?: string  // 该消息使用的 LLM（前端在流式结束时写入）
+  segment?: number  // parent session segment index (0 = closest parent, 1 = grandparent, ...)
 }
 
 export interface Session {
@@ -54,6 +55,10 @@ export interface Session {
   endedAt?: number | null
   lastActiveAt?: number
   workspace?: string | null
+  parentSessionId?: string | null
+  lineageCount?: number
+  lineageMessageCount?: number
+  loadedParentIds?: string[]
 }
 
 function uid(): string {
@@ -176,6 +181,9 @@ function mapHermesSession(s: SessionSummary): Session {
     endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
     lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
     workspace: s.workspace || null,
+    parentSessionId: s.parent_session_id || null,
+    lineageCount: (s as any).lineage_count || 0,
+    lineageMessageCount: (s as any).lineage_message_count || 0,
   }
 }
 
@@ -339,6 +347,17 @@ export const useChatStore = defineStore('chat', () => {
   const activeSession = ref<Session | null>(null)
   const messages = computed<Message[]>(() => activeSession.value?.messages || [])
 
+  // Visible sessions: hide child sessions that are part of a lineage chain
+  // (their messages are shown under the parent/root session)
+  const visibleSessions = computed<Session[]>(() => {
+    const allIds = new Set(sessions.value.map(s => s.id))
+    return sessions.value.filter(s => {
+      // If this session has a parent that exists in the list, it's a child — hide it
+      if (s.parentSessionId && allIds.has(s.parentSessionId)) return false
+      return true
+    })
+  })
+
   function isSessionLive(sessionId: string): boolean {
     return streamStates.value.has(sessionId) || serverWorking.value.has(sessionId)
   }
@@ -446,13 +465,38 @@ export const useChatStore = defineStore('chat', () => {
     if (legacyActiveKey) removeItem(legacyActiveKey)
     activeSession.value = sessions.value.find(s => s.id === sessionId) || null
 
-    if (!activeSession.value) return
-
     isLoadingMessages.value = true
 
     try {
       // Load messages via HTTP resume (server loads from DB if not in memory)
       const data = await resumeSession(sessionId)
+
+      // If session wasn't in local list (e.g. search result for an ancestor),
+      // create a stub from resume data so the UI can render it
+      if (!activeSession.value) {
+        const stub: Session = {
+          id: sessionId,
+          title: '',
+          messages: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          model: undefined,
+          provider: undefined,
+          messageCount: data.messages?.length || 0,
+          inputTokens: data.inputTokens || undefined,
+          outputTokens: data.outputTokens || undefined,
+          endedAt: null,
+          lastActiveAt: undefined,
+          workspace: null,
+          parentSessionId: data.parentSessionId || null,
+          lineageCount: 0,
+          lineageMessageCount: 0,
+          loadedParentIds: [],
+        }
+        sessions.value.unshift(stub)
+        activeSession.value = stub
+      }
+
       if (data.isWorking) {
         serverWorking.value.add(sessionId)
       } else {
@@ -518,6 +562,58 @@ export const useChatStore = defineStore('chat', () => {
     if (!activeSession.value) return
     activeSession.value.model = modelId
     activeSession.value.provider = provider || ''
+  }
+
+  async function loadParentSession(sessionId?: string) {
+    const sid = sessionId || activeSessionId.value
+    if (!sid) return
+    const session = sessions.value.find(s => s.id === sid)
+    if (!session || !session.parentSessionId) return
+
+    const parentId = session.parentSessionId
+    if (session.loadedParentIds?.includes(parentId)) return
+
+    isLoadingMessages.value = true
+    try {
+      const data = await resumeSession(parentId)
+      if (data.messages?.length) {
+        const segmentIdx = session.loadedParentIds?.length || 0
+        const parentMsgs = mapHermesMessages(data.messages as any[])
+
+        let uniqueParentMsgs = parentMsgs
+
+        // Content-based dedup: Hermes compaction copies post-compaction messages
+        // into the child session with new IDs, so ID-based dedup fails.
+        // Compare parent tail with child head by (role, content[:80]) to find
+        // the overlap boundary and trim it from the parent.
+        // Skip for root segment (no grandparent) — its head is the true start.
+        if (data.parentSessionId && session.messages.length > 0) {
+          const MAX_CHECK = 20
+          const childHead = session.messages.slice(0, MAX_CHECK)
+          let overlapCount = 0
+          for (let i = parentMsgs.length - 1; i >= 0 && overlapCount < MAX_CHECK; i--) {
+            const p = parentMsgs[i]
+            const c = childHead[overlapCount]
+            if (c && p.role === c.role && (p.content || '').slice(0, 80) === (c.content || '').slice(0, 80)) {
+              overlapCount++
+            } else {
+              break
+            }
+          }
+          if (overlapCount > 0) {
+            uniqueParentMsgs = parentMsgs.slice(0, -overlapCount)
+          }
+        }
+
+        uniqueParentMsgs.forEach(m => { m.segment = segmentIdx })
+        session.messages = [...uniqueParentMsgs, ...session.messages]
+      }
+      if (!session.loadedParentIds) session.loadedParentIds = []
+      session.loadedParentIds.push(parentId)
+      session.parentSessionId = data.parentSessionId || null
+    } finally {
+      isLoadingMessages.value = false
+    }
   }
 
   async function deleteSession(sessionId: string) {
@@ -692,6 +788,13 @@ export const useChatStore = defineStore('chat', () => {
                 compressed: (evt as any).compressed ?? false,
                 error: (evt as any).error,
               })
+              // If compression created a new session, refresh the session list
+              // in the background so the lineage mapping gets updated.
+              // Use setTimeout to avoid interrupting the current stream.
+              const newSid = (evt as any).new_session_id
+              if (newSid) {
+                setTimeout(() => loadSessions(), 1000)
+              }
               // Auto-clear after 5s
               setTimeout(() => {
                 if (compressionState.value && !compressionState.value.compressing) {
@@ -1104,6 +1207,7 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     sessions,
+    visibleSessions,
     activeSessionId,
     activeSession,
     focusMessageId,
@@ -1119,6 +1223,7 @@ export const useChatStore = defineStore('chat', () => {
     newChat,
     switchSession,
     switchSessionModel,
+    loadParentSession,
     clearProviderFromSessions,
     deleteSession,
     sendMessage,

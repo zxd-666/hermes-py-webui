@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import MessageItem from "./MessageItem.vue";
-import { useChatStore } from "@/stores/hermes/chat";
+import { useChatStore, type Message } from "@/stores/hermes/chat";
 import { useProfilesStore } from "@/stores/hermes/profiles";
 import { useSettingsStore } from "@/stores/hermes/settings";
 
@@ -12,9 +12,85 @@ const settingsStore = useSettingsStore();
 const { t } = useI18n();
 const listRef = ref<HTMLElement>();
 
+const hasLineage = computed(() => {
+  const s = chatStore.activeSession;
+  if (!s) return false;
+  const parentId = s.parentSessionId;
+  if (!parentId) return false;
+  return !s.loadedParentIds?.includes(parentId);
+});
+
+const hasLoadedHistory = computed(() => (chatStore.activeSession?.loadedParentIds?.length || 0) > 0);
+
+function navigateDivider(direction: 'up' | 'down') {
+  const dividers = Array.from(document.querySelectorAll('.lineage-divider')) as HTMLElement[];
+  if (dividers.length === 0) return;
+  const container = listRef.value;
+  if (!container) return;
+  const viewTop = container.scrollTop;
+  const viewBottom = viewTop + container.clientHeight;
+
+  if (direction === 'up') {
+    let target: HTMLElement | null = null;
+    for (const d of dividers) {
+      if (d.offsetTop < viewTop - 10) target = d;
+      else break;
+    }
+    target = target || dividers[0];
+    target.scrollIntoView({ block: 'start' });
+  } else {
+    let target: HTMLElement | null = null;
+    for (const d of dividers) {
+      if (d.offsetTop > viewBottom - 10) { target = d; break; }
+    }
+    target = target || dividers[dividers.length - 1];
+    target.scrollIntoView({ block: 'start' });
+  }
+}
+
+const lineageHint = computed(() => {
+  const s = chatStore.activeSession;
+  if (!s) return '';
+  const count = (s.loadedParentIds?.length || 0) + 1;
+  return `第 ${count} 段更早的记录`;
+});
+
+async function onLoadLineage() {
+  await chatStore.loadParentSession();
+  // Scroll to the newly loaded segment's divider (first one in list)
+  nextTick(() => {
+    const dividers = document.querySelectorAll('.lineage-divider');
+    if (dividers.length > 0) {
+      (dividers[0] as HTMLElement).scrollIntoView({ block: 'start' });
+    }
+  });
+}
+
 const displayMessages = computed(() =>
   chatStore.messages.filter((m) => m.role !== "tool"),
 );
+
+// Build render list: insert a divider after each parent segment's last message
+type RenderItem =
+  | { kind: 'msg'; message: Message }
+  | { kind: 'divider'; segment: number };
+
+const renderList = computed<RenderItem[]>(() => {
+  const msgs = displayMessages.value;
+  if (msgs.length === 0) return [];
+  const items: RenderItem[] = [];
+  for (let i = 0; i < msgs.length; i++) {
+    items.push({ kind: 'msg', message: msgs[i] });
+    // If this message has a segment and the next message has a different (or no) segment,
+    // insert a divider after this message
+    const curSeg = msgs[i].segment;
+    const nextSeg = msgs[i + 1]?.segment;
+    if (curSeg !== undefined && curSeg !== nextSeg) {
+      items.push({ kind: 'divider', segment: curSeg });
+    }
+  }
+  return items;
+});
 
 const noStreamDisplay = computed(() => !settingsStore.display.streaming);
 
@@ -136,13 +212,34 @@ watch(currentToolCalls, () => {
       <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Hermes" class="empty-logo" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
       <p>{{ t("chat.emptyState", { name: profilesStore.activeProfileName || 'Brave' }) }}</p>
     </div>
-    <MessageItem
-      v-for="msg in displayMessages"
-      :key="msg.id"
-      :message="msg"
-      :highlight="chatStore.focusMessageId === msg.id"
-      :is-last-assistant="msg === lastAssistantMsg"
-    />
+    <div v-if="hasLineage || hasLoadedHistory" class="lineage-bar">
+      <button v-if="hasLoadedHistory" class="lineage-nav-btn" title="上一段" @click.stop="navigateDivider('up')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
+      </button>
+      <div v-if="hasLineage" class="lineage-load" @click="onLoadLineage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="lineage-icon">
+          <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>{{ lineageHint }}</span>
+        <span class="lineage-action">加载</span>
+      </div>
+      <button v-if="hasLoadedHistory" class="lineage-nav-btn" title="下一段" @click.stop="navigateDivider('down')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+    <template v-for="(item, idx) in renderList" :key="item.kind === 'divider' ? 'divider' : item.message.id">
+      <div v-if="item.kind === 'divider'" class="lineage-divider">
+        <span class="lineage-divider-line"></span>
+        <span class="lineage-divider-text">更早的对话</span>
+        <span class="lineage-divider-line"></span>
+      </div>
+      <MessageItem
+        v-else
+        :message="item.message"
+        :highlight="chatStore.focusMessageId === item.message.id"
+        :is-last-assistant="item.message === lastAssistantMsg"
+      />
+    </template>
     <Transition name="fade">
       <div v-if="chatStore.isRunActive" class="streaming-indicator">
         <div v-if="currentToolCalls.length > 0 || chatStore.compressionState" class="tool-calls-panel">
@@ -317,6 +414,105 @@ watch(currentToolCalls, () => {
 
   p {
     font-size: 14px;
+  }
+}
+
+.lineage-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.lineage-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: $radius-sm;
+  background: rgba(0, 0, 0, 0.03);
+  color: $text-muted;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: $text-secondary;
+  }
+
+  .dark & {
+    background: rgba(255, 255, 255, 0.06);
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+  }
+}
+
+.lineage-load {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: $text-muted;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: $radius-sm;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: $text-secondary;
+  }
+
+  .dark & {
+    background: rgba(255, 255, 255, 0.06);
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  .lineage-icon {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .lineage-action {
+    color: $text-muted;
+    font-size: 11px;
+    opacity: 0.7;
+  }
+}
+
+.lineage-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  user-select: none;
+
+  .lineage-divider-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(0, 0, 0, 0.08);
+    .dark & {
+      background: rgba(255, 255, 255, 0.08);
+    }
+  }
+
+  .lineage-divider-text {
+    font-size: 11px;
+    color: $text-muted;
+    white-space: nowrap;
+    opacity: 0.6;
   }
 }
 

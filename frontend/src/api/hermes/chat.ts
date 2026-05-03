@@ -180,7 +180,7 @@ export function streamRunEvents(
  */
 export async function resumeSession(
   sessionId: string,
-): Promise<{ session_id: string; messages: any[]; isWorking: boolean; events: any[]; inputTokens?: number; outputTokens?: number }> {
+): Promise<{ session_id: string; messages: any[]; isWorking: boolean; events: any[]; inputTokens?: number; outputTokens?: number; parentSessionId?: string | null }> {
   return request(`/api/chat/resume/${sessionId}`)
 }
 

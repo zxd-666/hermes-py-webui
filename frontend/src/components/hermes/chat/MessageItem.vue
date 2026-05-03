@@ -102,6 +102,26 @@ const thinkingStreamingNow = computed(() => {
 
 const thinkingOverride = ref<boolean | null>(null);
 
+// Context compaction detection
+const COMPACTION_PREFIX = '[CONTEXT COMPACTION';
+const isCompaction = computed(() =>
+  props.message.role === 'assistant' &&
+  !!(props.message.content || '').trimStart().startsWith(COMPACTION_PREFIX),
+);
+const compactionExpanded = ref(false);
+function toggleCompaction() {
+  compactionExpanded.value = !compactionExpanded.value;
+}
+const compactionBody = computed(() => {
+  const c = (props.message.content || '').trimStart();
+  if (!c.startsWith(COMPACTION_PREFIX)) return '';
+  // Find the end of the compaction marker line ("--- END OF CONTEXT SUMMARY ---")
+  const endMarker = '--- END OF CONTEXT SUMMARY ---';
+  const endIdx = c.indexOf(endMarker);
+  if (endIdx === -1) return c;
+  return c.slice(endIdx + endMarker.length).trim();
+});
+
 const thinkingExpanded = computed(() => {
   if (thinkingStreamingNow.value) return true;
   if (thinkingOverride.value !== null) return thinkingOverride.value;
@@ -453,8 +473,30 @@ const renderedToolResult = computed(() => {
                 <MarkdownRenderer :content="thinkingFullText" />
               </div>
             </div>
+            <!-- Context compaction block -->
+            <div v-if="isCompaction" class="compaction-block" :class="{ expanded: compactionExpanded }">
+              <div class="compaction-header" @click="toggleCompaction">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  class="compaction-chevron"
+                  :class="{ rotated: compactionExpanded }"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+                <span class="compaction-icon">📦</span>
+                <span class="compaction-label">{{ t('chat.compactionLabel') }}</span>
+              </div>
+              <div v-if="compactionExpanded && compactionBody" class="compaction-body">
+                <MarkdownRenderer :content="compactionBody" />
+              </div>
+            </div>
             <MarkdownRenderer
-              v-if="parsedThinking.body"
+              v-else-if="parsedThinking.body"
               :content="parsedThinking.body"
             />
 
@@ -681,6 +723,57 @@ const renderedToolResult = computed(() => {
     font-size: 13px;
     opacity: 0.85;
     font-style: italic;
+
+    :deep(p) { margin: 0.3em 0; }
+  }
+}
+
+.compaction-block {
+  margin-bottom: 4px;
+
+  .compaction-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: $text-muted;
+    cursor: pointer;
+    padding: 1px 4px;
+    border-radius: $radius-sm;
+    user-select: none;
+    line-height: 1.4;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.03);
+    }
+  }
+
+  .compaction-chevron {
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+
+    &.rotated {
+      transform: rotate(90deg);
+    }
+  }
+
+  .compaction-icon {
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .compaction-label {
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .compaction-body {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-left: 2px solid $border-light;
+    font-size: 12px;
+    opacity: 0.7;
+    color: $text-muted;
 
     :deep(p) { margin: 0.3em 0; }
   }

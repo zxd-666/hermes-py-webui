@@ -329,7 +329,7 @@ async def create_profile(body: dict):
 @router.delete("/{name}")
 async def delete_profile(name: str):
     """Delete a profile."""
-    code, stdout, stderr = await _run_hermes(["profile", "delete", name])
+    code, stdout, stderr = await _run_hermes(["profile", "delete", name, "--yes"])
     if code != 0:
         return JSONResponse(status_code=400, content={"error": stderr.strip()})
     return {"ok": True}

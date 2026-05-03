@@ -141,4 +141,5 @@ async def resume_session(request: Request, session_id: str):
         "events": [],
         "inputTokens": input_tokens,
         "outputTokens": output_tokens,
+        "parentSessionId": s.get("parent_session_id"),
     }

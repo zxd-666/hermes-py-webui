@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
 import type { Session } from '@/stores/hermes/chat'
 import { formatTimestampMs } from '@/shared/session-display'
 
@@ -14,8 +13,6 @@ const emit = defineEmits<{
   select: []
   contextmenu: [event: MouseEvent]
 }>()
-
-const { t } = useI18n()
 </script>
 
 <template>
@@ -41,9 +38,15 @@ const { t } = useI18n()
         </span>
       </span>
       <span class="session-item-meta">
-        <span v-if="session.model" class="session-item-model">{{ session.model }}</span>
-        <span class="session-item-time">{{ formatTimestampMs(session.updatedAt) }}</span>
+        <span class="session-item-meta-info">
+          <span v-if="session.lineageCount && session.lineageCount > 1">{{ session.lineageCount }}段</span>
+          <span>{{ session.lineageMessageCount ?? 0 }}条</span>
+          <span>{{ formatTimestampMs(session.updatedAt) }}</span>
+        </span>
       </span>
     </div>
   </button>
 </template>
+
+<style scoped>
+</style>

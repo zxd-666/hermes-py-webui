@@ -87,12 +87,12 @@ interface SessionGroup {
 }
 
 const pinnedSessions = computed(() =>
-  sortSessionsWithActiveFirst(chatStore.sessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
+  sortSessionsWithActiveFirst(chatStore.visibleSessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
 )
 
 const groupedSessions = computed<SessionGroup[]>(() => {
   const map = new Map<string, Session[]>()
-  for (const s of chatStore.sessions) {
+  for (const s of chatStore.visibleSessions) {
     if (sessionBrowserPrefsStore.isPinned(s.id)) continue
     const key = s.source || ''
     if (!map.has(key)) map.set(key, [])
@@ -139,7 +139,7 @@ watch(groupedSessions, groups => {
     // First load with no saved state: expand only the active/recent session's group
     const activeSource = chatStore.activeSession?.source
     const targetSource = activeSource
-      || chatStore.sessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
+      || chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
           .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.source
       || ''
     collapsedGroups.value = new Set(allSources.filter(s => s !== targetSource))
@@ -147,7 +147,7 @@ watch(groupedSessions, groups => {
   localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
 
   // Select the most recent session if none is active
-  const recentSession = chatStore.sessions
+  const recentSession = chatStore.visibleSessions
     .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
   if (recentSession && !chatStore.activeSessionId) {
@@ -155,8 +155,20 @@ watch(groupedSessions, groups => {
   }
 }, { once: true })
 
+// Auto-expand the group containing the active session
 watch(
-  () => [chatStore.sessionsLoaded, ...chatStore.sessions.map(session => session.id)],
+  () => chatStore.activeSessionId,
+  () => {
+    const source = chatStore.activeSession?.source
+    if (source && collapsedGroups.value.has(source)) {
+      collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== source))
+      localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+    }
+  },
+)
+
+watch(
+  () => [chatStore.sessionsLoaded, ...chatStore.visibleSessions.map(session => session.id)],
   value => {
     const sessionIds = value.slice(1) as string[]
     if (!value[0] || sessionIds.length === 0) return
@@ -282,7 +294,7 @@ const contextSessionPinned = computed(() =>
 )
 
 const contextMenuOptions = computed(() => {
-  const canDel = contextSessionId.value !== chatStore.activeSessionId || chatStore.sessions.length > 1
+  const canDel = contextSessionId.value !== chatStore.activeSessionId || chatStore.visibleSessions.length > 1
   return [
     { label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' },
     { label: t('chat.rename'), key: 'rename' },
@@ -458,8 +470,8 @@ function handleWorkspaceSelect(val: string) {
         </div>
       </div>
       <div v-if="showSessions" class="session-items">
-        <div v-if="chatStore.isLoadingSessions && chatStore.sessions.length === 0" class="session-loading">{{ t('common.loading') }}</div>
-        <div v-else-if="chatStore.sessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
+        <div v-if="chatStore.isLoadingSessions && chatStore.visibleSessions.length === 0" class="session-loading">{{ t('common.loading') }}</div>
+        <div v-else-if="chatStore.visibleSessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
 
         <template v-if="pinnedSessions.length > 0">
           <div class="session-group-header session-group-header--static">
@@ -738,8 +750,8 @@ function handleWorkspaceSelect(val: string) {
 .session-group-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px 4px;
+  gap: 5px;
+  padding: 10px 10px 5px;
   cursor: pointer;
   user-select: none;
 }
@@ -752,6 +764,7 @@ function handleWorkspaceSelect(val: string) {
   flex-shrink: 0;
   transition: transform 0.15s ease;
   transform: rotate(90deg);
+  opacity: 0.5;
 
   &.collapsed {
     transform: rotate(0deg);
@@ -759,17 +772,18 @@ function handleWorkspaceSelect(val: string) {
 }
 
 .session-group-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  color: $text-muted;
+  color: var(--text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .session-group-count {
-  font-size: 10px;
-  color: $text-muted;
+  font-size: 11px;
+  color: var(--text-3);
   font-weight: 400;
+  opacity: 0.7;
 }
 
 .session-items {
@@ -791,15 +805,15 @@ function handleWorkspaceSelect(val: string) {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: none;
   background: none;
   border-radius: $radius-sm;
   cursor: pointer;
   text-align: left;
   color: $text-secondary;
-  transition: all $transition-fast;
-  margin-bottom: 2px;
+  transition: background $transition-fast, color $transition-fast;
+  margin-bottom: 1px;
 
   &:hover {
     background: rgba($accent-primary, 0.06);
@@ -813,23 +827,26 @@ function handleWorkspaceSelect(val: string) {
   &.active {
     background: rgba(var(--accent-primary-rgb), 0.12);
     color: $text-primary;
-    font-weight: 500;
   }
 
   &.active .session-item-title {
-    color: $accent-primary;
+    font-weight: 500;
   }
 }
 
 :deep(.session-item-content) {
   flex: 1;
   overflow: hidden;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 :deep(.session-item-title-row) {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -838,6 +855,8 @@ function handleWorkspaceSelect(val: string) {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 13px;
+  line-height: 1.3;
+  color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -865,30 +884,23 @@ function handleWorkspaceSelect(val: string) {
   color: $accent-primary;
 }
 
-:deep(.session-item-time) {
-  font-size: 11px;
-  color: $text-muted;
-}
-
 :deep(.session-item-meta) {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 2px;
 }
 
-:deep(.session-item-model) {
-  font-size: 10px;
-  color: $accent-primary;
-  background: rgba($accent-primary, 0.08);
-  padding: 0 5px;
-  border-radius: 3px;
-  line-height: 16px;
-  flex-shrink: 0;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+:deep(.session-item-meta-info) {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-3);
+  opacity: 0.6;
+  gap: 0;
+}
+
+:deep(.session-item-meta-info > span:not(:last-child)::after) {
+  content: '·';
+  margin: 0 5px;
 }
 
 :deep(.session-item-delete) {
