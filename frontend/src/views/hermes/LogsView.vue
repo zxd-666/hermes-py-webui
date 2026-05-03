@@ -44,9 +44,8 @@ const filteredEntries = computed(() => {
   if (!searchQuery.value) return entries.value
   const q = searchQuery.value.toLowerCase()
   return entries.value.filter(e =>
-    e.message.toLowerCase().includes(q) ||
-    e.logger.toLowerCase().includes(q) ||
-    e.raw.toLowerCase().includes(q),
+    (e.message && e.message.toLowerCase().includes(q)) ||
+    (e.logger && e.logger.toLowerCase().includes(q)),
   )
 })
 
@@ -55,11 +54,13 @@ function levelClass(level: string): string {
     case 'ERROR': return 'level-error'
     case 'WARNING': return 'level-warning'
     case 'DEBUG': return 'level-debug'
+    case 'RAW': return 'level-raw'
     default: return 'level-info'
   }
 }
 
 function formatTime(ts: string): string {
+  if (!ts) return ''
   const match = ts.match(/\d{2}:\d{2}:\d{2}/)
   return match ? match[0] : ts
 }
@@ -142,17 +143,17 @@ onMounted(async () => {
             class="log-entry"
             :class="levelClass(entry.level)"
           >
-            <span class="log-time">{{ formatTime(entry.timestamp) }}</span>
-            <span class="log-level" :class="levelClass(entry.level)">{{ entry.level }}</span>
-            <span class="log-logger">{{ entry.logger }}</span>
-            <template v-if="parseAccessLog(entry.message)">
+            <span class="log-time">{{ formatTime(entry.timestamp || '') }}</span>
+            <span class="log-level" :class="levelClass(entry.level || '')">{{ entry.level || 'RAW' }}</span>
+            <span class="log-logger">{{ entry.logger || '' }}</span>
+            <template v-if="entry.message && parseAccessLog(entry.message)">
               <span class="access-method">{{ parseAccessLog(entry.message)!.method }}</span>
               <span class="access-path">{{ parseAccessLog(entry.message)!.path }}</span>
               <span class="access-status" :class="'status-' + (parseAccessLog(entry.message)!.status?.[0] || 'x')">
                 {{ parseAccessLog(entry.message)!.status }}
               </span>
             </template>
-            <span v-else class="log-message">{{ entry.message }}</span>
+            <span v-else class="log-message">{{ entry.message || '' }}</span>
           </div>
         </div>
       </NSpin>
@@ -238,6 +239,11 @@ onMounted(async () => {
     border-left-color: $warning;
     .log-message { color: $warning; }
   }
+
+  &.level-raw {
+    border-left-color: $border-color;
+    .log-message { color: $text-muted; font-style: italic; }
+  }
 }
 
 .log-time {
@@ -259,6 +265,7 @@ onMounted(async () => {
   &.level-warning { background: rgba(var(--warning-rgb), 0.12); color: $warning; }
   &.level-debug { background: rgba(var(--accent-primary-rgb), 0.06); color: $text-muted; }
   &.level-info { background: rgba(var(--accent-primary-rgb), 0.06); color: $text-muted; }
+  &.level-raw { background: rgba(var(--text-muted-rgb), 0.08); color: $text-muted; }
 }
 
 .log-logger {

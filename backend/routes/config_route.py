@@ -70,6 +70,27 @@ _GATEWAY_PLATFORM_SECTIONS = {
 }
 
 
+def _ensure_allow_all_users(profile: str | None = None):
+    """Write GATEWAY_ALLOW_ALL_USERS=true to profile .env so any
+    platform configured via WebUI can receive messages without extra
+    allow-list setup."""
+    env_path = _profile_home(profile) / ".env"
+    content = ""
+    if env_path.exists():
+        content = env_path.read_text()
+    if "GATEWAY_ALLOW_ALL_USERS" in content:
+        # Already present — just make sure it's true
+        import re
+        content = re.sub(
+            r"GATEWAY_ALLOW_ALL_USERS=.*",
+            "GATEWAY_ALLOW_ALL_USERS=true",
+            content,
+        )
+    else:
+        content = content.rstrip("\n") + "\nGATEWAY_ALLOW_ALL_USERS=true\n"
+    env_path.write_text(content)
+
+
 async def _restart_gateway_if_running(profile: str | None = None):
     """Background: restart Hermes gateway if it's currently running."""
     try:
@@ -136,6 +157,7 @@ async def update_config(req: Request, body: dict):
     cfg[section].update(values)
     _save_hermes_config(cfg, profile)
     if section in _GATEWAY_PLATFORM_SECTIONS:
+        _ensure_allow_all_users(profile)
         asyncio.create_task(_restart_gateway_if_running(profile))
     return {"ok": True}
 
@@ -561,23 +583,52 @@ def _mask(value: str) -> str:
 
 @router.put("/config/credentials")
 async def save_credentials(req: Request, body: dict):
-    """Save platform credentials (API keys for telegram, discord, etc.)."""
+    """Save platform credentials (API keys for telegram, discord, etc.).
+    Empty-string values are treated as deletion — the key is removed."""
     profile = _profile_from_request(req)
     platform = body.get("platform", "")
     values = body.get("values", {})
-    if not platform or not values:
-        return {"error": "platform and values required"}
+    if not platform:
+        return {"error": "platform required"}
 
     cfg = _load_hermes_config(profile)
     platforms = cfg.get("platforms", {})
     if platform not in platforms:
         platforms[platform] = {}
-    # Merge values into platform config
+
+    # Merge values; remove keys whose value is empty/null
+    has_update = False
     for key, value in values.items():
-        platforms[platform][key] = value
+        if value is None or value == "":
+            platforms[platform].pop(key, None)
+            has_update = True
+        else:
+            platforms[platform][key] = value
+            has_update = True
+
+    # Clean up empty-string values inside nested "extra" dict
+    extra = platforms.get(platform, {}).get("extra")
+    if isinstance(extra, dict):
+        empty_extra_keys = [k for k, v in extra.items() if v is None or v == ""]
+        for k in empty_extra_keys:
+            extra.pop(k)
+        if not extra:
+            platforms[platform].pop("extra", None)
+
+    # If no real keys left after cleanup, mark as disabled
+    section = platforms.get(platform, {})
+    remaining = {k: v for k, v in section.items()
+                 if k != "enabled" and v is not None and v != ""}
+    if not remaining:
+        platforms[platform]["enabled"] = False
+    elif values:
+        platforms[platform]["enabled"] = True
+
     cfg["platforms"] = platforms
     _save_hermes_config(cfg, profile)
-    asyncio.create_task(_restart_gateway_if_running(profile))
+    _ensure_allow_all_users(profile)
+    if has_update:
+        asyncio.create_task(_restart_gateway_if_running(profile))
     return {"ok": True}
 
 

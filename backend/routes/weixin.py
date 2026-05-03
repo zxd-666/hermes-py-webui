@@ -9,7 +9,7 @@ from pathlib import Path as _P
 
 import aiohttp
 import qrcode
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -33,29 +33,19 @@ _last_poll: dict[str, float] = {}
 _POLL_COOLDOWN = 2.0  # seconds
 
 
-def _hermes_home() -> _P:
-    return _P.home() / ".hermes"
-
-
-def _account_dir(home: _P) -> _P:
-    d = home / "platforms" / "weixin"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def _account_file(home: _P, account_id: str) -> _P:
-    return _account_dir(home) / f"{account_id}.json"
-
-
-def _save_account(account_id: str, token: str, base_url: str, user_id: str = "") -> None:
-    """Persist WeChat credentials to ~/.hermes/platforms/weixin/<account_id>.json."""
+def _save_account(account_id: str, token: str, base_url: str, user_id: str = "", profile: str | None = None) -> None:
+    """Persist WeChat credentials to <profile>/platforms/weixin/<account_id>.json."""
+    from .config_route import _profile_home
+    home = _profile_home(profile)
+    account_dir = home / "platforms" / "weixin"
+    account_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "token": token,
         "base_url": base_url,
         "user_id": user_id,
         "saved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-    path = _account_file(_hermes_home(), account_id)
+    path = account_dir / f"{account_id}.json"
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.rename(path)
@@ -63,26 +53,29 @@ def _save_account(account_id: str, token: str, base_url: str, user_id: str = "")
         path.chmod(0o600)
     except OSError:
         pass
-    logger.info("weixin: saved credentials for account_id=%s", account_id)
+    logger.info("weixin: saved credentials for account_id=%s (profile=%s)", account_id, profile or "default")
 
 
-def _update_config_platform(account_id: str, token: str, base_url: str) -> None:
+def _update_config_platform(account_id: str, token: str, base_url: str, profile: str | None = None) -> None:
     """Write account_id + token into config.yaml platforms.weixin section."""
     import yaml
-    from .config_route import _load_hermes_config, _save_hermes_config
+    from .config_route import _load_hermes_config, _save_hermes_config, _ensure_allow_all_users
 
-    cfg = _load_hermes_config()
+    cfg = _load_hermes_config(profile)
     platforms = cfg.get("platforms", {})
     if "weixin" not in platforms:
         platforms["weixin"] = {}
     platforms["weixin"]["token"] = token
+    platforms["weixin"]["enabled"] = True
     extra = platforms["weixin"].get("extra", {})
     extra["account_id"] = account_id
     if base_url and base_url != ILINK_BASE_URL:
         extra["base_url"] = base_url
     platforms["weixin"]["extra"] = extra
     cfg["platforms"] = platforms
-    _save_hermes_config(cfg)
+    _save_hermes_config(cfg, profile)
+    _ensure_allow_all_users(profile)
+    logger.info("weixin: updated config.yaml platforms.weixin (profile=%s)", profile or "default")
 
 
 def _make_qr_image(url: str) -> dict:
@@ -121,8 +114,9 @@ def _cleanup_expired() -> None:
 
 
 @router.get("/qrcode")
-async def get_weixin_qrcode():
+async def get_weixin_qrcode(req: Request):
     """Request a WeChat QR code from the iLink API."""
+    profile = req.headers.get("x-hermes-profile", "").strip() or None
     _cleanup_expired()
     try:
         async with aiohttp.ClientSession() as session:
@@ -146,6 +140,7 @@ async def get_weixin_qrcode():
         "qrcode": qrcode_value,
         "qrcode_url": qrcode_url,
         "base_url": ILINK_BASE_URL,
+        "profile": profile,
         "created_at": time.time(),
     }
 
@@ -213,8 +208,11 @@ async def poll_weixin_qr_status(qrcode: str = Query(...)):
             )
 
         # Persist credentials
-        _save_account(account_id, token, resp_base_url, user_id)
-        _update_config_platform(account_id, token, resp_base_url)
+        from .config_route import _restart_gateway_if_running
+        profile = session_data.get("profile")
+        _save_account(account_id, token, resp_base_url, user_id, profile=profile)
+        _update_config_platform(account_id, token, resp_base_url, profile=profile)
+        asyncio.create_task(_restart_gateway_if_running(profile))
 
         # Clean up session
         _qr_sessions.pop(qrcode, None)
@@ -262,8 +260,9 @@ async def poll_weixin_qr_status(qrcode: str = Query(...)):
 
 
 @router.post("/save")
-async def save_weixin_credentials(body: dict):
+async def save_weixin_credentials(req: Request, body: dict):
     """Save WeChat credentials (account_id, token, base_url)."""
+    profile = req.headers.get("x-hermes-profile", "").strip() or None
     account_id = body.get("account_id", "")
     token = body.get("token", "")
     if not account_id or not token:
@@ -272,6 +271,8 @@ async def save_weixin_credentials(body: dict):
     base_url = body.get("base_url", ILINK_BASE_URL)
     user_id = body.get("user_id", "")
 
-    _save_account(account_id, token, base_url, user_id)
-    _update_config_platform(account_id, token, base_url)
+    from .config_route import _restart_gateway_if_running
+    _save_account(account_id, token, base_url, user_id, profile=profile)
+    _update_config_platform(account_id, token, base_url, profile=profile)
+    asyncio.create_task(_restart_gateway_if_running(profile))
     return {"ok": True}

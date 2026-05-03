@@ -124,7 +124,12 @@ def _parse_log_line(line: str) -> Optional[dict]:
             return entry
     except Exception:
         pass
-    # Fallback: return as raw unstructured line
+    # Fallback: return as raw unstructured line — promote raw to message
+    entry["timestamp"] = ""
+    entry["level"] = "RAW"
+    entry["logger"] = ""
+    entry["message"] = entry.pop("raw", "")
+    entry["raw"] = None
     return entry
 
 
