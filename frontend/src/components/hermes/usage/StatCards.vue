@@ -5,13 +5,13 @@ import { useUsageStore } from '@/stores/hermes/usage'
 const { t } = useI18n()
 const usageStore = useUsageStore()
 
-function formatTokens(n: number): string {
+function fmt(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
   if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
   return String(n)
 }
 
-function formatCost(n: number): string {
+function fmtCost(n: number): string {
   if (n === 0) return '$0.00'
   if (n < 0.01) return '<$0.01'
   return '$' + n.toFixed(2)
@@ -20,28 +20,65 @@ function formatCost(n: number): string {
 
 <template>
   <div class="stat-cards">
+    <!-- Row 1: 累计 Token / 近30天 Token -->
     <div class="stat-card">
-      <div class="stat-label">{{ t('usage.totalTokens') }}</div>
-      <div class="stat-value">{{ formatTokens(usageStore.totalTokens) }}</div>
+      <div class="stat-label">{{ t('usage.allTokens') }}</div>
+      <div class="stat-value">{{ fmt(usageStore.allTokens) }}</div>
       <div class="stat-sub">
-        {{ formatTokens(usageStore.totalInputTokens) }} {{ t('usage.inputTokens') }} /
-        {{ formatTokens(usageStore.totalOutputTokens) }} {{ t('usage.outputTokens') }}
+        {{ fmt(usageStore.allInputTokens) }} {{ t('usage.inputTokens') }} /
+        {{ fmt(usageStore.allOutputTokens) }} {{ t('usage.outputTokens') }}
       </div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">{{ t('usage.totalSessions') }}</div>
-      <div class="stat-value">{{ usageStore.totalSessions }}</div>
-      <div class="stat-sub">{{ t('usage.avgPerDay', { n: usageStore.avgSessionsPerDay.toFixed(1) }) }}</div>
+      <div class="stat-label">{{ t('usage.recentTokens') }}</div>
+      <div class="stat-value">{{ fmt(usageStore.recentTokens) }}</div>
+      <div class="stat-sub">
+        {{ fmt(usageStore.recentInputTokens) }} {{ t('usage.inputTokens') }} /
+        {{ fmt(usageStore.recentOutputTokens) }} {{ t('usage.outputTokens') }}
+      </div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">{{ t('usage.estimatedCost') }}</div>
-      <div class="stat-value">{{ formatCost(usageStore.estimatedCost) }}</div>
-    </div>
+
+    <!-- Row 2: 缓存命中率 / 平均会话 Token -->
     <div class="stat-card">
       <div class="stat-label">{{ t('usage.cacheHitRate') }}</div>
-      <div class="stat-value">{{ usageStore.cacheHitRate !== null ? usageStore.cacheHitRate.toFixed(1) + '%' : '--' }}</div>
+      <div class="stat-value">{{ usageStore.allCacheHitRate !== null ? usageStore.allCacheHitRate.toFixed(1) + '%' : '--' }}</div>
       <div class="stat-sub" v-if="usageStore.cacheHitRate !== null">
-        {{ formatTokens(usageStore.totalCacheTokens) }} {{ t('usage.tokens') }}
+        {{ t('usage.recentLabel') }} {{ usageStore.cacheHitRate.toFixed(1) }}%
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">{{ t('usage.avgTokensPerSession') }}</div>
+      <div class="stat-value">{{ fmt(usageStore.avgTokensPerSession) }}</div>
+      <div class="stat-sub">{{ t('usage.recentLabel') }} {{ fmt(usageStore.recentAvgTokensPerSession) }}</div>
+    </div>
+
+    <!-- Row 3: 总会话 / 近30天会话 -->
+    <div class="stat-card">
+      <div class="stat-label">{{ t('usage.allSessions') }}</div>
+      <div class="stat-value">{{ usageStore.allSessions }}</div>
+      <div class="stat-sub">{{ t('usage.avgPerDay', { n: usageStore.allAvgSessionsPerDay.toFixed(1) }) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">{{ t('usage.recentSessions') }}</div>
+      <div class="stat-value">{{ usageStore.recentSessions }}</div>
+      <div class="stat-sub">{{ t('usage.avgPerDay', { n: usageStore.avgSessionsPerDay.toFixed(1) }) }}</div>
+    </div>
+
+    <!-- Row 4: 总消息 / 近30天消息 -->
+    <div class="stat-card">
+      <div class="stat-label">{{ t('usage.allMessages') }}</div>
+      <div class="stat-value">{{ usageStore.allMessages }}</div>
+      <div class="stat-sub">
+        {{ usageStore.allUserMessages }} {{ t('usage.userMsg') }} /
+        {{ usageStore.allAssistantMessages }} {{ t('usage.aiMsg') }}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">{{ t('usage.recentMessages') }}</div>
+      <div class="stat-value">{{ usageStore.recentMessages }}</div>
+      <div class="stat-sub">
+        {{ usageStore.recentUserMessages }} {{ t('usage.userMsg') }} /
+        {{ usageStore.recentAssistantMessages }} {{ t('usage.aiMsg') }}
       </div>
     </div>
   </div>

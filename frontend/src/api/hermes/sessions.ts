@@ -123,6 +123,18 @@ export async function setSessionWorkspace(id: string, workspace: string | null):
 }
 
 export interface UsageStatsResponse {
+  // All-time stats
+  all_input_tokens: number
+  all_output_tokens: number
+  all_cache_read_tokens: number
+  all_cache_write_tokens: number
+  all_cost: number
+  all_sessions: number
+  all_active_days: number
+  all_messages: number
+  all_user_messages: number
+  all_assistant_messages: number
+  // Recent N-day stats
   total_input_tokens: number
   total_output_tokens: number
   total_cache_read_tokens: number
@@ -132,6 +144,9 @@ export interface UsageStatsResponse {
   total_cost: number
   total_api_calls?: number
   period_days?: number
+  recent_messages: number
+  recent_user_messages: number
+  recent_assistant_messages: number
   model_usage: Array<{
     model: string
     input_tokens: number
@@ -169,6 +184,8 @@ export interface UsageStatsResponse {
     started_at: number
     last_active: number
   }>
+  avg_tokens_per_session: number
+  hourly_distribution: Array<{ hour: number; sessions: number }>
 }
 
 export async function fetchUsageStats(days = 30): Promise<UsageStatsResponse> {

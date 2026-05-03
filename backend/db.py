@@ -223,6 +223,42 @@ def get_usage_stats(days: int = 30, profile: str | None = None) -> dict:
     conn = _conn(profile)
     try:
         since = time.time() - days * 86400
+
+        # ── All-time stats (no time filter) ──
+        all_row = conn.execute("""
+            SELECT
+                COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+                COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+                COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+                COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
+                COALESCE(SUM(estimated_cost_usd), 0) as total_cost,
+                COUNT(*) as total_sessions,
+                COUNT(DISTINCT DATE(started_at, 'unixepoch', 'localtime')) as active_days
+            FROM sessions
+        """).fetchone()
+        result = {
+            "all_input_tokens": all_row["total_input_tokens"],
+            "all_output_tokens": all_row["total_output_tokens"],
+            "all_cache_read_tokens": all_row["total_cache_read_tokens"],
+            "all_cache_write_tokens": all_row["total_cache_write_tokens"],
+            "all_cost": all_row["total_cost"],
+            "all_sessions": all_row["total_sessions"],
+            "all_active_days": all_row["active_days"],
+        }
+
+        # ── All-time message counts ──
+        msg_row = conn.execute("""
+            SELECT
+                COUNT(*) as total_messages,
+                SUM(CASE WHEN role = 'user' AND content IS NOT NULL AND content != '' THEN 1 ELSE 0 END) as user_messages,
+                SUM(CASE WHEN role = 'assistant' AND content IS NOT NULL AND content != '' THEN 1 ELSE 0 END) as assistant_messages
+            FROM messages
+        """).fetchone()
+        result["all_messages"] = msg_row["total_messages"]
+        result["all_user_messages"] = msg_row["user_messages"]
+        result["all_assistant_messages"] = msg_row["assistant_messages"]
+
+        # ── Recent (N-day) stats ──
         row = conn.execute("""
             SELECT
                 COALESCE(SUM(input_tokens), 0) as total_input_tokens,
@@ -234,7 +270,20 @@ def get_usage_stats(days: int = 30, profile: str | None = None) -> dict:
                 COALESCE(SUM(estimated_cost_usd), 0) as total_cost
             FROM sessions WHERE started_at >= ?
         """, (since,)).fetchone()
-        result = _row_to_dict(row)
+        recent = _row_to_dict(row)
+        result.update(recent)
+
+        # ── Recent message counts ──
+        recent_msg = conn.execute("""
+            SELECT
+                COUNT(*) as total_messages,
+                SUM(CASE WHEN role = 'user' AND content IS NOT NULL AND content != '' THEN 1 ELSE 0 END) as user_messages,
+                SUM(CASE WHEN role = 'assistant' AND content IS NOT NULL AND content != '' THEN 1 ELSE 0 END) as assistant_messages
+            FROM messages WHERE timestamp >= ?
+        """, (since,)).fetchone()
+        result["recent_messages"] = recent_msg["total_messages"]
+        result["recent_user_messages"] = recent_msg["user_messages"]
+        result["recent_assistant_messages"] = recent_msg["assistant_messages"]
 
         # Model usage breakdown
         model_rows = conn.execute("""
@@ -296,6 +345,23 @@ def get_usage_stats(days: int = 30, profile: str | None = None) -> dict:
         result["top_sessions"] = [_row_to_dict(r) for r in top_rows]
 
         result["period_days"] = days
+
+        # ── Average tokens per session (all-time) ──
+        if result["all_sessions"] > 0:
+            result["avg_tokens_per_session"] = (result["all_input_tokens"] + result["all_output_tokens"]) // result["all_sessions"]
+        else:
+            result["avg_tokens_per_session"] = 0
+
+        # ── Hourly session distribution (recent N days) ──
+        hourly_rows = conn.execute("""
+            SELECT
+                CAST(strftime('%H', started_at, 'unixepoch', 'localtime') AS INTEGER) as hour,
+                COUNT(*) as sessions
+            FROM sessions WHERE started_at >= ?
+            GROUP BY hour ORDER BY hour
+        """, (since,)).fetchall()
+        result["hourly_distribution"] = [{"hour": r["hour"], "sessions": r["sessions"]} for r in hourly_rows]
+
         return result
     finally:
         conn.close()

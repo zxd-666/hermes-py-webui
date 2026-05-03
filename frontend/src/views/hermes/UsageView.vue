@@ -8,6 +8,7 @@ import SourceBreakdown from '@/components/hermes/usage/SourceBreakdown.vue'
 import ModelBreakdown from '@/components/hermes/usage/ModelBreakdown.vue'
 import TopSessions from '@/components/hermes/usage/TopSessions.vue'
 import DailyTrend from '@/components/hermes/usage/DailyTrend.vue'
+import HourlyActivity from '@/components/hermes/usage/HourlyActivity.vue'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
@@ -36,6 +37,7 @@ onMounted(() => {
         <div class="usage-section"><SourceBreakdown /></div>
         <div class="usage-section"><ModelBreakdown /></div>
         <div class="usage-section"><DailyTrend /></div>
+        <div class="usage-section"><HourlyActivity /></div>
         <div class="usage-section"><TopSessions /></div>
       </template>
 
