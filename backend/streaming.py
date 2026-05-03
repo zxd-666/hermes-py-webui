@@ -203,6 +203,28 @@ def run_agent_in_thread(
         except Exception as e:
             print(f"[9898] SessionDB init failed: {e}", flush=True)
 
+        # Resolve the active (leaf) session by walking down compression continuations.
+        # After context compaction, Hermes writes to a child session; if we loaded
+        # history from the original session we'd miss everything after compression.
+        effective_session_id = session_id
+        if session_db:
+            try:
+                _cur = session_id
+                for _ in range(50):
+                    row = session_db._conn.execute(
+                        "SELECT id FROM sessions WHERE parent_session_id = ? "
+                        "ORDER BY rowid DESC LIMIT 1",
+                        (_cur,),
+                    ).fetchone()
+                    if row is None:
+                        break
+                    _cur = row[0]
+                if _cur != session_id:
+                    effective_session_id = _cur
+                    print(f"[9898] Session continuation: {session_id} -> {_cur}", flush=True)
+            except Exception as e:
+                print(f"[9898] Continuation walk failed: {e}", flush=True)
+
         # Build agent kwargs
         _token_sent = False
         _reasoning_text = ""
@@ -313,9 +335,9 @@ def run_agent_in_thread(
             base_url=resolved_base_url,
             api_key=resolved_api_key,
             api_mode=resolved_api_mode,
-            platform="api_server",
+            platform="9898",
             quiet_mode=True,
-            session_id=session_id,
+            session_id=effective_session_id,
             session_db=session_db,
             stream_delta_callback=on_token,
             reasoning_callback=on_reasoning,
@@ -376,20 +398,24 @@ def run_agent_in_thread(
             "default working directory for ALL file operations."
         )
 
-        # Sanitize conversation_history — only keep API-safe fields
+        # Load conversation history from SessionDB (same as gateway's load_transcript)
+        # The frontend never sends conversation_history (always None), so we load
+        # it ourselves from the session's stored messages.
         safe_history = []
-        if conversation_history:
-            _SAFE_KEYS = {"role", "content", "tool_calls", "tool_call_id", "name"}
-            for msg in conversation_history:
-                safe_msg = {k: v for k, v in msg.items() if k in _SAFE_KEYS}
-                safe_history.append(safe_msg)
+        try:
+            if session_db:
+                safe_history = session_db.get_messages_as_conversation(effective_session_id)
+                print(f"[9898] Loaded {len(safe_history)} history messages for session {effective_session_id}", flush=True)
+        except Exception as e:
+            print(f"[9898] Failed to load conversation history: {e}", flush=True)
 
-        # Run the agent
+        # Run the agent — effective_session_id ensures new messages (and any
+        # further compression continuations) land in the correct leaf session.
         result = agent.run_conversation(
             user_message=workspace_ctx + msg_text,
             system_message=workspace_system_msg,
             conversation_history=safe_history,
-            task_id=session_id,
+            task_id=effective_session_id,
             persist_user_message=msg_text,
         )
 
