@@ -349,7 +349,7 @@ function handleClickOutside() {
 
 async function handleRenameConfirm() {
   if (!renameSessionId.value || !renameValue.value.trim()) return
-  const { ok, targetId } = await renameSession(renameSessionId.value, renameValue.value.trim())
+  const { ok, targetId, reason } = await renameSession(renameSessionId.value, renameValue.value.trim())
   if (ok && targetId) {
     const session = chatStore.sessions.find(s => s.id === targetId)
     if (session) session.title = renameValue.value.trim()
@@ -358,7 +358,7 @@ async function handleRenameConfirm() {
     }
     message.success(t('chat.renamed'))
   } else {
-    message.error(t('chat.renameFailed'))
+    message.error(reason === 'duplicate_title' ? t('chat.renameDuplicate') : t('chat.renameFailed'))
   }
   showRenameModal.value = false
 }
@@ -379,13 +379,15 @@ async function confirmEditTitle() {
   if (!session) return
   const newTitle = editTitleValue.value.trim()
   if (!newTitle || newTitle === session.title) return
-  const { ok, targetId } = await renameSession(session.id, newTitle)
+  const { ok, targetId, reason } = await renameSession(session.id, newTitle)
   if (ok && targetId) {
     const s = chatStore.sessions.find(s => s.id === targetId)
     if (s) s.title = newTitle
     if (chatStore.activeSession?.id === targetId) {
       chatStore.activeSession.title = newTitle
     }
+  } else if (reason === 'duplicate_title') {
+    message.error(t('chat.renameDuplicate'))
   }
 }
 

@@ -94,13 +94,13 @@ export async function deleteSession(id: string): Promise<boolean> {
   }
 }
 
-export async function renameSession(id: string, title: string): Promise<{ ok: boolean; targetId: string | null }> {
+export async function renameSession(id: string, title: string): Promise<{ ok: boolean; targetId: string | null; reason?: string }> {
   try {
-    const res = await request<{ renamed: boolean; target_id: string }>(`/api/hermes/sessions/${id}/rename`, {
+    const res = await request<{ renamed: boolean; target_id: string; reason?: string }>(`/api/hermes/sessions/${id}/rename`, {
       method: 'POST',
       body: JSON.stringify({ title }),
     })
-    return { ok: !!res?.renamed, targetId: res?.target_id ?? null }
+    return { ok: !!res?.renamed, targetId: res?.target_id ?? null, reason: res?.reason }
   } catch {
     return { ok: false, targetId: null }
   }

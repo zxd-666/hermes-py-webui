@@ -149,6 +149,7 @@ export default {
     copySessionId: '复制会话 ID',
     renamed: '已重命名',
     renameFailed: '重命名失败',
+    renameDuplicate: '该标题已存在，请使用其他名称',
     renameSession: '重命名会话',
     enterNewTitle: '输入新标题',
     workspace: '工作区',

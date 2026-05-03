@@ -154,7 +154,7 @@ def rename_session(session_id: str, title: str, profile: str | None = None) -> d
         return {"ok": conn.total_changes > 0, "target_id": target}
     except Exception as e:
         if "UNIQUE constraint" in str(e):
-            return {"ok": False, "target_id": session_id}
+            return {"ok": False, "target_id": session_id, "reason": "duplicate_title"}
         raise
     finally:
         conn.close()

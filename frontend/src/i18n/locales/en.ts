@@ -149,6 +149,7 @@ export default {
     copySessionId: 'Copy Session ID',
     renamed: 'Renamed',
     renameFailed: 'Rename failed',
+    renameDuplicate: 'This title already exists',
     renameSession: 'Rename Session',
     enterNewTitle: 'Enter new title',
     workspace: 'Workspace',
