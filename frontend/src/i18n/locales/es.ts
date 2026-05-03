@@ -110,6 +110,7 @@ export default {
     rename: 'Renombrar',
     pin: 'Fijar',
     unpin: 'Desfijar',
+    allSources: 'All',
     pinned: 'Fijados',
     chatMode: 'Chat',
     liveMode: 'En vivo',

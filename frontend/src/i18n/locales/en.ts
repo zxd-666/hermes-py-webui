@@ -138,6 +138,7 @@ export default {
     pin: 'Pin',
     unpin: 'Unpin',
     pinned: 'Pinned',
+    allSources: 'All',
     chatMode: 'Chat',
     liveMode: 'Live',
     liveSessions: 'Live Sessions',

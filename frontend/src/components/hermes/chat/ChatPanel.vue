@@ -64,9 +64,9 @@ const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
 const isEditingTitle = ref(false)
 const editTitleValue = ref('')
 const editTitleRef = ref<HTMLInputElement | null>(null)
-const collapsedGroups = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem('hermes_collapsed_groups') || '[]')))
+const selectedSourceFilter = ref<string | null>(null)
 
-// Source sort order: api_server first, cron last, others alphabetical
+// Source sort order
 const SOURCE_ORDER = ['9898', 'webui', 'feishu', 'cli', 'cron']
 
 function sourceSortKey(source: string): number {
@@ -74,98 +74,45 @@ function sourceSortKey(source: string): number {
   return idx >= 0 ? idx : SOURCE_ORDER.length
 }
 
-function sortSessionsWithActiveFirst(items: Session[]): Session[] {
-  return [...items].sort((a, b) => {
-    return (b.updatedAt || 0) - (a.updatedAt || 0)
-  })
+function sortSessionsByTime(items: Session[]): Session[] {
+  return [...items].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
 }
 
-// Group sessions by source, with sort order
-interface SessionGroup {
-  source: string
-  label: string
-  sessions: Session[]
-}
-
-const pinnedSessions = computed(() =>
-  sortSessionsWithActiveFirst(chatStore.visibleSessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
-)
-
-const groupedSessions = computed<SessionGroup[]>(() => {
-  const map = new Map<string, Session[]>()
+// Source filter options (derived from actual sessions)
+const sourceFilterOptions = computed(() => {
+  const sources = new Set<string>()
   for (const s of chatStore.visibleSessions) {
-    if (sessionBrowserPrefsStore.isPinned(s.id)) continue
-    const key = s.source || ''
-    if (!map.has(key)) map.set(key, [])
-    map.get(key)!.push(s)
+    if (s.source) sources.add(s.source)
   }
-
-  const keys = [...map.keys()].sort((a, b) => {
-    const ka = sourceSortKey(a)
-    const kb = sourceSortKey(b)
-    if (ka !== kb) return ka - kb
-    return a.localeCompare(b)
-  })
-
-  return keys.map(key => ({
-    source: key,
-    label: key ? getSourceLabel(key) : t('chat.other'),
-    sessions: sortSessionsWithActiveFirst(map.get(key)!),
-  }))
+  const sorted = [...sources].sort((a, b) => sourceSortKey(a) - sourceSortKey(b) || a.localeCompare(b))
+  return sorted.map(source => ({ label: getSourceLabel(source), value: source }))
 })
 
-function toggleGroup(source: string) {
-  const isExpanded = !collapsedGroups.value.has(source)
-  if (isExpanded) {
-    collapsedGroups.value = new Set([...collapsedGroups.value, source])
-  } else {
-    collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== source))
-  }
-  localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
-}
+// Pinned sessions (always shown regardless of filter)
+const pinnedSessions = computed(() =>
+  sortSessionsByTime(chatStore.visibleSessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
+)
 
-watch(groupedSessions, groups => {
-  const allSources = groups.map(g => g.source)
-  const saved = localStorage.getItem('hermes_collapsed_groups')
+// Filtered sessions (flat list, filtered by source if selected)
+const filteredSessions = computed(() => {
+  const sessions = chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
+  if (!selectedSourceFilter.value) return sortSessionsByTime(sessions)
+  return sortSessionsByTime(sessions.filter(s => s.source === selectedSourceFilter.value))
+})
 
-  if (saved !== null) {
-    // Restore saved collapse state, but ensure active session's group is expanded
-    const activeSource = chatStore.activeSession?.source
-    if (activeSource) {
-      collapsedGroups.value = new Set([...JSON.parse(saved)].filter(s => s !== activeSource))
-    } else {
-      collapsedGroups.value = new Set(JSON.parse(saved))
-    }
-  } else {
-    // First load with no saved state: expand only the active/recent session's group
-    const activeSource = chatStore.activeSession?.source
-    const targetSource = activeSource
-      || chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
-          .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]?.source
-      || ''
-    collapsedGroups.value = new Set(allSources.filter(s => s !== targetSource))
-  }
-  localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
-
-  // Select the most recent session if none is active
-  const recentSession = chatStore.visibleSessions
-    .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
-  if (recentSession && !chatStore.activeSessionId) {
-    chatStore.switchSession(recentSession.id)
-  }
-}, { once: true })
-
-// Auto-expand the group containing the active session
+// Select the most recent session if none is active
 watch(
-  () => chatStore.activeSessionId,
-  () => {
-    const source = chatStore.activeSession?.source
-    if (source && collapsedGroups.value.has(source)) {
-      collapsedGroups.value = new Set([...collapsedGroups.value].filter(s => s !== source))
-      localStorage.setItem('hermes_collapsed_groups', JSON.stringify([...collapsedGroups.value]))
+  () => chatStore.sessionsLoaded,
+  (loaded) => {
+    if (!loaded) return
+    const recentSession = chatStore.visibleSessions
+      .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
+    if (recentSession && !chatStore.activeSessionId) {
+      chatStore.switchSession(recentSession.id)
     }
   },
+  { once: true },
 )
 
 watch(
@@ -464,6 +411,16 @@ function handleWorkspaceSelect(val: string) {
       <div class="session-list-header">
         <span v-if="showSessions" class="session-list-title">{{ t('chat.sessions') }}</span>
         <div class="session-list-actions">
+          <NSelect
+            v-if="showSessions && sourceFilterOptions.length > 1"
+            :value="selectedSourceFilter"
+            :options="sourceFilterOptions"
+            size="tiny"
+            clearable
+            :placeholder="t('chat.allSources')"
+            class="source-filter-select"
+            @update:value="v => selectedSourceFilter = v"
+          />
           <NButton quaternary size="tiny" @click="handleNewChat" circle>
             <template #icon>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -499,26 +456,19 @@ function handleWorkspaceSelect(val: string) {
           />
         </template>
 
-        <template v-for="group in groupedSessions" :key="group.source">
-          <div class="session-group-header" @click="toggleGroup(group.source)">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="group-chevron" :class="{ collapsed: collapsedGroups.has(group.source) }"><polyline points="9 18 15 12 9 6"/></svg>
-            <span class="session-group-label">{{ group.label }}</span>
-            <span class="session-group-count">{{ group.sessions.length }}</span>
-          </div>
-          <template v-if="!collapsedGroups.has(group.source)">
-            <SessionListItem
-              v-for="s in group.sessions"
-              :key="s.id"
-              :session="s"
-              :active="s.id === chatStore.activeSessionId"
-              :pinned="false"
-              :streaming="chatStore.isSessionLive(s.id)"
-              @select="handleSessionClick(s.id)"
-              @contextmenu="handleContextMenu($event, s.id)"
-              @select-ancestor="handleSessionClick"
-              @ancestor-contextmenu="(e, id) => handleContextMenu(e, id)"
-            />
-          </template>
+        <template v-if="filteredSessions.length > 0">
+          <SessionListItem
+            v-for="s in filteredSessions"
+            :key="s.id"
+            :session="s"
+            :active="s.id === chatStore.activeSessionId"
+            :pinned="false"
+            :streaming="chatStore.isSessionLive(s.id)"
+            @select="handleSessionClick(s.id)"
+            @contextmenu="handleContextMenu($event, s.id)"
+            @select-ancestor="handleSessionClick"
+            @ancestor-contextmenu="(e, id) => handleContextMenu(e, id)"
+          />
         </template>
       </div>
     </aside>
@@ -734,6 +684,10 @@ function handleWorkspaceSelect(val: string) {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.source-filter-select {
+  width: 80px;
 }
 
 .session-close-btn {

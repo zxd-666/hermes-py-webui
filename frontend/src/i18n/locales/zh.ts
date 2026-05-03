@@ -138,6 +138,7 @@ export default {
     pin: '置顶',
     unpin: '取消置顶',
     pinned: '已置顶',
+    allSources: '全部',
     chatMode: '聊天',
     liveMode: '实时',
     liveSessions: '实时会话',

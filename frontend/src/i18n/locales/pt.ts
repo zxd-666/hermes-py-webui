@@ -110,6 +110,7 @@ export default {
     rename: 'Renomear',
     pin: 'Fixar',
     unpin: 'Desafixar',
+    allSources: 'All',
     pinned: 'Fixadas',
     chatMode: 'Chat',
     liveMode: 'Ao vivo',

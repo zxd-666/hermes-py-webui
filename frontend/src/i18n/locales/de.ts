@@ -110,6 +110,7 @@ export default {
     rename: 'Umbenennen',
     pin: 'Anheften',
     unpin: 'Lösen',
+    allSources: 'All',
     pinned: 'Angeheftet',
     chatMode: 'Chat',
     liveMode: 'Live',

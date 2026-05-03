@@ -110,6 +110,7 @@ export default {
     rename: '이름 변경',
     pin: '고정',
     unpin: '고정 해제',
+    allSources: 'All',
     pinned: '고정됨',
     chatMode: '채팅',
     liveMode: '라이브',

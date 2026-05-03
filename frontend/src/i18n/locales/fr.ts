@@ -110,6 +110,7 @@ export default {
     rename: 'Renommer',
     pin: 'Épingler',
     unpin: 'Désépingler',
+    allSources: 'All',
     pinned: 'Épinglés',
     chatMode: 'Chat',
     liveMode: 'Direct',

@@ -110,6 +110,7 @@ export default {
     rename: '名前変更',
     pin: 'ピン留め',
     unpin: 'ピン留め解除',
+    allSources: 'All',
     pinned: 'ピン留め',
     chatMode: 'チャット',
     liveMode: 'ライブ',
