@@ -78,7 +78,7 @@ export default {
     skills: 'Skills',
     memory: 'Memory',
     logs: 'Logs',
-    usage: 'Usage',
+    usage: 'Stats',
     channels: 'Channels',
     gateways: 'Gateways',
     terminal: 'Terminal',
@@ -692,7 +692,7 @@ export default {
 
   // Usage
   usage: {
-    title: 'Usage Statistics',
+    title: 'Statistics',
     refresh: 'Refresh',
     allTokens: 'All-time Tokens',
     recentTokens: 'Last 30d Tokens',

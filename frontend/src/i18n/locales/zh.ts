@@ -78,7 +78,7 @@ export default {
     skills: '技能',
     memory: '记忆',
     logs: '日志',
-    usage: '用量',
+    usage: '统计',
     channels: '频道',
     gateways: '网关',
     terminal: '终端',
@@ -694,7 +694,7 @@ export default {
 
   // 用量统计
   usage: {
-    title: '用量统计',
+    title: '统计',
     refresh: '刷新',
     allTokens: '累计 Token',
     recentTokens: '近 30 天 Token',
