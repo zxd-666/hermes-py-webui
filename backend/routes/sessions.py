@@ -10,6 +10,7 @@ from ..db import (
     list_sessions, get_session, get_session_messages,
     delete_session, rename_session, search_sessions,
     get_usage_stats, get_session_lineage, get_child_session_ids,
+    get_lineage_message_count,
 )
 
 router = APIRouter(prefix="/api/hermes", tags=["sessions"])
@@ -177,6 +178,15 @@ async def session_detail(request: Request, session_id: str):
         return JSONResponse(status_code=404, content={"error": "session not found"})
     messages = get_session_messages(session_id, profile=profile)
     return {"session": {**s, "messages": messages}}
+
+
+@router.get("/sessions/{session_id}/message-count")
+async def session_message_count(request: Request, session_id: str):
+    """Count user+assistant messages (non-empty) across the lineage chain.
+    Called asynchronously by the frontend after session list loads."""
+    profile = _get_profile(request)
+    count = get_lineage_message_count(session_id, profile=profile)
+    return {"session_id": session_id, "message_count": count}
 
 
 @router.delete("/sessions/{session_id}")

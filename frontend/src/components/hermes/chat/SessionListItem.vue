@@ -61,7 +61,7 @@ const hasAncestors = computed(() => ancestorCount.value > 0)
             </svg>
             {{ ancestorCount }}段
           </span>
-          <span>{{ session.lineageMessageCount ?? 0 }}条</span>
+          <span>{{ session.lineageMessageCount ?? '--' }}条</span>
           <span>{{ formatTimestampMs(session.updatedAt) }}</span>
         </span>
       </span>

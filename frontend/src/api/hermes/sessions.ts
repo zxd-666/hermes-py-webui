@@ -85,6 +85,10 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
   }
 }
 
+export async function fetchSessionMessageCount(id: string): Promise<{ session_id: string; message_count: number }> {
+  return request<{ session_id: string; message_count: number }>(`/api/hermes/sessions/${id}/message-count`)
+}
+
 export async function deleteSession(id: string): Promise<boolean> {
   try {
     await request(`/api/hermes/sessions/${id}`, { method: 'DELETE' })

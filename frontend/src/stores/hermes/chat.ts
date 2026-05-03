@@ -1,5 +1,5 @@
 import { startRun, streamRunEvents, resumeSession, type RunEvent } from '@/api/hermes/chat'
-import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, renameSession, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
+import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, fetchSessionMessageCount, renameSession, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
 import { getApiKey } from '@/api/client'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -190,7 +190,7 @@ function mapHermesSession(s: SessionSummary): Session {
     workspace: s.workspace || null,
     parentSessionId: s.parent_session_id || null,
     lineageCount: (s as any).lineage_count || 0,
-    lineageMessageCount: (s as any).lineage_message_count || 0,
+    lineageMessageCount: (s as any).lineage_message_count ?? undefined,
     ancestors: (s as any).ancestors?.map((a: any) => ({
       id: a.id,
       title: a.title || '',
@@ -394,6 +394,19 @@ export const useChatStore = defineStore('chat', () => {
     return rec
   }
 
+  async function loadMessageCounts() {
+    const ids = sessions.value.map(s => s.id)
+    for (const id of ids) {
+      try {
+        const res = await fetchSessionMessageCount(id)
+        const target = sessions.value.find(s => s.id === id)
+        if (target) target.lineageMessageCount = res.message_count
+      } catch {
+        // Silently skip — session may have been deleted
+      }
+    }
+  }
+
   async function loadSessions() {
     isLoadingSessions.value = true
     try {
@@ -429,6 +442,9 @@ export const useChatStore = defineStore('chat', () => {
       if (targetId) {
         await switchSession(targetId)
       }
+
+      // Async: load lineageMessageCount for each session in background
+      loadMessageCounts()
     } catch (err) {
       console.error('Failed to load sessions:', err)
     } finally {

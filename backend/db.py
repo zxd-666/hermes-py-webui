@@ -57,7 +57,6 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
         # Skip ancestor sessions that have no messages (deleted/orphaned shells).
         for s in results:
             count = 1
-            msg_count = s.get("message_count") or 0
             ancestors = []
             current_pid = s.get("parent_session_id")
             while current_pid:
@@ -80,10 +79,11 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
                     "ended_at": d.get("ended_at"),
                 })
                 count += 1
-                msg_count += parent_mc
                 current_pid = d.get("parent_session_id")
             s["lineage_count"] = count
-            s["lineage_message_count"] = msg_count
+            # lineage_message_count is loaded asynchronously via
+            # /api/sessions/:id/message-count to avoid blocking list queries.
+            s["lineage_message_count"] = None
             s["ancestors"] = ancestors
 
         return results
@@ -344,3 +344,40 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d.pop("system_prompt", None)
     return d
+
+
+def get_lineage_message_count(session_id: str, profile: str | None = None) -> int:
+    """Count user+assistant messages (non-empty content) across the lineage chain."""
+    conn = _conn(profile)
+    try:
+        # Collect chain IDs: session itself + ancestors
+        chain_ids: list[str] = []
+        current = session_id
+        seen: set[str] = set()
+        while current and current not in seen:
+            chain_ids.append(current)
+            seen.add(current)
+            row = conn.execute(
+                "SELECT parent_session_id, message_count FROM sessions WHERE id = ?",
+                (current,),
+            ).fetchone()
+            if not row:
+                break
+            pid = row["parent_session_id"] if hasattr(row, "keys") else row[0]
+            mc = row["message_count"] if hasattr(row, "keys") else row[1]
+            if mc == 0 and pid:
+                current = pid
+                continue
+            current = pid
+        if not chain_ids:
+            return 0
+        placeholders = ",".join("?" * len(chain_ids))
+        row = conn.execute(
+            f"SELECT COUNT(*) FROM messages WHERE session_id IN ({placeholders}) "
+            "AND role IN ('user', 'assistant') "
+            "AND content IS NOT NULL AND content != ''",
+            chain_ids,
+        ).fetchone()
+        return row[0] if row else 0
+    finally:
+        conn.close()
