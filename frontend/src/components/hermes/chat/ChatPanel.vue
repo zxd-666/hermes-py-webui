@@ -690,13 +690,14 @@ function handleWorkspaceSelect(val: string) {
 
   :deep(.n-base-selection) {
     border-color: transparent !important;
+    box-shadow: none !important;
+  }
 
-    &--focus,
-    &:hover,
-    &.n-base-selection--active {
-      border-color: transparent !important;
-      box-shadow: none !important;
-    }
+  :deep(.n-base-selection--focus),
+  :deep(.n-base-selection:hover),
+  :deep(.n-base-selection.n-base-selection--active) {
+    border-color: transparent !important;
+    box-shadow: none !important;
   }
 }
 
