@@ -834,7 +834,7 @@ function handleWorkspaceSelect(val: string) {
   font-size: 14px;
   font-weight: 500;
   line-height: 1.35;
-  color: var(--text-primary);
+  color: #666666;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

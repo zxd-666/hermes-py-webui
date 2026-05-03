@@ -71,6 +71,7 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 ### 💬 Chat
 
 - Real-time SSE streaming (text + reasoning + tool call events)
+- Session lineage: compressed segments merged into one entry with load-on-demand history
 - Per-session model and workspace selection
 - Session management: browse, search, rename, delete
 - Reads directly from `~/.hermes/state.db`, shared with CLI sessions
@@ -99,14 +100,11 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 ### ⚙️ Settings
 
 - **Account**: WebUI login password, session expiry
-- **Platforms**: Connected platform management (Feishu, Telegram, Discord, etc.)
-- **Models**: Default model selection, available model list
-- **Agent**: Personality, Reasoning mode
+- **Platforms**: Connected platform management (Feishu, Telegram, Discord, etc.), WeChat QR login
+- **Agent**: Personality, Reasoning mode, Compact mode, Completion sound
 - **Memory**: Memory maintenance strategy, auto-promotion threshold
-- **Sessions**: Context window, compression strategy
+- **Display**: Stream toggle, Show cost, Busy input mode, Theme & Language
 - **Workspaces**: Default workspace path, AGENTS.md association
-- **Privacy**: Data retention policy
-- **Display**: Interface language, theme
 
 ### 🔧 Skills & Memory
 
@@ -133,6 +131,7 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 ### 🌐 Gateway Monitor
 
 - View Gateway status per profile
+- Per-gateway session reset and PII redaction settings
 
 ### 📋 Logs
 
@@ -255,6 +254,7 @@ hermes-py-webui/
 │       ├── gateways.py      # Gateway monitor
 │       ├── channels.py      # Channel directory
 │       ├── workspaces.py    # Workspace presets
+│       ├── weixin.py        # WeChat QR login
 │       └── system.py        # Health check
 │   └── static/              # Frontend build output
 ├── frontend/                # Vue 3 source
@@ -290,6 +290,7 @@ hermes-py-webui/
 | Gateways | `/api/hermes/gateways` | Gateway monitor |
 | Channels | `/api/hermes/channels` | Channel directory |
 | Workspaces | `/api/hermes/workspaces` | Workspace presets |
+| Weixin | `/api/hermes/weixin` | WeChat QR login |
 | Terminal | `/api/hermes/terminal/ws` | WebSocket terminal |
 | Auth | `/api/auth` | Login/logout/status |
 

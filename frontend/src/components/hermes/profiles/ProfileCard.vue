@@ -243,7 +243,7 @@ async function handleAvatarDelete() {
             <NSpin :size="12" />
           </span>
         </div>
-        <h3 class="profile-name">{{ profile.name }}</h3>
+        <h3 class="profile-name">{{ profile.name === 'default' ? 'Hermes' : profile.name }}</h3>
       </div>
       <NTag v-if="profile.active" size="tiny" type="success" :bordered="false">
         {{ t('profiles.active') }}

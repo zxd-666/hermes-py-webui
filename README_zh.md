@@ -71,6 +71,7 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 ### 💬 聊天对话
 
 - SSE 实时流式输出（文本 + 推理 + 工具调用事件）
+- 会话压缩分段合并展示，支持按需加载历史记录
 - 会话可选择模型与工作区
 - 会话列表：浏览、搜索、重命名、删除历史会话
 - 会话数据直读 `~/.hermes/state.db`，与 CLI 会话互通
@@ -99,14 +100,11 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 ### ⚙️ 设置
 
 - **账号设置**：WebUI 登录密码、会话过期时间
-- **平台配置**：飞书、Telegram、Discord 等连接平台的管理
-- **模型配置**：默认模型选择、可用模型列表
-- **Agent 配置**：人格(Personality)、推理模式(Reasoning)
+- **平台配置**：飞书、Telegram、Discord 等连接平台的管理，微信扫码登录
+- **Agent 配置**：人格(Personality)、推理模式(Reasoning)、紧凑模式、完成提示音
 - **记忆配置**：记忆维护策略、自动晋升阈值
-- **会话配置**：上下文窗口、压缩策略
+- **显示配置**：流式输出开关、费用显示、繁忙输入模式、主题与语言
 - **工作区配置**：默认工作区路径、AGENTS.md 关联
-- **隐私配置**：数据保留策略
-- **显示配置**：界面语言、主题
 
 ### 🔧 技能与记忆
 
@@ -133,6 +131,7 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 ### 🌐 Gateway 监控
 
 - 查看各 Profile 下 Gateway 运行状态
+- 按网关独立设置会话重置和 PII 脱敏
 
 ### 📋 日志
 
@@ -255,6 +254,7 @@ hermes-py-webui/
 │       ├── gateways.py      # Gateway 监控
 │       ├── channels.py      # Channel 目录
 │       ├── workspaces.py    # 工作区预设
+│       ├── weixin.py        # 微信扫码登录
 │       └── system.py        # 健康检查
 │   └── static/              # 前端构建产物
 ├── frontend/                # Vue 3 源码
@@ -290,6 +290,7 @@ hermes-py-webui/
 | Gateways | `/api/hermes/gateways` | Gateway 监控 |
 | Channels | `/api/hermes/channels` | Channel 目录 |
 | Workspaces | `/api/hermes/workspaces` | 工作区预设 |
+| Weixin | `/api/hermes/weixin` | 微信扫码登录 |
 | Terminal | `/api/hermes/terminal/ws` | WebSocket 终端 |
 | Auth | `/api/auth` | 登录/登出/状态 |
 
