@@ -409,16 +409,16 @@ function handleWorkspaceSelect(val: string) {
     <div v-if="currentMode === 'chat'" class="session-backdrop" :class="{ active: showSessions }" @click="showSessions = false" />
     <aside v-if="currentMode === 'chat'" class="session-list" :class="{ collapsed: !showSessions }">
       <div class="session-list-header">
-        <NSelect
-          v-if="showSessions && sourceFilterOptions.length > 1"
-          :value="selectedSourceFilter"
-          :options="sourceFilterOptions"
-          size="tiny"
-          clearable
-          :placeholder="t('chat.allSources')"
-          class="source-filter-select"
-          @update:value="v => selectedSourceFilter = v"
-        />
+          <NSelect
+            v-if="showSessions && sourceFilterOptions.length > 1"
+            :value="selectedSourceFilter"
+            :options="sourceFilterOptions"
+            size="tiny"
+            clearable
+            :placeholder="t('chat.allSources')"
+            class="source-filter-select"
+            @update:value="v => selectedSourceFilter = v"
+          />
         <div class="session-list-actions">
           <NButton quaternary size="tiny" @click="handleNewChat" circle>
             <template #icon>
@@ -687,18 +687,6 @@ function handleWorkspaceSelect(val: string) {
 
 .source-filter-select {
   width: 110px;
-
-  :deep(.n-base-selection) {
-    border-color: transparent !important;
-    box-shadow: none !important;
-  }
-
-  :deep(.n-base-selection--focus),
-  :deep(.n-base-selection:hover),
-  :deep(.n-base-selection.n-base-selection--active) {
-    border-color: transparent !important;
-    box-shadow: none !important;
-  }
 }
 
 .session-close-btn {
@@ -1008,5 +996,18 @@ function handleWorkspaceSelect(val: string) {
 .workspace-empty-hint {
   font-size: 12px;
   opacity: 0.5;
+}
+</style>
+
+<!-- Global (unscoped) to override Naive UI inline CSS variables -->
+<style>
+.source-filter-select .n-base-selection {
+  --n-border: 1px solid transparent !important;
+  --n-border-hover: 1px solid transparent !important;
+  --n-border-focus: 1px solid transparent !important;
+  --n-border-active: 1px solid transparent !important;
+  --n-box-shadow-focus: none !important;
+  --n-box-shadow-active: none !important;
+  --n-box-shadow-hover: none !important;
 }
 </style>
