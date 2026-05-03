@@ -80,8 +80,8 @@ function parseFrontmatter(raw: string): { meta: SkillMeta; body: string } {
   }
 
   // Normalize tags
-  if (typeof result.tags === 'string') {
-    result.tags = result.tags.split(',').map(s => s.trim()).filter(Boolean)
+  if (typeof (result as Record<string, any>).tags === 'string') {
+    (result as Record<string, any>).tags = (result as Record<string, any>).tags.split(',').map((s: string) => s.trim()).filter(Boolean)
   }
 
   return { meta: result, body }

@@ -686,7 +686,7 @@ function handleWorkspaceSelect(val: string) {
 }
 
 .source-filter-select {
-  width: 110px;
+  width: 90px;
 }
 
 .session-close-btn {
@@ -1009,5 +1009,8 @@ function handleWorkspaceSelect(val: string) {
   --n-box-shadow-focus: none !important;
   --n-box-shadow-active: none !important;
   --n-box-shadow-hover: none !important;
+  --n-color: transparent !important;
+  --n-color-active: transparent !important;
+  --n-color-hover: transparent !important;
 }
 </style>

@@ -66,9 +66,9 @@ const router = createRouter({
       component: () => import('@/views/hermes/TerminalView.vue'),
     },
     {
-      // path: '/hermes/group-chat',  // DISABLED: uses socket.io-client (P3)
       name: 'hermes.groupChat',
-      // component: () => import('@/views/hermes/GroupChatView.vue'),  // DISABLED: socket.io
+      path: '/hermes/group-chat',
+      component: () => import('@/views/hermes/GroupChatView.vue'),
     },
     {
       path: '/hermes/models',

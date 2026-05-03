@@ -4,6 +4,7 @@ export interface LogFileInfo {
   name: string
   size: number
   modTime: string
+  modified: string
 }
 
 export interface LogEntry {

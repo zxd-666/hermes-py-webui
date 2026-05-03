@@ -2,11 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { NSelect, NButton, NSpin, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { fetchLogFiles, fetchLogs, type LogEntry } from '@/api/hermes/logs'
+import { fetchLogFiles, fetchLogs, type LogEntry, type LogFileInfo } from '@/api/hermes/logs'
+
 
 const { t } = useI18n()
 const message = useMessage()
-const logFiles = ref<{ name: string; size: string; modified: string }[]>([])
+const logFiles = ref<LogFileInfo[]>([])
 const selectedLog = ref('agent')
 const entries = ref<LogEntry[]>([])
 const loading = ref(false)
@@ -21,7 +22,7 @@ function formatSize(bytes: number): string {
 }
 
 const logOptions = computed(() =>
-  logFiles.value.map(f => ({ label: `${f.name} (${formatSize(f.size)})`, value: f.name })),
+  logFiles.value.map(f => ({ label: `${f.name} (${formatSize(Number(f.size))})`, value: f.name })),
 )
 
 const levelOptions = computed(() => [

@@ -88,6 +88,7 @@ export async function fetchCredentials(): Promise<Record<string, any>> {
 export interface WeixinQrCode {
   qrcode: string
   qrcode_url: string
+  qrcode_image?: string
 }
 
 export interface WeixinQrStatus {

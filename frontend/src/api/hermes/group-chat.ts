@@ -1,4 +1,4 @@
-// import { io } from 'socket.io-client'  // DISABLED: not needed for P1
+import { io } from 'socket.io-client'
 import { request, getApiKey } from '../client'
 
 // ─── Types ──────────────────────────────────────────────────

@@ -29,6 +29,8 @@ export interface MemoryData {
   memory_mtime: number | null
   user_mtime: number | null
   soul_mtime: number | null
+  memory_char_limit?: number
+  user_char_limit?: number
 }
 
 export async function fetchSkills(): Promise<SkillCategory[]> {

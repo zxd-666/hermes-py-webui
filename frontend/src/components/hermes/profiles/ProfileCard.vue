@@ -240,7 +240,7 @@ async function handleAvatarDelete() {
             <circle cx="12" cy="7" r="4" />
           </svg>
           <span v-if="uploadingAvatar" class="avatar-loading">
-            <NSpin size="12" />
+            <NSpin :size="12" />
           </span>
         </div>
         <h3 class="profile-name">{{ profile.name }}</h3>
