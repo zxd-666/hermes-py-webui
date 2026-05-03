@@ -250,8 +250,8 @@ function handleLogout() {
 }
 
 .logo-img {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 0;
   flex-shrink: 0;
 
@@ -265,7 +265,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 16px 7px;
+  padding: 16px 2px;
 }
 
 .sidebar-nav {

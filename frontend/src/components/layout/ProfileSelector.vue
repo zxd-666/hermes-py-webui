@@ -10,7 +10,7 @@ const profilesStore = useProfilesStore()
 
 const options = computed(() =>
   profilesStore.profiles.map(p => ({
-    label: p.name,
+    label: p.name === 'default' ? 'Hermes' : p.name,
     value: p.name,
   })),
 )
@@ -72,7 +72,8 @@ onMounted(() => {
   --n-color-active: transparent !important;
   --n-color-hover: transparent !important;
   --n-arrow-color: transparent !important;
-  font-size: 18px !important;
+  --n-padding-single: 0 8px !important;
+  font-size: 22px !important;
   font-weight: 700 !important;
   color: #0F1419 !important;
 

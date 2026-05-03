@@ -22,7 +22,7 @@ In short: this project trades the Gateway's decoupling for **direct access to AI
 
 <table>
 <tr>
-<td><img src="docs/images/chat.png" width="400"></td>
+<td><img src="docs/images/chat.jpeg" width="400"></td>
 <td><img src="docs/images/jobs.png" width="400"></td>
 </tr>
 <tr>
