@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import type { Session } from '@/stores/hermes/chat'
 import { useChatStore } from '@/stores/hermes/chat'
-import { formatTimestampMs } from '@/shared/session-display'
+import { formatTimestampMs, getSourceLabel } from '@/shared/session-display'
 
 const props = defineProps<{
   session: Session
@@ -62,6 +62,7 @@ const hasAncestors = computed(() => ancestorCount.value > 0)
             {{ ancestorCount }}段
           </span>
           <span>{{ session.lineageMessageCount ?? '--' }}条</span>
+          <span v-if="session.source">{{ getSourceLabel(session.source) }}</span>
           <span>{{ formatTimestampMs(session.updatedAt) }}</span>
         </span>
       </span>
@@ -78,7 +79,7 @@ const hasAncestors = computed(() => ancestorCount.value > 0)
       @contextmenu.stop="emit('ancestorContextmenu', $event, a.id)"
     >
       <span class="ancestor-title">{{ a.title || 'Untitled' }}</span>
-      <span class="ancestor-meta">{{ a.messageCount }}条 · {{ formatTimestampMs(a.endedAt || a.startedAt) }}</span>
+      <span class="ancestor-meta">{{ a.messageCount }}条{{ session.source ? ` · ${getSourceLabel(session.source)}` : '' }} · {{ formatTimestampMs(a.endedAt || a.startedAt) }}</span>
     </div>
   </div>
 </template>
@@ -131,7 +132,9 @@ const hasAncestors = computed(() => ancestorCount.value > 0)
 }
 
 .ancestor-title {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

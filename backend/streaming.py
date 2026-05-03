@@ -195,11 +195,14 @@ def run_agent_in_thread(
             if not resolved_model:
                 resolved_model = "glm-5-turbo"
 
-        # Initialize SessionDB for session_search
+        # Initialize SessionDB for session_search — must pass db_path explicitly
+        # because DEFAULT_DB_PATH is computed at module-load time (before HERMES_HOME
+        # is overridden for profile isolation), so it always points to the default home.
         session_db = None
         try:
             from hermes_state import SessionDB
-            session_db = SessionDB()
+            profile_db_path = Path(hermes_home) / "state.db"
+            session_db = SessionDB(db_path=profile_db_path)
         except Exception as e:
             print(f"[9898] SessionDB init failed: {e}", flush=True)
 

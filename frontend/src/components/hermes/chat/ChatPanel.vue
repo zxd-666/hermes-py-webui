@@ -5,8 +5,8 @@ import type { WorkspacePreset } from '@/api/hermes/workspaces'
 import { useChatStore, type Session } from '@/stores/hermes/chat'
 import { useAppStore } from '@/stores/hermes/app'
 import { useSessionBrowserPrefsStore } from '@/stores/hermes/session-browser-prefs'
-import { NButton, NDropdown, NInput, NModal, NSelect, useMessage } from 'naive-ui'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { NButton, NDropdown, NInput, NModal, NSelect, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { getSourceLabel } from '@/shared/session-display'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -47,6 +47,16 @@ function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
   }
 }
 
+// Fix: Naive UI NSelect menu inherits trigger width via inline style.
+// Inject global style override at setup time (not onMounted, to avoid keep-alive issues).
+if (!document.getElementById('src-menu-fit')) {
+  const s = document.createElement('style')
+  s.id = 'src-menu-fit'
+  s.textContent = `.n-select-menu{overflow:visible!important}
+.v-binder-follower-content{width:fit-content!important;min-width:fit-content!important}`
+  document.body.appendChild(s)
+}
+
 onMounted(() => {
   mobileQuery = window.matchMedia('(max-width: 768px)')
   handleMobileChange(mobileQuery)
@@ -80,12 +90,13 @@ function sortSessionsByTime(items: Session[]): Session[] {
 
 // Source filter options (derived from actual sessions)
 const sourceFilterOptions = computed(() => {
-  const sources = new Set<string>()
+  const sourceCounts = new Map<string, number>()
   for (const s of chatStore.visibleSessions) {
-    if (s.source) sources.add(s.source)
+    const src = s.source || '9898'
+    sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1)
   }
-  const sorted = [...sources].sort((a, b) => sourceSortKey(a) - sourceSortKey(b) || a.localeCompare(b))
-  return sorted.map(source => ({ label: getSourceLabel(source), value: source }))
+  const sorted = [...sourceCounts.entries()].sort(([a], [b]) => sourceSortKey(a) - sourceSortKey(b) || a.localeCompare(b))
+  return sorted.map(([source, count]) => ({ label: `${getSourceLabel(source)} ${count}`, value: source }))
 })
 
 // Pinned sessions (always shown regardless of filter)
@@ -97,7 +108,7 @@ const pinnedSessions = computed(() =>
 const filteredSessions = computed(() => {
   const sessions = chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
   if (!selectedSourceFilter.value) return sortSessionsByTime(sessions)
-  return sortSessionsByTime(sessions.filter(s => s.source === selectedSourceFilter.value))
+  return sortSessionsByTime(sessions.filter(s => (s.source || '9898') === selectedSourceFilter.value))
 })
 
 // Select the most recent session if none is active
@@ -410,13 +421,15 @@ function handleWorkspaceSelect(val: string) {
     <aside v-if="currentMode === 'chat'" class="session-list" :class="{ collapsed: !showSessions }">
       <div class="session-list-header">
           <NSelect
-            v-if="showSessions && sourceFilterOptions.length > 1"
+            v-if="showSessions && sourceFilterOptions.length >= 1"
             :value="selectedSourceFilter"
             :options="sourceFilterOptions"
             size="tiny"
             clearable
             :placeholder="t('chat.allSources')"
             class="source-filter-select"
+            :arrow="false"
+            :consistent-menu-width="false"
             @update:value="v => selectedSourceFilter = v"
           />
         <div class="session-list-actions">
@@ -686,7 +699,7 @@ function handleWorkspaceSelect(val: string) {
 }
 
 .source-filter-select {
-  width: 90px;
+  width: 120px;
 }
 
 .session-close-btn {
@@ -818,9 +831,10 @@ function handleWorkspaceSelect(val: string) {
   display: block;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 13px;
-  line-height: 1.3;
-  color: var(--text-1);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1001,6 +1015,10 @@ function handleWorkspaceSelect(val: string) {
 
 <!-- Global (unscoped) to override Naive UI inline CSS variables -->
 <style>
+.source-filter-select {
+  width: 120px !important;
+}
+
 .source-filter-select .n-base-selection {
   --n-border: 1px solid transparent !important;
   --n-border-hover: 1px solid transparent !important;
@@ -1012,5 +1030,13 @@ function handleWorkspaceSelect(val: string) {
   --n-color: transparent !important;
   --n-color-active: transparent !important;
   --n-color-hover: transparent !important;
+  --n-arrow-color: transparent !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #1a1a1a !important;
+}
+
+.source-filter-select .n-base-selection__arrow {
+  visibility: hidden;
 }
 </style>

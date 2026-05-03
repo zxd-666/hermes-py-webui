@@ -42,8 +42,9 @@ onMounted(() => {
       :options="options"
       :loading="profilesStore.switching"
       size="small"
+      :arrow="false"
+      :consistent-menu-width="false"
       @update:value="handleChange"
-                     :show-tooltip="true"
     />
   </div>
 </template>
@@ -52,7 +53,43 @@ onMounted(() => {
 @use '@/styles/variables' as *;
 
 .profile-selector {
-  padding: 0;
-  flex: 1;
+  width: 95px;
+  flex-shrink: 0;
+}
+</style>
+
+<!-- Global styles to override NSelect internals -->
+<style lang="scss">
+.profile-selector .n-base-selection {
+  --n-border: 1px solid transparent !important;
+  --n-border-hover: 1px solid transparent !important;
+  --n-border-focus: 1px solid transparent !important;
+  --n-border-active: 1px solid transparent !important;
+  --n-box-shadow-focus: none !important;
+  --n-box-shadow-active: none !important;
+  --n-box-shadow-hover: none !important;
+  --n-color: transparent !important;
+  --n-color-active: transparent !important;
+  --n-color-hover: transparent !important;
+  --n-arrow-color: transparent !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #0F1419 !important;
+
+  .n-base-selection__border,
+  .n-base-selection__state-border {
+    display: none !important;
+  }
+
+  .n-base-selection__arrow {
+    display: none !important;
+  }
+
+  .n-base-selection-input,
+  .n-base-selection-input .n-base-selection-input__content {
+    text-overflow: clip !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+  }
 }
 </style>
