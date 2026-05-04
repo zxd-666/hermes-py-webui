@@ -62,6 +62,10 @@ _streams: dict[str, queue.Queue] = {}
 _streams_lock = threading.Lock()
 _cancel_flags: dict[str, threading.Event] = {}
 _agent_instances: dict[str, object] = {}
+# Track run completion time for TTL cleanup
+_stream_completed_at: dict[str, float] = {}
+_STREAM_TTL_AFTER_DONE = 60  # seconds to keep queue alive after run completes
+_STREAM_TTL_MAX = 600        # absolute max lifetime
 
 
 def create_stream() -> str:
@@ -70,11 +74,33 @@ def create_stream() -> str:
     with _streams_lock:
         _streams[stream_id] = queue.Queue(maxsize=500)
         _cancel_flags[stream_id] = threading.Event()
+        _stream_completed_at[stream_id] = 0  # 0 = not yet completed
     return stream_id
 
 
 def get_stream(stream_id: str) -> Optional[queue.Queue]:
     return _streams.get(stream_id)
+
+
+def detach_stream_consumer(stream_id: str):
+    """Mark that the SSE consumer has disconnected, but keep the queue alive
+    so the agent thread can still push events (they won't be lost).
+    The queue will be cleaned up after TTL expires."""
+    with _streams_lock:
+        if stream_id in _stream_completed_at:
+            _stream_completed_at[stream_id] = time.time()  # start TTL countdown
+
+
+def is_stream_alive(stream_id: str) -> bool:
+    """Check if a stream exists and hasn't expired."""
+    q = _streams.get(stream_id)
+    if q is None:
+        return False
+    with _streams_lock:
+        completed_at = _stream_completed_at.get(stream_id, 0)
+    if completed_at > 0:
+        return time.time() - completed_at < _STREAM_TTL_AFTER_DONE
+    return True
 
 
 def cancel_stream(stream_id: str) -> bool:
@@ -97,6 +123,25 @@ def cleanup_stream(stream_id: str):
         _streams.pop(stream_id, None)
         _cancel_flags.pop(stream_id, None)
         _agent_instances.pop(stream_id, None)
+        _stream_completed_at.pop(stream_id, None)
+
+
+def mark_stream_completed(stream_id: str):
+    """Mark the run as completed — starts the TTL countdown."""
+    with _streams_lock:
+        _stream_completed_at[stream_id] = time.time()
+
+
+def expire_old_streams():
+    """Clean up streams that have exceeded their TTL. Call periodically."""
+    now = time.time()
+    to_cleanup = []
+    with _streams_lock:
+        for sid, completed_at in list(_stream_completed_at.items()):
+            if completed_at > 0 and now - completed_at > _STREAM_TTL_AFTER_DONE:
+                to_cleanup.append(sid)
+    for sid in to_cleanup:
+        cleanup_stream(sid)
 
 
 def put_event(stream_id: str, event: str, data: dict):
@@ -452,6 +497,7 @@ def run_agent_in_thread(
             },
             "session_id": session_id,
         })
+        mark_stream_completed(stream_id)
 
     except Exception as e:
         err_msg = str(e)
@@ -460,6 +506,7 @@ def run_agent_in_thread(
             "error": err_msg,
             "session_id": session_id,
         })
+        mark_stream_completed(stream_id)
     finally:
         # Restore env
         if old_cwd is not None:

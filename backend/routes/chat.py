@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from ..streaming import create_stream, get_stream, cleanup_stream, run_agent_in_thread, cancel_stream
+from ..streaming import create_stream, get_stream, cleanup_stream, run_agent_in_thread, cancel_stream, detach_stream_consumer, is_stream_alive
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -99,9 +99,95 @@ async def stream_events(stream_id: str, req: Request):
                 yield f"event: {event_type}\ndata: {payload}\n\n"
 
                 if event_type in ("run.completed", "run.failed", "cancel"):
+                    cleanup_stream(stream_id)
                     break
         finally:
-            cleanup_stream(stream_id)
+            # Client disconnected without run completing — detach consumer
+            # but keep queue alive so agent thread doesn't lose events.
+            # The queue will be cleaned up after TTL expires.
+            if get_stream(stream_id) is not None:
+                detach_stream_consumer(stream_id)
+            else:
+                # Already cleaned up (run completed normally)
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/reconnect/{stream_id}")
+async def reconnect_stream(stream_id: str, req: Request):
+    """Re-subscribe to an existing stream after a disconnect.
+    Returns the current queue contents (missed events) plus new ones."""
+    if not is_stream_alive(stream_id):
+        return JSONResponse(
+            status_code=410,
+            content={"error": "stream expired or not found"},
+        )
+
+    q = get_stream(stream_id)
+    if q is None:
+        return JSONResponse(
+            status_code=410,
+            content={"error": "stream not found"},
+        )
+
+    # Drain any buffered events first
+    buffered = []
+    while True:
+        try:
+            event_type, data = q.get_nowait()
+            buffered.append((event_type, data))
+            if event_type in ("run.completed", "run.failed", "cancel"):
+                break
+        except Exception:
+            break
+
+    # If we got a terminal event, return it directly
+    if buffered and buffered[-1][0] in ("run.completed", "run.failed", "cancel"):
+        cleanup_stream(stream_id)
+        event_type, data = buffered[-1]
+        return StreamingResponse(
+            iter([f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"]),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    # Otherwise, resume SSE streaming from where we left off
+    async def event_generator():
+        try:
+            # Replay buffered events first
+            for event_type, data in buffered:
+                yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                if event_type in ("run.completed", "run.failed", "cancel"):
+                    cleanup_stream(stream_id)
+                    return
+
+            # Continue streaming new events
+            while True:
+                if await req.is_disconnected():
+                    break
+                try:
+                    event_type, data = q.get(timeout=30)
+                except Exception:
+                    yield f": keepalive\n\n"
+                    continue
+
+                yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+                if event_type in ("run.completed", "run.failed", "cancel"):
+                    cleanup_stream(stream_id)
+                    break
+        finally:
+            if get_stream(stream_id) is not None:
+                detach_stream_consumer(stream_id)
 
     return StreamingResponse(
         event_generator(),

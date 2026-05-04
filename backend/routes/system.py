@@ -1,9 +1,102 @@
-"""System endpoints: health, status, update."""
+"""System endpoints: health, status, update, launchd service."""
 import asyncio
+import os
+import plistlib
 import subprocess
+import sys
+from pathlib import Path
 from fastapi import APIRouter
 
 router = APIRouter(tags=["system"])
+
+LAUNCHD_LABEL = "com.hermes.py-webui"
+PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
+PLIST_PATH = PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
+
+
+def _project_root() -> Path:
+    """Return the py-webui project root (where this file lives + 2 levels up)."""
+    return Path(__file__).resolve().parents[2]
+
+
+def _generate_plist() -> dict:
+    """Build the launchd plist dict using dynamic paths."""
+    root = _project_root()
+    python_bin = root / ".venv" / "bin" / "python3"
+    if not python_bin.exists():
+        # Fallback: use sys.executable
+        python_bin = Path(sys.executable)
+    log_dir = Path.home() / ".hermes" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return {
+        "Label": LAUNCHD_LABEL,
+        "ProgramArguments": [
+            str(python_bin), "-m", "uvicorn",
+            "backend.main:app", "--host", "0.0.0.0", "--port", "9898",
+        ],
+        "WorkingDirectory": str(root),
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "StandardOutPath": str(log_dir / "hermes-py-webui.log"),
+        "StandardErrorPath": str(log_dir / "hermes-py-webui.err.log"),
+    }
+
+
+@router.get("/api/hermes/service")
+async def service_status():
+    """Check launchd auto-start status."""
+    uid = os.getuid()
+    loaded = False
+    try:
+        result = subprocess.run(
+            ["launchctl", "print", f"gui/{uid}/{LAUNCHD_LABEL}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        loaded = result.returncode == 0
+    except Exception:
+        pass
+    return {
+        "enabled": PLIST_PATH.exists(),
+        "loaded": loaded,
+        "plist_path": str(PLIST_PATH),
+    }
+
+
+@router.post("/api/hermes/service/install")
+async def service_install():
+    """Install launchd plist and load the service."""
+    plist_dict = _generate_plist()
+    PLIST_DIR.mkdir(parents=True, exist_ok=True)
+    with open(PLIST_PATH, "wb") as f:
+        plistlib.dump(plist_dict, f)
+    # Unload first if already loaded, then bootstrap
+    uid = os.getuid()
+    subprocess.run(
+        ["launchctl", "bootout", f"gui/{uid}/{LAUNCHD_LABEL}"],
+        capture_output=True, timeout=5,
+    )
+    result = subprocess.run(
+        ["launchctl", "bootstrap", f"gui/{uid}", str(PLIST_PATH)],
+        capture_output=True, text=True, timeout=5,
+    )
+    if result.returncode != 0:
+        return {"ok": False, "error": result.stderr.strip()}
+    return {"ok": True}
+
+
+@router.post("/api/hermes/service/uninstall")
+async def service_uninstall():
+    """Remove launchd plist without stopping the running service.
+
+    Only deletes the plist file so the service won't auto-start on next
+    login.  We intentionally do NOT call ``launchctl bootout`` here
+    because that would terminate the current process (self-kill).
+    The stale in-memory registration is harmless — it will not survive
+    a reboot since the plist no longer exists.
+    """
+    if PLIST_PATH.exists():
+        PLIST_PATH.unlink()
+    return {"ok": True}
 
 
 @router.get("/health")

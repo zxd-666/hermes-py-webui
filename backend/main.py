@@ -83,7 +83,14 @@ app.post("/upload")(_upload_files)
 # Static files — serve Vue build from backend/static/
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets"), html=False), name="assets")
+
+    @app.middleware("http")
+    async def no_cache_assets(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
 
     @app.get("/favicon.ico")
     @app.get("/favicon.svg")
@@ -108,12 +115,22 @@ if STATIC_DIR.exists():
 @app.on_event("startup")
 async def startup():
     from .config import STATE_DB
-    from .streaming import prewarm_ai_agent
+    from .streaming import prewarm_ai_agent, expire_old_streams
     print(f"[9898] Hermes Py WebUI starting", flush=True)
     print(f"[9898] State DB: {STATE_DB} (exists: {STATE_DB.exists()})", flush=True)
     print(f"[9898] Listening on http://{HOST}:{PORT}", flush=True)
     # Pre-warm AIAgent import in background (~26s) so first chat isn't cold
     prewarm_ai_agent()
+    # Periodically clean up expired SSE stream queues
+    import asyncio
+    async def _cleanup_loop():
+        while True:
+            await asyncio.sleep(120)  # every 2 minutes
+            try:
+                expire_old_streams()
+            except Exception:
+                pass
+    asyncio.create_task(_cleanup_loop())
 
 
 if __name__ == "__main__":

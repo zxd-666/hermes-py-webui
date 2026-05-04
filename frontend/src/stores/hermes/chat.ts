@@ -1145,12 +1145,244 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * Resume an in-flight run after page refresh.
-   * Emits 'resume' to join the session room on the server,
-   * then sets up event listeners to receive ongoing events.
+   * Tries to reconnect to the backend's SSE stream to receive remaining events.
+   * Falls back to polling resumeSession if reconnect fails.
    */
   function resumeInFlightRun(sid: string) {
-    // SSE doesn't support reconnecting to an in-flight stream.
-    // Nothing to do — the stream will end on its own or the user can resend.
+    const rec = readInFlight(sid)
+    if (!rec) return
+
+    const runId = rec.runId
+    const profile = localStorage.getItem('hermes_active_profile_name') || 'default'
+    const token = getApiKey()
+
+    // Try reconnect to the backend's SSE stream
+    const controller = new AbortController()
+    let closed = false
+
+    async function tryReconnect() {
+      try {
+        const res = await fetch(`/api/chat/reconnect/${runId}`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'X-Hermes-Profile': profile !== 'default' ? profile : '',
+            'Accept': 'text/event-stream',
+          },
+          signal: controller.signal,
+        })
+
+        if (res.status === 410) {
+          // Stream expired — just resume from DB
+          console.log('[resumeInFlightRun] stream expired, resuming from DB')
+          void refreshActiveSession()
+          clearInFlight(sid)
+          return
+        }
+
+        if (!res.ok) {
+          console.warn('[resumeInFlightRun] reconnect failed:', res.status)
+          void refreshActiveSession()
+          return
+        }
+
+        isStreaming.value = true
+        streamStates.value.set(sid, { abort: () => { controller.abort(); closed = true } })
+        serverWorking.value.add(sid)
+
+        const reader = res.body!.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let runProducedAssistantText = false
+        let runHadToolActivity = false
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          let currentEvent = ''
+          let currentData = ''
+
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (trimmed.startsWith('event:')) {
+              currentEvent = trimmed.slice(6).trim()
+            } else if (trimmed.startsWith('data:')) {
+              currentData = trimmed.slice(5).trimStart()
+            } else if (trimmed === '' && currentEvent && currentData) {
+              try {
+                const data = JSON.parse(currentData)
+                // Delegate to a minimal event handler
+                handleResumedEvent(sid, currentEvent, data, {
+                  get runProducedAssistantText() { return runProducedAssistantText },
+                  set runProducedAssistantText(v: boolean) { runProducedAssistantText = v },
+                  get runHadToolActivity() { return runHadToolActivity },
+                  set runHadToolActivity(v: boolean) { runHadToolActivity = v },
+                })
+
+                if (currentEvent === 'run.completed' || currentEvent === 'run.failed') {
+                  closed = true
+                  clearInFlight(sid)
+                  return
+                }
+              } catch (e) {
+                console.warn('[resumeInFlightRun] parse error:', e)
+              }
+              currentEvent = ''
+              currentData = ''
+            }
+          }
+        }
+
+        // Stream ended without terminal event
+        if (!closed) {
+          clearInFlight(sid)
+          void refreshActiveSession()
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return
+        console.warn('[resumeInFlightRun] error:', err.message)
+        void refreshActiveSession()
+      } finally {
+        streamStates.value.delete(sid)
+        serverWorking.value.delete(sid)
+        isStreaming.value = false
+      }
+    }
+
+    tryReconnect()
+  }
+
+  /** Minimal event handler for reconnected streams — mirrors sendMessage's switch/case */
+  function handleResumedEvent(
+    sid: string,
+    event: string,
+    evt: any,
+    flags: { runProducedAssistantText: boolean; runHadToolActivity: boolean },
+  ) {
+    switch (event) {
+      case 'message.delta': {
+        if (evt.delta) flags.runProducedAssistantText = true
+        const msgs = getSessionMsgs(sid)
+        const last = msgs[msgs.length - 1]
+        if (last?.role === 'assistant' && last.isStreaming) {
+          last.content = last.content + (evt.delta || '')
+        } else {
+          addMessage(sid, {
+            id: uid(),
+            role: 'assistant',
+            content: evt.delta || '',
+            timestamp: Date.now(),
+            isStreaming: true,
+          })
+        }
+        break
+      }
+      case 'reasoning.delta':
+      case 'thinking.delta': {
+        const text = evt.text || evt.delta || ''
+        if (!text) break
+        const msgs = getSessionMsgs(sid)
+        const last = msgs[msgs.length - 1]
+        if (last?.role === 'assistant' && last.isStreaming) {
+          last.reasoning = (last.reasoning || '') + text
+        } else {
+          addMessage(sid, {
+            id: uid(),
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            isStreaming: true,
+            reasoning: text,
+          })
+        }
+        break
+      }
+      case 'tool.started': {
+        flags.runHadToolActivity = true
+        const msgs = getSessionMsgs(sid)
+        const last = msgs[msgs.length - 1]
+        if (last?.isStreaming) {
+          updateMessage(sid, last.id, { isStreaming: false })
+        }
+        addMessage(sid, {
+          id: uid(),
+          role: 'tool',
+          content: '',
+          timestamp: Date.now(),
+          toolName: evt.tool || evt.name,
+          toolPreview: evt.preview,
+          toolStatus: 'running',
+        })
+        break
+      }
+      case 'tool.completed': {
+        flags.runHadToolActivity = true
+        const msgs = getSessionMsgs(sid)
+        const toolMsgs = msgs.filter(m => m.role === 'tool' && m.toolStatus === 'running')
+        if (toolMsgs.length > 0) {
+          const last = toolMsgs[toolMsgs.length - 1]
+          updateMessage(sid, last.id, {
+            toolStatus: (evt as any).error ? 'error' : 'done',
+          })
+        }
+        break
+      }
+      case 'run.completed': {
+        const msgs = getSessionMsgs(sid)
+        const lastMsg = msgs[msgs.length - 1]
+        if (lastMsg?.isStreaming) {
+          updateMessage(sid, lastMsg.id, { isStreaming: false })
+        }
+        // Update usage
+        const usage = evt.usage
+        if (usage) {
+          const target = sessions.value.find(s => s.id === sid)
+          if (target) {
+            target.inputTokens = usage.input_tokens ?? target.inputTokens
+            target.outputTokens = usage.output_tokens ?? target.outputTokens
+            const srvCtx = usage.context_length
+            if (srvCtx && srvCtx > 0) target.contextLength = srvCtx
+          }
+        }
+        // Belt-and-suspenders: if no assistant text was produced via delta
+        // but output is non-empty, render it
+        const finalOutput = typeof evt.output === 'string' ? evt.output : ''
+        if (!flags.runProducedAssistantText && finalOutput.trim() !== '') {
+          addMessage(sid, {
+            id: uid(),
+            role: 'assistant',
+            content: finalOutput,
+            timestamp: Date.now(),
+          })
+        }
+        updateSessionTitle(sid)
+        persistSessionTitle(sid)
+        break
+      }
+      case 'run.failed': {
+        const msgs = getSessionMsgs(sid)
+        const lastErr = msgs[msgs.length - 1]
+        if (lastErr?.isStreaming) {
+          updateMessage(sid, lastErr.id, {
+            isStreaming: false,
+            content: evt.error ? `Error: ${evt.error}` : 'Run failed',
+            role: 'system',
+          })
+        } else {
+          addMessage(sid, {
+            id: uid(),
+            role: 'system',
+            content: evt.error ? `Error: ${evt.error}` : 'Run failed',
+            timestamp: Date.now(),
+          })
+        }
+        break
+      }
+    }
   }
   function stopStreaming() {
     const sid = activeSessionId.value

@@ -214,7 +214,7 @@ watch(currentToolCalls, () => {
   <div ref="listRef" class="message-list" :class="{ compact: settingsStore.display.compact, 'no-stream': noStreamDisplay }">
     <div v-if="chatStore.messages.length === 0" class="empty-state">
       <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Hermes" class="empty-logo" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
-      <p>{{ t("chat.emptyState", { name: profilesStore.activeProfileName || 'Brave' }) }}</p>
+      <p>{{ t("chat.emptyState", { name: (profilesStore.activeProfileName === 'default' ? 'Hermes' : profilesStore.activeProfileName) || 'Hermes' }) }}</p>
     </div>
     <div v-if="hasLineage || hasLoadedHistory" class="lineage-bar">
       <button v-if="hasLoadedHistory" class="lineage-nav-btn" title="上一段" @click.stop="navigateDivider('up')">
