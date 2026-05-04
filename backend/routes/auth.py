@@ -1,10 +1,9 @@
-"""Auth system: middleware + 6 API routes.
+"""Auth system: middleware + API routes.
 
 Storage: ~/.hermes/webui-auth.json
   {
-    "username": "admin",
-    "password_hash": "$2b$12$...",
-    "tokens": { "session_token": "username" }
+    "password_hash": "sha256$salt$hash",
+    "tokens": { "session_token": {} }
   }
 
 When no password is set, auth is disabled (open access).
@@ -17,12 +16,9 @@ import json
 import os
 import secrets
 import threading
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -66,7 +62,7 @@ def _verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(computed, hashed)
 
 
-def _generate_token(username: str) -> str:
+def _generate_token() -> str:
     """Generate a random session token."""
     return secrets.token_urlsafe(32)
 
@@ -99,8 +95,7 @@ async def check_auth(request: Request):
         tokens = data.get("tokens", {})
         if token not in tokens:
             raise HTTPException(status_code=401, detail="Invalid token")
-        # Enforce profile isolation: if token has a profile binding,
-        # the request must match (or be absent = default).
+        # Enforce profile isolation
         token_entry = tokens[token]
         if isinstance(token_entry, dict):
             bound_profile = token_entry.get("profile")
@@ -114,34 +109,7 @@ async def check_auth(request: Request):
             if req_profile != bound_profile:
                 raise HTTPException(status_code=403, detail="Token not authorized for this profile")
 
-        # Attach profile to request.state for downstream use
-        from starlette.datastructures import State
-        if not hasattr(request, "state") or request.state is None:
-            request.state = type("State", (), {})()
-        request.state.auth_profile = bound_profile
-
     return True
-
-
-def require_current_password(request: Request) -> str:
-    """Extract current user from token, raise if not authenticated."""
-    auth = request.headers.get("Authorization", "")
-    token = ""
-    if auth.startswith("Bearer "):
-        token = auth[7:]
-    if not token:
-        token = request.query_params.get("token", "")
-
-    data = _load()
-    tokens = data.get("tokens", {})
-    entry = tokens.get(token)
-    if isinstance(entry, dict):
-        username = entry.get("username")
-    else:
-        username = entry
-    if not username:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return username
 
 
 # ─── API Routes ────────────────────────────────────────────────
@@ -149,22 +117,17 @@ def require_current_password(request: Request) -> str:
 
 @router.get("/status")
 async def get_auth_status():
-    """Check if password login is enabled and get username."""
+    """Check if password login is enabled."""
     data = _load()
-    has_password = bool(data.get("password_hash"))
-    username = data.get("username") if has_password else None
-    return {"hasPasswordLogin": has_password, "username": username}
+    return {"hasPassword": bool(data.get("password_hash"))}
 
 
 @router.post("/setup")
 async def setup_password(request: Request):
     """Set password for the first time. Only works when no password exists."""
     body = await request.json()
-    username = (body.get("username") or "").strip()
     password = body.get("password", "")
 
-    if not username or len(username) < 2:
-        raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
     if not password or len(password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
@@ -172,7 +135,6 @@ async def setup_password(request: Request):
         data = _load()
         if data.get("password_hash"):
             raise HTTPException(status_code=400, detail="Password already set. Use change-password instead.")
-        data["username"] = username
         data["password_hash"] = _hash_password(password)
         data["tokens"] = {}
         _save(data)
@@ -182,33 +144,29 @@ async def setup_password(request: Request):
 
 @router.post("/login")
 async def login(request: Request):
-    """Login with username and password, return session token."""
+    """Login with password, return session token."""
     body = await request.json()
-    username = (body.get("username") or "").strip()
     password = body.get("password", "")
 
-    if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password required")
+    if not password:
+        raise HTTPException(status_code=400, detail="Password required")
 
     with _lock:
         data = _load()
         stored_hash = data.get("password_hash")
         if not stored_hash:
             raise HTTPException(status_code=400, detail="Password login not configured")
-        if data.get("username") != username:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
         if not _verify_password(password, stored_hash):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+            raise HTTPException(status_code=401, detail="Invalid password")
 
         # Generate session token
-        token = _generate_token(username)
+        token = _generate_token()
         tokens = data.get("tokens", {})
-        # Bind token to the requesting profile for isolation
         req_profile = request.headers.get("x-hermes-profile", "").strip()
         if req_profile and req_profile.lower() != "default":
-            tokens[token] = {"username": username, "profile": req_profile}
+            tokens[token] = {"profile": req_profile}
         else:
-            tokens[token] = {"username": username, "profile": None}
+            tokens[token] = {"profile": None}
         data["tokens"] = tokens
         _save(data)
 
@@ -240,36 +198,12 @@ async def change_password(request: Request):
     return {"ok": True}
 
 
-@router.post("/change-username")
-async def change_username(request: Request):
-    """Change username. Requires current password for verification."""
-    body = await request.json()
-    current_password = body.get("currentPassword", "")
-    new_username = (body.get("newUsername") or "").strip()
-
-    if not current_password or not new_username:
-        raise HTTPException(status_code=400, detail="Current password and new username required")
-    if len(new_username) < 2:
-        raise HTTPException(status_code=400, detail="Username must be at least 2 characters")
-
-    with _lock:
-        data = _load()
-        stored_hash = data.get("password_hash")
-        if not stored_hash or not _verify_password(current_password, stored_hash):
-            raise HTTPException(status_code=401, detail="Current password incorrect")
-        data["username"] = new_username
-        _save(data)
-
-    return {"ok": True}
-
-
 @router.delete("/password")
-async def remove_password(request: Request):
+async def remove_password():
     """Remove password login entirely (disable auth)."""
     with _lock:
         data = _load()
         data.pop("password_hash", None)
-        data.pop("username", None)
         data["tokens"] = {}
         _save(data)
 

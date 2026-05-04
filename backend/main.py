@@ -28,7 +28,7 @@ from .routes.logs import router as logs_router
 from .routes.cron_history import router as cron_history_router
 from .routes.profiles import router as profiles_router
 from .routes.gateways import router as gateways_router
-from .routes.auth import check_auth, router as auth_router
+from .routes.auth import _load, _lock, check_auth, router as auth_router
 from .routes.weixin import router as weixin_router
 from .routes.terminal import router as terminal_router
 from .routes.channels import router as channels_router
@@ -54,10 +54,26 @@ async def not_found_handler(request, exc):
 
 @app.middleware("http")
 async def auth_middleware(request, call_next):
-    # Auth disabled — all requests pass through
+    path = request.url.path
+    # Auth routes and static files are always accessible
+    if path.startswith("/api/auth/") or path.startswith("/assets/") or path == "/logo.png" or path == "/favicon.ico":
+        return await call_next(request)
+    # Avatar images are public (used in <img src="..."> which can't carry auth headers)
+    if path.startswith("/api/hermes/profiles/") and path.endswith("/avatar"):
+        return await call_next(request)
+    # API routes require auth when password is set
+    if path.startswith("/api/"):
+        data = _load()
+        if data.get("password_hash"):
+            auth = request.headers.get("Authorization", "")
+            token = auth[7:] if auth.startswith("Bearer ") else request.query_params.get("token", "")
+            if not token:
+                return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+            with _lock:
+                tokens = data.get("tokens", {})
+                if token not in tokens:
+                    return JSONResponse(status_code=401, content={"detail": "Invalid token"})
     return await call_next(request)
-
-# Auth routes (available but not enforced — auth is disabled)
 app.include_router(auth_router)
 
 # API routes

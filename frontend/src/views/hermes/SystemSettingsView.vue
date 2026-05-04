@@ -1,19 +1,29 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NSwitch, NModal, useMessage } from 'naive-ui'
+import { NSwitch, NModal, NInput, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { fetchServiceStatus, installService, uninstallService, fetchLanAccess, fetchLocalIp, setLanAccess } from '@/api/hermes/system'
+import { fetchAuthStatus, setupPassword, removePassword } from '@/api/auth'
+import { clearApiKey } from '@/api/client'
 
 const { t } = useI18n()
 const message = useMessage()
+const router = useRouter()
 
 const autoStart = ref(false)
 const lanAccess = ref(false)
+const accessPassword = ref(false)
 const autoStartLoading = ref(false)
 const lanAccessLoading = ref(false)
+const passwordLoading = ref(false)
 const restarting = ref(false)
-const showConfirm = ref(false)
+const showLanConfirm = ref(false)
+const showPasswordSetup = ref(false)
+const showPasswordDisable = ref(false)
 const localIp = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
 
 const isLocalhost = computed(() => {
   const h = window.location.hostname
@@ -21,6 +31,10 @@ const isLocalhost = computed(() => {
 })
 
 const lanUrl = computed(() => `http://${localIp.value}:9898`)
+
+const passwordValid = computed(() => {
+  return newPassword.value.length >= 6 && newPassword.value === confirmPassword.value
+})
 
 async function loadStatus() {
   try {
@@ -34,6 +48,10 @@ async function loadStatus() {
   try {
     const res = await fetchLocalIp()
     localIp.value = res.ip
+  } catch { /* ignore */ }
+  try {
+    const status = await fetchAuthStatus()
+    accessPassword.value = status.hasPassword
   } catch { /* ignore */ }
 }
 
@@ -64,19 +82,18 @@ async function handleAutoStartToggle(value: boolean) {
 
 function handleLanAccessToggle(value: boolean) {
   if (value) {
-    showConfirm.value = true
+    showLanConfirm.value = true
   } else {
     doSetLanAccess(false)
   }
 }
 
 async function doSetLanAccess(enabled: boolean) {
-  showConfirm.value = false
+  showLanConfirm.value = false
   lanAccessLoading.value = true
   try {
     await setLanAccess(enabled)
     message.success(enabled ? t('systemSettings.lanAccessEnabled') : t('systemSettings.lanAccessDisabled'))
-    // Wait for server restart, then poll
     restarting.value = true
     await waitForRestart()
     lanAccess.value = enabled
@@ -99,7 +116,6 @@ async function waitForRestart() {
       }
     } catch { /* not ready yet */ }
   }
-  // Timeout — reload anyway
   window.location.reload()
 }
 
@@ -109,13 +125,66 @@ function copyUrl() {
   })
 }
 
+// ─── Access Password ──────────────────────────────────────
+
+function handlePasswordToggle(value: boolean) {
+  if (value) {
+    newPassword.value = ''
+    confirmPassword.value = ''
+    showPasswordSetup.value = true
+  } else {
+    showPasswordDisable.value = true
+  }
+}
+
+async function doSetupPassword() {
+  if (!passwordValid.value) return
+  passwordLoading.value = true
+  try {
+    await setupPassword(newPassword.value)
+    accessPassword.value = true
+    showPasswordSetup.value = false
+    message.success(t('systemSettings.passwordEnabled'))
+  } catch (err: any) {
+    message.error(err?.detail || t('common.operationFailed'))
+  } finally {
+    passwordLoading.value = false
+  }
+}
+
+async function doDisablePassword() {
+  passwordLoading.value = true
+  showPasswordDisable.value = false
+  try {
+    await removePassword()
+    accessPassword.value = false
+    clearApiKey()
+    message.success(t('systemSettings.passwordDisabled'))
+  } catch {
+    message.error(t('common.operationFailed'))
+  } finally {
+    passwordLoading.value = false
+  }
+}
+
 onMounted(loadStatus)
 </script>
 
 <template>
   <div class="system-settings">
+    <header class="page-header">
+      <h2 class="header-title">{{ t('systemSettings.pageTitle') }}</h2>
+    </header>
+
+    <div class="settings-scroll">
     <div class="settings-section">
-      <h3 class="section-title">{{ t('systemSettings.title') }}</h3>
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-label">{{ t('systemSettings.accessPassword') }}</span>
+          <span class="setting-desc">{{ t('systemSettings.accessPasswordDesc') }}</span>
+        </div>
+        <NSwitch :value="accessPassword" :loading="passwordLoading" @update:value="handlePasswordToggle" />
+      </div>
       <div class="setting-row">
         <div class="setting-info">
           <span class="setting-label">{{ t('systemSettings.autoStart') }}</span>
@@ -136,6 +205,7 @@ onMounted(loadStatus)
         />
       </div>
     </div>
+    </div>
 
     <!-- Restarting overlay -->
     <Teleport to="body">
@@ -150,16 +220,68 @@ onMounted(loadStatus)
     </Teleport>
 
     <!-- Confirm modal for enabling LAN access -->
-    <NModal v-model:show="showConfirm" preset="dialog" :title="t('systemSettings.lanAccess')">
+    <NModal v-model:show="showLanConfirm" preset="dialog" :title="t('systemSettings.lanAccess')">
       <div class="confirm-body">
         <p class="confirm-text">{{ t('systemSettings.lanAccessConfirm') }}</p>
         <p class="confirm-url" @click="copyUrl">{{ lanUrl }}</p>
       </div>
       <template #action>
-        <button class="btn btn-cancel" @click="showConfirm = false">
+        <button class="btn btn-cancel" @click="showLanConfirm = false">
           {{ t('common.cancel') || '取消' }}
         </button>
         <button class="btn btn-confirm" @click="doSetLanAccess(true)">
+          {{ t('common.confirm') || '确认' }}
+        </button>
+      </template>
+    </NModal>
+
+    <!-- Modal for setting password -->
+    <NModal v-model:show="showPasswordSetup" preset="dialog" :title="t('systemSettings.setPasswordTitle')">
+      <div class="password-form">
+        <div class="password-field">
+          <span class="password-label">{{ t('systemSettings.newPassword') }}</span>
+          <NInput
+            v-model:value="newPassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('systemSettings.passwordMinLength')"
+          />
+        </div>
+        <div class="password-field">
+          <span class="password-label">{{ t('systemSettings.confirmPassword') }}</span>
+          <NInput
+            v-model:value="confirmPassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('systemSettings.confirmPasswordHint')"
+            @keyup.enter="doSetupPassword"
+          />
+        </div>
+        <p v-if="newPassword && confirmPassword && newPassword !== confirmPassword" class="password-error">
+          {{ t('systemSettings.passwordMismatch') }}
+        </p>
+        <p v-else-if="newPassword && newPassword.length < 6" class="password-error">
+          {{ t('systemSettings.passwordMinLength') }}
+        </p>
+      </div>
+      <template #action>
+        <button class="btn btn-cancel" @click="showPasswordSetup = false">
+          {{ t('common.cancel') || '取消' }}
+        </button>
+        <button class="btn btn-confirm" :disabled="!passwordValid || passwordLoading" @click="doSetupPassword">
+          {{ t('common.confirm') || '确认' }}
+        </button>
+      </template>
+    </NModal>
+
+    <!-- Confirm modal for disabling password -->
+    <NModal v-model:show="showPasswordDisable" preset="dialog" :title="t('systemSettings.disablePasswordTitle')">
+      <p class="confirm-text">{{ t('systemSettings.disablePasswordConfirm') }}</p>
+      <template #action>
+        <button class="btn btn-cancel" @click="showPasswordDisable = false">
+          {{ t('common.cancel') || '取消' }}
+        </button>
+        <button class="btn btn-confirm btn-danger" @click="doDisablePassword">
           {{ t('common.confirm') || '确认' }}
         </button>
       </template>
@@ -171,8 +293,15 @@ onMounted(loadStatus)
 @use "@/styles/variables" as *;
 
 .system-settings {
-  padding: 24px;
-  max-width: 640px;
+  height: calc(100 * var(--vh));
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .settings-section {
@@ -180,13 +309,7 @@ onMounted(loadStatus)
   border-radius: $radius-md;
   padding: 20px;
   border: 1px solid $border-color;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: $text-primary;
-  margin: 0 0 16px;
+  max-width: 640px;
 }
 
 .setting-row {
@@ -287,6 +410,30 @@ onMounted(loadStatus)
   }
 }
 
+// Password form
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.password-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.password-label {
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+.password-error {
+  font-size: 12px;
+  color: $error;
+  margin: 0;
+}
+
 .btn {
   padding: 6px 16px;
   border-radius: 6px;
@@ -311,6 +458,20 @@ onMounted(loadStatus)
 
     &:hover {
       background: #4096ff;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &-danger {
+    background: #e5484d;
+    color: #fff;
+
+    &:hover {
+      background: #f27274;
     }
   }
 }

@@ -1,8 +1,7 @@
 import { request } from './client'
 
 export interface AuthStatus {
-  hasPasswordLogin: boolean
-  username: string | null
+  hasPassword: boolean
 }
 
 export async function fetchAuthStatus(): Promise<AuthStatus> {
@@ -11,24 +10,24 @@ export async function fetchAuthStatus(): Promise<AuthStatus> {
   return res.json()
 }
 
-export async function loginWithPassword(username: string, password: string): Promise<string> {
+export async function loginWithPassword(password: string): Promise<string> {
   const res = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ password }),
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new Error(data.error || 'Login failed')
+    throw new Error(data.detail || 'Login failed')
   }
   const data = await res.json()
   return data.token
 }
 
-export async function setupPassword(username: string, password: string): Promise<void> {
+export async function setupPassword(password: string): Promise<void> {
   return request('/api/auth/setup', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ password }),
   })
 }
 
@@ -36,13 +35,6 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return request('/api/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ currentPassword, newPassword }),
-  })
-}
-
-export async function changeUsername(currentPassword: string, newUsername: string): Promise<void> {
-  return request('/api/auth/change-username', {
-    method: 'POST',
-    body: JSON.stringify({ currentPassword, newUsername }),
   })
 }
 

@@ -66,7 +66,7 @@ useKeyboard()
             {{ t('sidebar.nodeVersionWarning', { version: appStore.nodeVersion }) }}
           </div>
           <div v-if="ready" class="app-layout" :class="{ 'no-sidebar': isLoginPage }">
-            <button v-if="!isLoginPage" class="hamburger-btn" :class="{ 'force-show': appStore.sidebarCollapsed }" @click="appStore.toggleSidebarCollapsed">
+            <button v-if="!isLoginPage" class="hamburger-btn" :class="{ 'force-show': appStore.sidebarCollapsed }" @click="appStore.toggleSidebar">
               <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Menu" style="width: 40px; height: 40px; border-radius: 6px; object-fit: cover;" />
             </button>
             <div v-if="!isLoginPage && appStore.sidebarOpen" class="mobile-backdrop" @click="appStore.closeSidebar" />

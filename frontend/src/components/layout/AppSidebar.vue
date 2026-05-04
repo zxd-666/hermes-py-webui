@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { NButton, useMessage } from "naive-ui";
@@ -19,6 +19,32 @@ const profilesStore = useProfilesStore();
 const { openSessionSearch } = useSessionSearch();
 const selectedKey = computed(() => route.name as string);
 const logoPath = computed(() => profilesStore.activeAvatar || '/logo.png');
+
+const isMobile = ref(false);
+let mobileQuery: MediaQueryList | null = null;
+
+function handleMobileChange(e: any) {
+  isMobile.value = 'matches' in e ? e.matches : (e.target as MediaQueryList).matches;
+  if (!isMobile.value) appStore.closeSidebar();
+}
+
+onMounted(() => {
+  mobileQuery = window.matchMedia('(max-width: 768px)');
+  handleMobileChange(mobileQuery);
+  mobileQuery.addEventListener('change', handleMobileChange);
+});
+
+onUnmounted(() => {
+  mobileQuery?.removeEventListener('change', handleMobileChange);
+});
+
+function handleLogoClick() {
+  if (isMobile.value) {
+    appStore.toggleSidebar();
+  } else {
+    appStore.toggleSidebarCollapsed();
+  }
+}
 
 const collapsedGroups = reactive<Record<string, boolean>>({});
 
@@ -53,7 +79,7 @@ function handleLogout() {
 <template>
   <aside class="sidebar" :class="{ open: appStore.sidebarOpen, hidden: appStore.sidebarCollapsed }">
     <div class="sidebar-logo">
-      <img :src="logoPath" alt="Hermes" class="logo-img" :class="{ 'avatar-logo': profilesStore.activeAvatar }" @click="appStore.toggleSidebarCollapsed" />
+      <img :src="logoPath" alt="Hermes" class="logo-img" :class="{ 'avatar-logo': profilesStore.activeAvatar }" @click="handleLogoClick" />
       <ProfileSelector />
     </div>
 
