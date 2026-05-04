@@ -4,6 +4,7 @@ Reads sessions from state.db, streams agent responses via SSE.
 Core value: workspace-per-session binding (AIAgent instantiated with workdir).
 """
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -13,8 +14,7 @@ sys.path.insert(0, str(Path(HERMES_HOME) / "hermes-agent"))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from .config import PORT, HOST
 from .routes.chat import router as chat_router
@@ -83,13 +83,25 @@ app.post("/upload")(_upload_files)
 # Static files — serve Vue build from backend/static/
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets"), html=False), name="assets")
+    @app.get("/assets/{path:path}")
+    async def serve_asset(path: str):
+        p = STATIC_DIR / "assets" / path
+        if not p.exists():
+            return {"error": "not found"}, 404
+        resp = FileResponse(str(p))
+        if re.search(r"-[a-zA-Z0-9_-]{6,}\.", path):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return resp
 
     @app.middleware("http")
-    async def no_cache_assets(request: Request, call_next):
+    async def cache_control_middleware(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/assets/"):
+        path = request.url.path
+        if path == "/" or path.endswith("/index.html"):
+            # index.html must never be cached — it references hashed chunks
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["ETag"] = ""  # Clear ETag to prevent 304
+            response.headers["Last-Modified"] = ""  # Clear Last-Modified
         return response
 
     @app.get("/favicon.ico")
