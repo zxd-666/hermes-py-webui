@@ -114,15 +114,56 @@ async def get_lan_access_api():
     return {"lan_access": get_lan_access()}
 
 
+@router.get("/api/hermes/local-ip")
+async def get_local_ip():
+    """Return the machine's LAN IP address."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return {"ip": ip}
+    except Exception:
+        return {"ip": "127.0.0.1"}
+
+
 @router.put("/api/hermes/lan-access")
 async def set_lan_access_api(body: dict):
-    """Set LAN access. Requires service restart to take effect."""
+    """Set LAN access, update plist, then restart the service."""
     from backend.config import set_lan_access
     enabled = bool(body.get("lan_access", False))
     ok = set_lan_access(enabled)
     if not ok:
         return {"ok": False, "error": "Failed to save setting"}
-    return {"ok": True, "lan_access": enabled, "requires_restart": True}
+
+    # Update launchd plist so the setting survives reboot
+    _update_plist()
+
+    # Schedule self-restart in a background thread so the response reaches the client
+    import threading
+    threading.Thread(target=_delayed_restart, daemon=True, args=(1.5,)).start()
+
+    return {"ok": True, "lan_access": enabled}
+
+
+def _update_plist():
+    """Regenerate and write the launchd plist with current settings."""
+    import plistlib
+    try:
+        plist_dict = _generate_plist()
+        PLIST_DIR.mkdir(parents=True, exist_ok=True)
+        with open(PLIST_PATH, "wb") as f:
+            plistlib.dump(plist_dict, f)
+    except Exception:
+        pass
+
+
+def _delayed_restart(delay: float):
+    """Wait, then replace the current process with a fresh one."""
+    import time
+    time.sleep(delay)
+    os.execv(sys.executable, [sys.executable, "-m", "backend.main"])
 
 
 @router.get("/api/hermes/status")

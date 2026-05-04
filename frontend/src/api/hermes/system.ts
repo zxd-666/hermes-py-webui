@@ -138,8 +138,12 @@ export async function fetchLanAccess(): Promise<{ lan_access: boolean }> {
   return request<{ lan_access: boolean }>('/api/hermes/lan-access')
 }
 
-export async function setLanAccess(lan_access: boolean): Promise<{ ok: boolean; lan_access: boolean; requires_restart?: boolean }> {
-  return request<{ ok: boolean; lan_access: boolean; requires_restart?: boolean }>('/api/hermes/lan-access', {
+export async function fetchLocalIp(): Promise<{ ip: string }> {
+  return request<{ ip: string }>('/api/hermes/local-ip')
+}
+
+export async function setLanAccess(lan_access: boolean): Promise<{ ok: boolean; lan_access: boolean }> {
+  return request<{ ok: boolean; lan_access: boolean }>('/api/hermes/lan-access', {
     method: 'PUT',
     body: JSON.stringify({ lan_access }),
   })

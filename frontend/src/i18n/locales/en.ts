@@ -868,7 +868,10 @@ export default {
     autoStartFailed: 'Failed to enable auto start',
     lanAccess: 'LAN Access',
     lanAccessDesc: 'Allow devices on the same network to access via IP address',
-    lanAccessEnabled: 'LAN access enabled, restart to take effect',
-    lanAccessDisabled: 'LAN access disabled, restart to take effect',
+    lanAccessConfirm: 'Access from devices on the same WiFi network at',
+    lanAccessEnabled: 'LAN access enabled',
+    lanAccessDisabled: 'LAN access disabled',
+    lanAccessRestarting: 'Service restarting…',
+    copied: 'Copied to clipboard',
   },
 }
