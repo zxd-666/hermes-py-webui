@@ -31,8 +31,7 @@ const newUsernameVal = ref("");
 onMounted(async () => {
   try {
     const status = await fetchAuthStatus();
-    hasPasswordLogin.value = status.hasPasswordLogin;
-    username.value = status.username;
+    hasPasswordLogin.value = status.hasPassword;
   } catch { /* ignore */ }
 });
 
@@ -47,9 +46,8 @@ async function handleSetup() {
   }
   loading.value = true;
   try {
-    await setupPassword(setupUsername.value, setupPasswordVal.value);
+    await setupPassword(setupPasswordVal.value);
     hasPasswordLogin.value = true;
-    username.value = setupUsername.value;
     showSetupModal.value = false;
     setupUsername.value = "";
     setupPasswordVal.value = "";

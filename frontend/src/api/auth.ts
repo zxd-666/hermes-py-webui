@@ -43,3 +43,10 @@ export async function removePassword(): Promise<void> {
     method: 'DELETE',
   })
 }
+
+export async function changeUsername(_currentPassword: string, _newUsername: string): Promise<void> {
+  return request('/api/auth/change-username', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: _currentPassword, newUsername: _newUsername }),
+  })
+}

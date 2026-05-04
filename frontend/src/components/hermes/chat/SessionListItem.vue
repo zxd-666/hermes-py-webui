@@ -116,30 +116,29 @@ const hasAncestors = computed(() => ancestorCount.value > 0)
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
-  color: var(--text-3);
+  color: var(--text-secondary);
   margin-bottom: 1px;
   transition: background 0.12s ease, color 0.12s ease;
 
   &:hover {
     background: rgba(0, 0, 0, 0.03);
-    color: var(--text-secondary);
+    color: var(--text-primary);
   }
 
   &.active {
     background: rgba(var(--accent-primary-rgb), 0.1);
-    color: var(--text-1);
+    color: var(--text-primary);
   }
 }
 
 .ancestor-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .ancestor-meta {

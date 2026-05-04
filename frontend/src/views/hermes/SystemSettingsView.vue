@@ -22,7 +22,15 @@ const showLanConfirm = ref(false)
 const showPasswordSetup = ref(false)
 const showPasswordDisable = ref(false)
 const showPublicAccess = ref(false)
+const lanDisabling = ref(false)
 const localIp = ref('')
+const lanUrl = computed(() => {
+  if (localIp.value) return `http://${localIp.value}:9898`
+  // Fallback: use current hostname if accessed via LAN IP
+  const host = window.location.hostname
+  if (host !== 'localhost' && host !== '127.0.0.1') return `http://${host}:9898`
+  return 'http://<局域网IP>:9898'
+})
 const newPassword = ref('')
 const confirmPassword = ref('')
 
@@ -31,13 +39,16 @@ const isLocalhost = computed(() => {
   return h === 'localhost' || h === '127.0.0.1' || h === '[::1]'
 })
 
-const lanUrl = computed(() => `http://${localIp.value}:9898`)
-
 const passwordValid = computed(() => {
   return newPassword.value.length >= 6 && newPassword.value === confirmPassword.value
 })
 
 async function loadStatus() {
+  // local-ip is public (no auth needed), fetch first for LAN URL
+  try {
+    const res = await fetchLocalIp()
+    localIp.value = res.ip
+  } catch { /* ignore */ }
   try {
     const status = await fetchServiceStatus()
     autoStart.value = status.enabled
@@ -45,10 +56,6 @@ async function loadStatus() {
   try {
     const res = await fetchLanAccess()
     lanAccess.value = res.lan_access
-  } catch { /* ignore */ }
-  try {
-    const res = await fetchLocalIp()
-    localIp.value = res.ip
   } catch { /* ignore */ }
   try {
     const status = await fetchAuthStatus()
@@ -85,12 +92,15 @@ function handleLanAccessToggle(value: boolean) {
   if (value) {
     showLanConfirm.value = true
   } else {
-    doSetLanAccess(false)
+    // Show confirm before disabling
+    showLanConfirm.value = true
+    lanDisabling.value = true
   }
 }
 
 async function doSetLanAccess(enabled: boolean) {
   showLanConfirm.value = false
+  lanDisabling.value = false
   lanAccessLoading.value = true
   try {
     await setLanAccess(enabled)
@@ -229,17 +239,19 @@ onMounted(loadStatus)
       </Transition>
     </Teleport>
 
-    <!-- Confirm modal for enabling LAN access -->
+    <!-- Confirm modal for toggling LAN access -->
     <NModal v-model:show="showLanConfirm" preset="dialog" :title="t('systemSettings.lanAccess')">
       <div class="confirm-body">
-        <p class="confirm-text">{{ t('systemSettings.lanAccessConfirm') }}</p>
-        <p class="confirm-url" @click="copyUrl">{{ lanUrl }}</p>
+        <p v-if="!lanDisabling" class="confirm-text">{{ t('systemSettings.lanAccessConfirm') }}</p>
+        <p v-if="!lanDisabling" class="confirm-url" @click="copyUrl">{{ lanUrl }}</p>
+        <p v-if="lanDisabling" class="confirm-text">关闭后将无法通过 <span class="confirm-url" style="display:inline" @click="copyUrl">{{ lanUrl }}</span> 进行访问</p>
+        <p class="confirm-text">确定后服务重启，需要手动刷新下页面～</p>
       </div>
       <template #action>
-        <button class="btn btn-cancel" @click="showLanConfirm = false">
+        <button class="btn btn-cancel" @click="showLanConfirm = false; lanDisabling = false">
           {{ t('common.cancel') || '取消' }}
         </button>
-        <button class="btn btn-confirm" @click="doSetLanAccess(true)">
+        <button class="btn btn-confirm" @click="doSetLanAccess(!lanDisabling)">
           {{ t('common.confirm') || '确认' }}
         </button>
       </template>
@@ -448,7 +460,7 @@ onMounted(loadStatus)
   color: #1677ff;
   cursor: pointer;
   word-break: break-all;
-  margin: 0;
+  margin: 0 0 12px;
   user-select: all;
   transition: opacity 0.15s;
 

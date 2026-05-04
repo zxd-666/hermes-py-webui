@@ -58,6 +58,9 @@ async def auth_middleware(request, call_next):
     # Auth routes and static files are always accessible
     if path.startswith("/api/auth/") or path.startswith("/assets/") or path == "/logo.png" or path == "/favicon.ico":
         return await call_next(request)
+    # Local IP is public (used to build LAN access URL in settings page)
+    if path == "/api/hermes/local-ip":
+        return await call_next(request)
     # Avatar images are public (used in <img src="..."> which can't carry auth headers)
     if path.startswith("/api/hermes/profiles/") and path.endswith("/avatar"):
         return await call_next(request)

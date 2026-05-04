@@ -789,12 +789,13 @@ function handleWorkspaceSelect(val: string) {
   cursor: pointer;
   text-align: left;
   color: $text-secondary;
+  font-family: inherit;
   transition: background $transition-fast, color $transition-fast;
   margin-bottom: 1px;
 
   &:hover {
-    background: rgba($accent-primary, 0.06);
-    color: $text-primary;
+    background: rgba(0, 0, 0, 0.03);
+    color: var(--text-primary);
 
     .session-item-delete {
       opacity: 1;
@@ -834,7 +835,6 @@ function handleWorkspaceSelect(val: string) {
   font-size: 14px;
   font-weight: 500;
   line-height: 1.35;
-  color: #666666;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

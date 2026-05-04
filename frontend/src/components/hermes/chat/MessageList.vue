@@ -35,13 +35,18 @@ function navigateDivider(direction: 'up' | 'down') {
   const viewBottom = viewTop + container.clientHeight;
 
   if (direction === 'up') {
+    // Find the nearest divider above the current viewport
     let target: HTMLElement | null = null;
     for (const d of dividers) {
       if (d.offsetTop < viewTop - 10) target = d;
       else break;
     }
-    target = target || dividers[0];
-    target.scrollIntoView({ block: 'start' });
+    if (target) {
+      target.scrollIntoView({ block: 'start' });
+    } else {
+      // No divider above — scroll to top of message list
+      container.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   } else {
     let target: HTMLElement | null = null;
     for (const d of dividers) {

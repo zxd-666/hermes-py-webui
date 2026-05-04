@@ -1192,7 +1192,6 @@ export const useChatStore = defineStore('chat', () => {
           return
         }
 
-        isStreaming.value = true
         streamStates.value.set(sid, { abort: () => { controller.abort(); closed = true } })
         serverWorking.value.add(sid)
 
@@ -1270,13 +1269,9 @@ export const useChatStore = defineStore('chat', () => {
           if (pendingDelta || pendingReasoning) {
             _flushPendingDeltas(sid, {
               runProducedAssistantText,
-              set runProducedAssistantText(v: boolean) { runProducedAssistantText = v },
               runHadToolActivity,
-              set runHadToolActivity(v: boolean) { runHadToolActivity = v },
               pendingDelta,
-              set pendingDelta(v: string) { pendingDelta = v },
               pendingReasoning,
-              set pendingReasoning(v: string) { pendingReasoning = v },
             })
           }
           clearInFlight(sid)
@@ -1289,7 +1284,6 @@ export const useChatStore = defineStore('chat', () => {
       } finally {
         streamStates.value.delete(sid)
         serverWorking.value.delete(sid)
-        isStreaming.value = false
         _reconnectingSids.delete(sid)
       }
     }
