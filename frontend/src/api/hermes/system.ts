@@ -113,3 +113,22 @@ export interface ProviderPreset {
 export async function fetchProviderPresets(): Promise<ProviderPreset[]> {
   return request<ProviderPreset[]>('/api/hermes/config/provider-presets')
 }
+
+// Launchd auto-start service
+export interface ServiceStatus {
+  enabled: boolean
+  loaded: boolean
+  plist_path: string
+}
+
+export async function fetchServiceStatus(): Promise<ServiceStatus> {
+  return request<ServiceStatus>('/api/hermes/service')
+}
+
+export async function installService(): Promise<{ ok: boolean; error?: string }> {
+  return request<{ ok: boolean; error?: string }>('/api/hermes/service/install', { method: 'POST' })
+}
+
+export async function uninstallService(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/hermes/service/uninstall', { method: 'POST' })
+}

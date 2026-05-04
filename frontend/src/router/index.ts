@@ -80,6 +80,11 @@ const router = createRouter({
       name: 'hermes.files',
       component: () => import('@/views/hermes/FilesView.vue'),
     },
+    {
+      path: '/hermes/system-settings',
+      name: 'hermes.systemSettings',
+      component: () => import('@/views/hermes/SystemSettingsView.vue'),
+    },
   ],
 })
 

@@ -47,6 +47,9 @@ export default {
     saved: '已保存',
     saveFailed: '保存失败',
     deleteFailed: '删除失败',
+    done: '完成',
+    failed: '失败',
+    operationFailed: '操作失败',
     ok: '确定',
     copied: '已复制',
     copy: '复制',
@@ -82,6 +85,7 @@ export default {
     channels: '频道',
     gateways: '网关',
     terminal: '终端',
+    systemSettings: '设置',
     groupChat: '群聊',
     files: '文件',
     groupConversation: '会话',
@@ -855,5 +859,14 @@ export default {
     new_0_4_2_3: '恢复群聊系统（Socket.IO + SQLite 持久化）',
     new_0_4_2_4: 'Chat 页面新增固定会话和实时监控',
     new_0_4_2_5: '修复内置 Provider 检测和模型匹配问题',
+  },
+
+  systemSettings: {
+    title: '系统设置',
+    autoStart: '开机自启',
+    autoStartDesc: '登录后自动启动 WebUI 服务',
+    autoStartEnabled: '已开启开机自启',
+    autoStartDisabled: '已关闭开机自启',
+    autoStartFailed: '开启失败',
   },
 }

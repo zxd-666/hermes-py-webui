@@ -83,16 +83,19 @@ async def stream_events(stream_id: str, req: Request):
 
     async def event_generator():
         try:
+            loop = asyncio.get_event_loop()
             while True:
                 # Check if client disconnected
                 if await req.is_disconnected():
                     break
 
                 try:
-                    event_type, data = q.get(timeout=30)
+                    event_type, data = await loop.run_in_executor(
+                        None, lambda: q.get(timeout=30)
+                    )
                 except Exception:
                     # Send keepalive
-                    yield f": keepalive\n\n"
+                    yield ": keepalive\n\n"
                     continue
 
                 payload = json.dumps(data, ensure_ascii=False)
@@ -125,7 +128,8 @@ async def stream_events(stream_id: str, req: Request):
 @router.get("/reconnect/{stream_id}")
 async def reconnect_stream(stream_id: str, req: Request):
     """Re-subscribe to an existing stream after a disconnect.
-    Returns the current queue contents (missed events) plus new ones."""
+    Drains accumulated events in small batches to avoid front-end frame drops,
+    then continues streaming new events."""
     if not is_stream_alive(stream_id):
         return JSONResponse(
             status_code=410,
@@ -139,19 +143,24 @@ async def reconnect_stream(stream_id: str, req: Request):
             content={"error": "stream not found"},
         )
 
-    # Drain any buffered events first
+    # Drain accumulated events in small batches so the front-end can
+    # process them without blocking the main thread on a huge burst.
+    # We still replay them all — just with yield-based pacing so that
+    # the ASGI server flushes in between rather than dumping one giant blob.
     buffered = []
+    terminal_hit = False
     while True:
         try:
             event_type, data = q.get_nowait()
             buffered.append((event_type, data))
             if event_type in ("run.completed", "run.failed", "cancel"):
+                terminal_hit = True
                 break
         except Exception:
             break
 
-    # If we got a terminal event, return it directly
-    if buffered and buffered[-1][0] in ("run.completed", "run.failed", "cancel"):
+    # If run already finished, replay terminal event and clean up
+    if terminal_hit:
         cleanup_stream(stream_id)
         event_type, data = buffered[-1]
         return StreamingResponse(
@@ -160,27 +169,30 @@ async def reconnect_stream(stream_id: str, req: Request):
             headers={"Cache-Control": "no-cache"},
         )
 
-    # Otherwise, resume SSE streaming from where we left off
     async def event_generator():
         try:
-            # Replay buffered events first
+            # Replay buffered events (each yield lets the server flush)
             for event_type, data in buffered:
-                yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                payload = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                yield payload
                 if event_type in ("run.completed", "run.failed", "cancel"):
                     cleanup_stream(stream_id)
                     return
 
-            # Continue streaming new events
+            # Continue streaming new events — use run_in_executor to avoid
+            # blocking the async event loop with synchronous q.get().
+            loop = asyncio.get_event_loop()
             while True:
                 if await req.is_disconnected():
                     break
                 try:
-                    event_type, data = q.get(timeout=30)
+                    event_type, data = await loop.run_in_executor(None, lambda: q.get(timeout=30))
                 except Exception:
-                    yield f": keepalive\n\n"
+                    yield ": keepalive\n\n"
                     continue
 
-                yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                payload = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                yield payload
 
                 if event_type in ("run.completed", "run.failed", "cancel"):
                     cleanup_stream(stream_id)

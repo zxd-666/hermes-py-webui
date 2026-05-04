@@ -49,6 +49,9 @@ export default {
     create: 'Create',
     saveFailed: 'Save failed',
     deleteFailed: 'Delete failed',
+    done: 'Done',
+    failed: 'Failed',
+    operationFailed: 'Operation failed',
     ok: 'OK',
     copied: 'Copied',
     copy: 'Copy',
@@ -82,6 +85,7 @@ export default {
     channels: 'Channels',
     gateways: 'Gateways',
     terminal: 'Terminal',
+    systemSettings: 'Settings',
     groupChat: 'Group Chat',
     files: 'Files',
     groupConversation: 'Conversation',
@@ -853,5 +857,14 @@ export default {
     new_0_4_2_3: 'Restore group chat system with Socket.IO and SQLite persistence',
     new_0_4_2_4: 'Add pinned sessions and live monitor in Chat page',
     new_0_4_2_5: 'Fix builtin provider detection and model matching',
+  },
+
+  systemSettings: {
+    title: 'System Settings',
+    autoStart: 'Auto Start',
+    autoStartDesc: 'Automatically start WebUI on login',
+    autoStartEnabled: 'Auto start enabled',
+    autoStartDisabled: 'Auto start disabled',
+    autoStartFailed: 'Failed to enable auto start',
   },
 }

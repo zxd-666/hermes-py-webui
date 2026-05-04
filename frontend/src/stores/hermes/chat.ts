@@ -1148,9 +1148,16 @@ export const useChatStore = defineStore('chat', () => {
    * Tries to reconnect to the backend's SSE stream to receive remaining events.
    * Falls back to polling resumeSession if reconnect fails.
    */
+  // Track which sessions already have a reconnect in progress to prevent
+  // duplicate consumers (e.g. switchSession called multiple times).
+  const _reconnectingSids = new Set<string>()
+
   function resumeInFlightRun(sid: string) {
+    if (_reconnectingSids.has(sid)) return
     const rec = readInFlight(sid)
     if (!rec) return
+
+    _reconnectingSids.add(sid)
 
     const runId = rec.runId
     const profile = localStorage.getItem('hermes_active_profile_name') || 'default'
@@ -1194,6 +1201,8 @@ export const useChatStore = defineStore('chat', () => {
         let buffer = ''
         let runProducedAssistantText = false
         let runHadToolActivity = false
+        let pendingDelta = ''
+        let pendingReasoning = ''
 
         while (true) {
           const { done, value } = await reader.read()
@@ -1221,9 +1230,28 @@ export const useChatStore = defineStore('chat', () => {
                   set runProducedAssistantText(v: boolean) { runProducedAssistantText = v },
                   get runHadToolActivity() { return runHadToolActivity },
                   set runHadToolActivity(v: boolean) { runHadToolActivity = v },
+                  get pendingDelta() { return pendingDelta },
+                  set pendingDelta(v: string) { pendingDelta = v },
+                  get pendingReasoning() { return pendingReasoning },
+                  set pendingReasoning(v: string) { pendingReasoning = v },
                 })
 
                 if (currentEvent === 'run.completed' || currentEvent === 'run.failed') {
+                  // Flush any remaining accumulated deltas before terminal event
+                  const flushFlags = {
+                    get runProducedAssistantText() { return runProducedAssistantText },
+                    set runProducedAssistantText(v: boolean) { runProducedAssistantText = v },
+                    get runHadToolActivity() { return runHadToolActivity },
+                    set runHadToolActivity(v: boolean) { runHadToolActivity = v },
+                    get pendingDelta() { return pendingDelta },
+                    set pendingDelta(v: string) { pendingDelta = v },
+                    get pendingReasoning() { return pendingReasoning },
+                    set pendingReasoning(v: string) { pendingReasoning = v },
+                  }
+                  _flushPendingDeltas(sid, flushFlags)
+                  pendingDelta = flushFlags.pendingDelta
+                  pendingReasoning = flushFlags.pendingReasoning
+
                   closed = true
                   clearInFlight(sid)
                   return
@@ -1237,8 +1265,20 @@ export const useChatStore = defineStore('chat', () => {
           }
         }
 
-        // Stream ended without terminal event
+        // Stream ended without terminal event — flush remaining deltas
         if (!closed) {
+          if (pendingDelta || pendingReasoning) {
+            _flushPendingDeltas(sid, {
+              runProducedAssistantText,
+              set runProducedAssistantText(v: boolean) { runProducedAssistantText = v },
+              runHadToolActivity,
+              set runHadToolActivity(v: boolean) { runHadToolActivity = v },
+              pendingDelta,
+              set pendingDelta(v: string) { pendingDelta = v },
+              pendingReasoning,
+              set pendingReasoning(v: string) { pendingReasoning = v },
+            })
+          }
           clearInFlight(sid)
           void refreshActiveSession()
         }
@@ -1250,57 +1290,89 @@ export const useChatStore = defineStore('chat', () => {
         streamStates.value.delete(sid)
         serverWorking.value.delete(sid)
         isStreaming.value = false
+        _reconnectingSids.delete(sid)
       }
     }
 
     tryReconnect()
   }
 
-  /** Minimal event handler for reconnected streams — mirrors sendMessage's switch/case */
+  /** Flush accumulated delta text into the message list as a single update.
+   *  This avoids hundreds of reactive mutations when replaying buffered events. */
+  function _flushPendingDeltas(
+    sid: string,
+    flags: { runProducedAssistantText: boolean; runHadToolActivity: boolean; pendingDelta: string; pendingReasoning: string },
+  ) {
+    const delta = flags.pendingDelta
+    const reasoning = flags.pendingReasoning
+    if (!delta && !reasoning) return
+
+    const msgs = getSessionMsgs(sid)
+    const last = msgs[msgs.length - 1]
+
+    if (reasoning) {
+      // Reasoning goes to the last assistant message (or creates one)
+      if (last?.role === 'assistant' && last.isStreaming) {
+        last.reasoning = (last.reasoning || '') + reasoning
+      } else {
+        addMessage(sid, {
+          id: uid(),
+          role: 'assistant',
+          content: delta || '',
+          timestamp: Date.now(),
+          isStreaming: true,
+          reasoning,
+        })
+      }
+      flags.pendingReasoning = ''
+    }
+
+    if (delta) {
+      // If we just created a message for reasoning, append to it
+      const updatedMsgs = getSessionMsgs(sid)
+      const updatedLast = updatedMsgs[updatedMsgs.length - 1]
+      if (updatedLast?.role === 'assistant' && updatedLast.isStreaming) {
+        updatedLast.content = updatedLast.content + delta
+      } else {
+        addMessage(sid, {
+          id: uid(),
+          role: 'assistant',
+          content: delta,
+          timestamp: Date.now(),
+          isStreaming: true,
+        })
+      }
+      flags.pendingDelta = ''
+    }
+  }
+
+  /** Minimal event handler for reconnected streams — mirrors sendMessage's switch/case.
+   *  Accumulates consecutive delta events and flushes once on non-delta, so a burst
+   *  of buffered events doesn't trigger hundreds of reactive updates. */
   function handleResumedEvent(
     sid: string,
     event: string,
     evt: any,
-    flags: { runProducedAssistantText: boolean; runHadToolActivity: boolean },
+    flags: { runProducedAssistantText: boolean; runHadToolActivity: boolean; pendingDelta: string; pendingReasoning: string },
   ) {
+    // Accumulate deltas — flush on any non-delta event or when we leave the function
+    if (event === 'message.delta') {
+      if (evt.delta) {
+        flags.pendingDelta += evt.delta
+        flags.runProducedAssistantText = true
+      }
+      return
+    }
+    if (event === 'reasoning.delta' || event === 'thinking.delta') {
+      const text = evt.text || evt.delta || ''
+      if (text) flags.pendingReasoning += text
+      return
+    }
+
+    // Non-delta event: flush accumulated deltas first
+    _flushPendingDeltas(sid, flags)
+
     switch (event) {
-      case 'message.delta': {
-        if (evt.delta) flags.runProducedAssistantText = true
-        const msgs = getSessionMsgs(sid)
-        const last = msgs[msgs.length - 1]
-        if (last?.role === 'assistant' && last.isStreaming) {
-          last.content = last.content + (evt.delta || '')
-        } else {
-          addMessage(sid, {
-            id: uid(),
-            role: 'assistant',
-            content: evt.delta || '',
-            timestamp: Date.now(),
-            isStreaming: true,
-          })
-        }
-        break
-      }
-      case 'reasoning.delta':
-      case 'thinking.delta': {
-        const text = evt.text || evt.delta || ''
-        if (!text) break
-        const msgs = getSessionMsgs(sid)
-        const last = msgs[msgs.length - 1]
-        if (last?.role === 'assistant' && last.isStreaming) {
-          last.reasoning = (last.reasoning || '') + text
-        } else {
-          addMessage(sid, {
-            id: uid(),
-            role: 'assistant',
-            content: '',
-            timestamp: Date.now(),
-            isStreaming: true,
-            reasoning: text,
-          })
-        }
-        break
-      }
       case 'tool.started': {
         flags.runHadToolActivity = true
         const msgs = getSessionMsgs(sid)

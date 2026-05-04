@@ -660,7 +660,7 @@ async def get_provider_presets():
 @router.get("/download")
 async def download_file(path: str, name: str = ""):
     """Download a file from the filesystem."""
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, JSONResponse
     from pathlib import Path as P
     target = P(path).expanduser()
     if not target.is_file():
