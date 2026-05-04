@@ -55,6 +55,39 @@
 </tr>
 </table>
 
+## 📱 移动端访问
+
+响应式设计，开箱即用 — 在任何移动浏览器中访问完整的 Hermes 工作区，无需安装 App。
+
+<table>
+<tr>
+<td><img src="docs/images/mobile/登录.jpg" width="240"></td>
+<td><img src="docs/images/mobile/页面导航.jpg" width="240"></td>
+<td><img src="docs/images/mobile/会话.jpg" width="240"></td>
+</tr>
+<tr>
+<td align="center">🔐 登录</td>
+<td align="center">🧭 导航</td>
+<td align="center">💬 会话</td>
+</tr>
+<tr>
+<td><img src="docs/images/mobile/模型.jpg" width="240"></td>
+<td><img src="docs/images/mobile/定时任务.jpg" width="240"></td>
+<td><img src="docs/images/mobile/统计.jpg" width="240"></td>
+</tr>
+<tr>
+<td align="center">🤖 模型</td>
+<td align="center">🕐 定时任务</td>
+<td align="center">📊 统计</td>
+</tr>
+<tr>
+<td colspan="3" align="center"><img src="docs/images/mobile/设置.jpg" width="360"></td>
+</tr>
+<tr>
+<td colspan="3" align="center">⚙️ 设置</td>
+</tr>
+</table>
+
 ## 功能概览
 
 Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
@@ -98,6 +131,15 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 - Profile 卡片展示关键配置概览
 
 ### ⚙️ 设置
+
+**系统级控制：**
+
+- **🔐 访问密码** — 为 Hermes 实例启用登录页，防止未授权访问
+- **🚀 开机自启** — 系统启动时自动运行 WebUI（macOS launchd / systemd）
+- **🏠 内网访问** — 允许同一局域网内的设备通过 IP 地址访问
+- **🌍 远程访问** — 内置 Tailscale 配置教程，无需端口转发即可安全地从任何网络访问
+
+**应用级设置：**
 
 - **账号设置**：WebUI 登录密码、会话过期时间
 - **平台配置**：飞书、Telegram、Discord 等连接平台的管理，微信扫码登录

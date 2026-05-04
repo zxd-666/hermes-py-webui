@@ -55,6 +55,39 @@ In short: this project trades the Gateway's decoupling for **direct access to AI
 </tr>
 </table>
 
+## 📱 Mobile Access
+
+Responsive design out of the box — access your full Hermes workspace from any mobile browser. No app install required.
+
+<table>
+<tr>
+<td><img src="docs/images/mobile/登录.jpg" width="240"></td>
+<td><img src="docs/images/mobile/页面导航.jpg" width="240"></td>
+<td><img src="docs/images/mobile/会话.jpg" width="240"></td>
+</tr>
+<tr>
+<td align="center">🔐 Login</td>
+<td align="center">🧭 Navigation</td>
+<td align="center">💬 Chat</td>
+</tr>
+<tr>
+<td><img src="docs/images/mobile/模型.jpg" width="240"></td>
+<td><img src="docs/images/mobile/定时任务.jpg" width="240"></td>
+<td><img src="docs/images/mobile/统计.jpg" width="240"></td>
+</tr>
+<tr>
+<td align="center">🤖 Models</td>
+<td align="center">🕐 Cron Jobs</td>
+<td align="center">📊 Stats</td>
+</tr>
+<tr>
+<td colspan="3" align="center"><img src="docs/images/mobile/设置.jpg" width="360"></td>
+</tr>
+<tr>
+<td colspan="3" align="center">⚙️ Settings</td>
+</tr>
+</table>
+
 ## Features
 
 The complete web management interface for Hermes Agent, running on `localhost:9898`:
@@ -98,6 +131,15 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 - Profile cards with key configuration overview
 
 ### ⚙️ Settings
+
+**System-level controls:**
+
+- **🔐 Access Password** — Protect your Hermes instance with a login screen. Prevents unauthorized access from any network
+- **🚀 Auto Start** — Automatically launch Hermes WebUI on system boot (macOS launchd / systemd)
+- **🏠 LAN Access** — Allow devices on the same local network to access via IP address
+- **🌍 Remote Access** — Built-in Tailscale setup guide — access Hermes from anywhere securely without port forwarding
+
+**App-level settings:**
 
 - **Account**: WebUI login password, session expiry
 - **Platforms**: Connected platform management (Feishu, Telegram, Discord, etc.), WeChat QR login
