@@ -132,3 +132,15 @@ export async function installService(): Promise<{ ok: boolean; error?: string }>
 export async function uninstallService(): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>('/api/hermes/service/uninstall', { method: 'POST' })
 }
+
+// LAN access
+export async function fetchLanAccess(): Promise<{ lan_access: boolean }> {
+  return request<{ lan_access: boolean }>('/api/hermes/lan-access')
+}
+
+export async function setLanAccess(lan_access: boolean): Promise<{ ok: boolean; lan_access: boolean; requires_restart?: boolean }> {
+  return request<{ ok: boolean; lan_access: boolean; requires_restart?: boolean }>('/api/hermes/lan-access', {
+    method: 'PUT',
+    body: JSON.stringify({ lan_access }),
+  })
+}

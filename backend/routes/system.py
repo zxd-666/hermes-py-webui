@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from fastapi import APIRouter
 
+from backend.config import get_lan_access
+
 router = APIRouter(tags=["system"])
 
 LAUNCHD_LABEL = "com.hermes.py-webui"
@@ -28,11 +30,12 @@ def _generate_plist() -> dict:
         python_bin = Path(sys.executable)
     log_dir = Path.home() / ".hermes" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+    host = "0.0.0.0" if get_lan_access() else "127.0.0.1"
     return {
         "Label": LAUNCHD_LABEL,
         "ProgramArguments": [
             str(python_bin), "-m", "uvicorn",
-            "backend.main:app", "--host", "0.0.0.0", "--port", "9898",
+            "backend.main:app", "--host", host, "--port", "9898",
         ],
         "WorkingDirectory": str(root),
         "RunAtLoad": True,
@@ -102,6 +105,24 @@ async def service_uninstall():
 @router.get("/health")
 async def health():
     return {"status": "ok", "service": "hermes-py-webui"}
+
+
+@router.get("/api/hermes/lan-access")
+async def get_lan_access_api():
+    """Return current LAN access setting."""
+    from backend.config import get_lan_access
+    return {"lan_access": get_lan_access()}
+
+
+@router.put("/api/hermes/lan-access")
+async def set_lan_access_api(body: dict):
+    """Set LAN access. Requires service restart to take effect."""
+    from backend.config import set_lan_access
+    enabled = bool(body.get("lan_access", False))
+    ok = set_lan_access(enabled)
+    if not ok:
+        return {"ok": False, "error": "Failed to save setting"}
+    return {"ok": True, "lan_access": enabled, "requires_restart": True}
 
 
 @router.get("/api/hermes/status")

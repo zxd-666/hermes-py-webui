@@ -27,7 +27,49 @@ STATE_DB = HERMES_HOME / "state.db"
 AGENT_DIR = HERMES_HOME / "hermes-agent"
 
 PORT = int(os.environ.get("HERMES_PY_WEBUI_PORT", "9898"))
-HOST = os.environ.get("HERMES_PY_WEBUI_HOST", "127.0.0.1")
+
+# WebUI settings file (persisted user preferences)
+_SETTINGS_FILE = HERMES_ROOT / "webui_settings.json"
+
+
+def _load_settings() -> dict:
+    """Load webui_settings.json, returning defaults for missing keys."""
+    try:
+        import json
+        if _SETTINGS_FILE.exists():
+            with open(_SETTINGS_FILE) as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+
+def get_lan_access() -> bool:
+    """Whether the server binds to 0.0.0.0 (LAN) or 127.0.0.1 (localhost only)."""
+    settings = _load_settings()
+    return bool(settings.get("lan_access", False))
+
+
+def set_lan_access(enabled: bool) -> bool:
+    """Persist lan_access setting. Returns True on success."""
+    import json
+    try:
+        settings = _load_settings()
+        settings["lan_access"] = enabled
+        _SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_SETTINGS_FILE, "w") as f:
+            json.dump(settings, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+# Determine HOST at import time: env var > settings file > default 127.0.0.1
+_env_host = os.environ.get("HERMES_PY_WEBUI_HOST", "").strip()
+if _env_host:
+    HOST = _env_host
+else:
+    HOST = "0.0.0.0" if get_lan_access() else "127.0.0.1"
 
 DEFAULT_WORKSPACE = Path.home()
 

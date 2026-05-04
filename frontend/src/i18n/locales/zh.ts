@@ -868,5 +868,9 @@ export default {
     autoStartEnabled: '已开启开机自启',
     autoStartDisabled: '已关闭开机自启',
     autoStartFailed: '开启失败',
+    lanAccess: '内网访问',
+    lanAccessDesc: '允许同一局域网内的设备通过 IP 地址访问',
+    lanAccessEnabled: '已开启内网访问，重启服务后生效',
+    lanAccessDisabled: '已关闭内网访问，重启服务后生效',
   },
 }

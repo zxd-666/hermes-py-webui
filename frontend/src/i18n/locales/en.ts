@@ -866,5 +866,9 @@ export default {
     autoStartEnabled: 'Auto start enabled',
     autoStartDisabled: 'Auto start disabled',
     autoStartFailed: 'Failed to enable auto start',
+    lanAccess: 'LAN Access',
+    lanAccessDesc: 'Allow devices on the same network to access via IP address',
+    lanAccessEnabled: 'LAN access enabled, restart to take effect',
+    lanAccessDisabled: 'LAN access disabled, restart to take effect',
   },
 }
