@@ -21,6 +21,7 @@ const restarting = ref(false)
 const showLanConfirm = ref(false)
 const showPasswordSetup = ref(false)
 const showPasswordDisable = ref(false)
+const showPublicAccess = ref(false)
 const localIp = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -204,6 +205,15 @@ onMounted(loadStatus)
           @update:value="handleLanAccessToggle"
         />
       </div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <span class="setting-label">{{ t('systemSettings.publicAccess') }}</span>
+          <span class="setting-desc">{{ t('systemSettings.publicAccessDesc') }}</span>
+        </div>
+        <button class="btn-tutorial" @click="showPublicAccess = true">
+          {{ t('systemSettings.tutorial') }}
+        </button>
+      </div>
     </div>
     </div>
 
@@ -284,6 +294,43 @@ onMounted(loadStatus)
         <button class="btn btn-confirm btn-danger" @click="doDisablePassword">
           {{ t('common.confirm') || '确认' }}
         </button>
+      </template>
+    </NModal>
+
+    <!-- Tailscale tutorial modal -->
+    <NModal v-model:show="showPublicAccess" preset="card" :title="t('systemSettings.publicAccess')" class="tutorial-modal" :style="{ width: '560px' }">
+      <div class="tutorial-body">
+        <div class="tutorial-section">
+          <h4 class="tutorial-step">{{ t('systemSettings.tailscaleWhat') }}</h4>
+          <p class="tutorial-text">{{ t('systemSettings.tailscaleWhatDesc') }}</p>
+        </div>
+        <div class="tutorial-section">
+          <h4 class="tutorial-step">{{ t('systemSettings.tailscaleStep1Title') }}</h4>
+          <p class="tutorial-text">{{ t('systemSettings.tailscaleStep1Desc') }}</p>
+          <div class="tutorial-code">https://tailscale.com/download</div>
+        </div>
+        <div class="tutorial-section">
+          <h4 class="tutorial-step">{{ t('systemSettings.tailscaleStep2Title') }}</h4>
+          <p class="tutorial-text" v-html="t('systemSettings.tailscaleStep2Desc')" />
+        </div>
+        <div class="tutorial-section">
+          <h4 class="tutorial-step">{{ t('systemSettings.tailscaleStep3Title') }}</h4>
+          <p class="tutorial-text" v-html="t('systemSettings.tailscaleStep3Desc')" />
+        </div>
+        <div class="tutorial-section">
+          <h4 class="tutorial-step">{{ t('systemSettings.tailscaleStep4Title') }}</h4>
+          <p class="tutorial-text" v-html="t('systemSettings.tailscaleStep4Desc')" />
+        </div>
+      </div>
+      <template #footer>
+        <div class="tutorial-footer">
+          <a href="https://tailscale.com/kb/1107/install" target="_blank" class="tutorial-link">
+            {{ t('systemSettings.tailscaleLearnMore') }}
+          </a>
+          <button class="btn btn-confirm" @click="showPublicAccess = false">
+            {{ t('common.confirm') || '确认' }}
+          </button>
+        </div>
       </template>
     </NModal>
   </div>
@@ -473,6 +520,83 @@ onMounted(loadStatus)
     &:hover {
       background: #f27274;
     }
+  }
+}
+
+.btn-tutorial {
+  font-size: 13px;
+  color: $accent-primary;
+  background: transparent;
+  border: 1px solid $accent-primary;
+  border-radius: $radius-sm;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+
+  &:hover {
+    background: $accent-primary;
+    color: #fff;
+  }
+}
+
+.tutorial-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tutorial-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorial-step {
+  font-size: 13px;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0;
+}
+
+.tutorial-text {
+  font-size: 13px;
+  color: $text-secondary;
+  line-height: 1.6;
+  margin: 0;
+
+  code {
+    background: $bg-secondary;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+}
+
+.tutorial-code {
+  background: $bg-secondary;
+  padding: 8px 12px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+  font-family: 'SF Mono', Menlo, monospace;
+  color: $accent-primary;
+  word-break: break-all;
+}
+
+.tutorial-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tutorial-link {
+  font-size: 13px;
+  color: $accent-primary;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 </style>
