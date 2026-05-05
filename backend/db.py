@@ -19,104 +19,173 @@ def _conn(profile: str | None = None) -> sqlite3.Connection:
 
 def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0,
                   profile: str | None = None) -> list[dict]:
-    """Return sessions ordered by last message time DESC.
-    Hides ancestor sessions (sessions referenced as parent_session_id by others).
-    Adds lineage_count and lineage_message_count for chain depth."""
+    """Return session trees ordered by last message time DESC.
+
+    Tree grouping: sessions connected by parent_session_id form a tree.
+    Each tree produces ONE list entry — the newest session (by started_at)
+    is the entry point; all other sessions in the tree appear in ``children``
+    sorted by started_at DESC.  No session is ever hidden.
+    """
     conn = _conn(profile)
     try:
-        # Find all ancestor session IDs (referenced as parent_session_id)
-        ancestor_rows = conn.execute(
-            "SELECT DISTINCT parent_session_id FROM sessions WHERE parent_session_id IS NOT NULL"
-        ).fetchall()
-        ancestor_ids = {r[0] for r in ancestor_rows}
-
-        q = """
+        # ── 1. Load all sessions (one query) ────────────────────
+        all_rows = conn.execute("""
             SELECT s.*,
               (SELECT MAX(m.timestamp) FROM messages m WHERE m.session_id = s.id)
                 AS last_message_ts
             FROM sessions s
-        """
-        params: list = []
-        conditions: list[str] = []
-        if source:
-            conditions.append("s.source = ?")
-            params.append(source)
-        # Exclude ancestor sessions
-        if ancestor_ids:
-            placeholders = ",".join("?" * len(ancestor_ids))
-            conditions.append(f"s.id NOT IN ({placeholders})")
-            params.extend(ancestor_ids)
-        if conditions:
-            q += " WHERE " + " AND ".join(conditions)
-        q += " ORDER BY last_message_ts DESC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
-        rows = conn.execute(q, params).fetchall()
-        results = [_row_to_dict(r) for r in rows]
+        """).fetchall()
 
-        # For each result, walk parent chain to build ancestor list.
-        # Skip ancestor sessions that have no messages (deleted/orphaned shells).
-        all_ancestor_ids: set[str] = set()
-        raw_ancestors: dict[str, list[dict]] = {}
-        for s in results:
-            count = 1
-            ancestors = []
-            current_pid = s.get("parent_session_id")
-            while current_pid:
-                parent_row = conn.execute(
-                    "SELECT id, title, message_count, started_at, ended_at, parent_session_id FROM sessions WHERE id = ?",
-                    (current_pid,),
-                ).fetchone()
-                if not parent_row:
-                    break
-                d = dict(parent_row)
-                parent_mc = d.get("message_count") or 0
-                if parent_mc == 0:
-                    current_pid = d.get("parent_session_id")
+        all_sessions: dict[str, dict] = {}
+        for r in all_rows:
+            all_sessions[r["id"]] = dict(r)
+
+        all_ids = set(all_sessions.keys())
+
+        # ── 2. Find root for every session (iterative walk-up) ──
+        def _find_root(sid: str) -> str:
+            visited: set[str] = set()
+            cur = sid
+            while cur and cur not in visited and cur in all_ids:
+                visited.add(cur)
+                pid = all_sessions[cur].get("parent_session_id")
+                if pid is None or pid not in all_ids:
+                    return cur
+                cur = pid
+            return cur
+
+        # ── 3. Group sessions by root → tree ────────────────────
+        trees: dict[str, set[str]] = {}
+        for sid in all_ids:
+            root = _find_root(sid)
+            trees.setdefault(root, set()).add(sid)
+
+        # ── 4. Build entries: each tree → (newest, children) ───
+        tree_entries: list[tuple[dict, list[dict]]] = []
+
+        for _root_id, member_ids in trees.items():
+            members = [all_sessions[sid] for sid in member_ids if sid in all_sessions]
+
+            # Source filter: include tree if ANY member matches
+            if source:
+                if not any(m.get("source") == source for m in members):
                     continue
-                all_ancestor_ids.add(d["id"])
-                ancestors.append({
-                    "id": d["id"],
-                    "title": d.get("title") or "",
-                    "message_count": parent_mc,  # placeholder, overwritten below
-                    "started_at": d.get("started_at"),
-                    "ended_at": d.get("ended_at"),
-                })
-                count += 1
-                current_pid = d.get("parent_session_id")
-            raw_ancestors[s["id"]] = ancestors
-            s["lineage_count"] = count
 
-        # Batch-query real message counts for all ancestor IDs.
-        count_map: dict[str, int] = {}
-        if all_ancestor_ids:
-            id_list = list(all_ancestor_ids)
+            # Sort by started_at DESC — newest first
+            members.sort(key=lambda m: m.get("started_at") or 0, reverse=True)
+
+            entry = _row_to_dict_like(members[0])
+            children_raw = members[1:]
+
+            # Tree-level last activity = max across all members
+            tree_last_ts = max((m.get("last_message_ts") or 0) for m in members)
+            entry["_tree_last_ts"] = tree_last_ts
+
+            children: list[dict] = []
+            for c in children_raw:
+                children.append({
+                    "id": c["id"],
+                    "title": c.get("title") or "",
+                    "message_count": c.get("message_count") or 0,
+                    "started_at": c.get("started_at"),
+                    "ended_at": c.get("ended_at"),
+                    "source": c.get("source"),
+                })
+            entry["children"] = children
+            entry["lineage_count"] = 1 + len(children)
+            entry["lineage_message_count"] = None
+            tree_entries.append((entry, children))
+
+        # ── 5. Sort trees by last activity DESC ─────────────────
+        tree_entries.sort(
+            key=lambda x: x[0].pop("_tree_last_ts", 0) or 0,
+            reverse=True,
+        )
+
+        # ── 6. Paginate ────────────────────────────────────────
+        paginated = tree_entries[offset:offset + limit]
+        results = [entry for entry, _children in paginated]
+
+        # ── 7. Batch fallback titles ────────────────────────────
+        fallback_ids: list[str] = []
+        for s in results:
+            if not s.get("title"):
+                fallback_ids.append(s["id"])
+            for c in s.get("children", []):
+                if not c.get("title"):
+                    fallback_ids.append(c["id"])
+
+        title_map: dict[str, str] = {}
+        if fallback_ids:
+            id_list = fallback_ids
             placeholders = ",".join("?" * len(id_list))
+            title_rows = conn.execute(
+                f"SELECT session_id, content FROM messages "
+                f"WHERE session_id IN ({placeholders}) "
+                f"AND role = 'user' AND content IS NOT NULL AND content != '' "
+                f"GROUP BY session_id HAVING MIN(id)",
+                id_list,
+            ).fetchall()
+            for r in title_rows:
+                sid = r["session_id"] if hasattr(r, "keys") else r[0]
+                content = r["content"] if hasattr(r, "keys") else r[1]
+                title_map[sid] = content[:100] if content else ""
+
+        for s in results:
+            if not s.get("title"):
+                s["title"] = title_map.get(s["id"], "")
+            for c in s.get("children", []):
+                if not c.get("title"):
+                    c["title"] = title_map.get(c["id"], "")
+
+        # ── 8. Batch real message counts for children ───────────
+        all_child_ids = []
+        for s in results:
+            all_child_ids.extend(c["id"] for c in s.get("children", []))
+
+        if all_child_ids:
+            placeholders = ",".join("?" * len(all_child_ids))
             count_rows = conn.execute(
                 f"SELECT session_id, COUNT(*) AS cnt FROM messages "
                 f"WHERE session_id IN ({placeholders}) "
                 f"AND role IN ('user', 'assistant') "
                 f"AND content IS NOT NULL AND content != '' "
                 f"GROUP BY session_id",
-                id_list,
+                all_child_ids,
             ).fetchall()
             count_map: dict[str, int] = {
                 r["session_id"] if hasattr(r, "keys") else r[0]:
                 r["cnt"] if hasattr(r, "keys") else r[1]
                 for r in count_rows
             }
-
-        # Fill in real counts and attach to results.
-        for s in results:
-            for a in raw_ancestors[s["id"]]:
-                a["message_count"] = count_map.get(a["id"], 0)
-            s["ancestors"] = raw_ancestors[s["id"]]
-            # lineage_message_count is loaded asynchronously via
-            # /api/sessions/:id/message-count to avoid blocking list queries.
-            s["lineage_message_count"] = None
+            child_id_set = set(all_child_ids)
+            for s in results:
+                for c in s.get("children", []):
+                    if c["id"] in child_id_set:
+                        c["message_count"] = count_map.get(c["id"], c.get("message_count", 0))
 
         return results
     finally:
         conn.close()
+
+
+def count_sessions_by_source(profile: str | None = None) -> dict[str, int]:
+    """Return raw session count per source from DB (no tree grouping)."""
+    conn = _conn(profile)
+    try:
+        rows = conn.execute(
+            "SELECT source, COUNT(*) AS cnt FROM sessions GROUP BY source"
+        ).fetchall()
+        return {r["source"] if r["source"] else "unknown": r["cnt"] for r in rows}
+    finally:
+        conn.close()
+
+
+def _row_to_dict_like(row: dict) -> dict:
+    """Convert a raw session dict (from dict(), not sqlite3.Row) to API-safe dict."""
+    d = dict(row)
+    d.pop("system_prompt", None)
+    return d
 
 
 def get_session(session_id: str, profile: str | None = None) -> Optional[dict]:

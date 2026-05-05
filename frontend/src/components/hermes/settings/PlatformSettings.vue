@@ -26,19 +26,23 @@ function isSaving(platform: string, field: string) {
 }
 
 // Debounced input save — fires 800ms after last keystroke or clear
-function debouncedSave(platform: string, field: string, saveFn: () => Promise<void>) {
+function debouncedSave(platform: string, field: string, saveFn: () => Promise<any>) {
   const key = savingKey(platform, field)
   clearTimeout(saveTimers[key])
   saveTimers[key] = setTimeout(() => immediateSave(platform, field, saveFn), 800)
 }
 
 // Immediate save for switches
-async function immediateSave(platform: string, field: string, saveFn: () => Promise<void>) {
+async function immediateSave(platform: string, field: string, saveFn: () => Promise<any>) {
   const key = savingKey(platform, field)
   saving[key] = true
   try {
-    await saveFn()
-    message.success(t('settings.saved'))
+    const res = await saveFn()
+    if (res?.needs_restart) {
+      message.warning(t('common.needsRestart'), { duration: 4000 })
+    } else {
+      message.success(t('settings.saved'))
+    }
   } catch (err: any) {
     message.error(t('settings.saveFailed'))
   } finally {
@@ -53,8 +57,9 @@ function saveChannel(platform: string, field: string, values: Record<string, any
 // Save credentials to .env (matching hermes gateway setup behavior)
 function saveCredentials(platform: string, field: string, values: Record<string, any>) {
   debouncedSave(platform, field, async () => {
-    await saveCredsApi(platform, values)
+    const res = await saveCredsApi(platform, values)
     await settingsStore.fetchSettings()
+    return res
   })
 }
 

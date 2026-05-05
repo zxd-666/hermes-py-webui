@@ -64,8 +64,8 @@ export async function fetchConfig(sections?: string[]): Promise<AppConfig> {
 export async function updateConfigSection(
   section: string,
   values: Record<string, any>,
-): Promise<void> {
-  await request('/api/hermes/config', {
+): Promise<{ ok?: boolean; needs_restart?: boolean }> {
+  return request<{ ok?: boolean; needs_restart?: boolean }>('/api/hermes/config', {
     method: 'PUT',
     body: JSON.stringify({ section, values }),
   })
@@ -74,8 +74,8 @@ export async function updateConfigSection(
 export async function saveCredentials(
   platform: string,
   values: Record<string, any>,
-): Promise<void> {
-  await request('/api/hermes/config/credentials', {
+): Promise<{ ok?: boolean; needs_restart?: boolean }> {
+  return request<{ ok?: boolean; needs_restart?: boolean }>('/api/hermes/config/credentials', {
     method: 'PUT',
     body: JSON.stringify({ platform, values }),
   })

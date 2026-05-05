@@ -20,6 +20,7 @@ export default {
     save: '保存',
     saved: '已保存',
     saveFailed: '保存失败',
+    needsRestart: '在网关页重启网关后即可生效！',
     deleteFailed: '删除失败',
     done: '完成',
     failed: '失败',
@@ -159,6 +160,7 @@ export default {
     thinkingChars: '{count} 字',
     copyBubble: '复制消息',
     copiedBubble: '已复制',
+    downloadBubble: '下载为 Markdown',
     copyFailed: '复制失败',
   },
 

@@ -43,7 +43,11 @@ async function handleRemove(item: any) {
 }
 
 function goToSession(item: any) {
-  chatStore.switchSession(item.session_id, item.message_id)
+  // Clear source filter and reload all sessions so the target is visible
+  chatStore.activeSourceFilter = null
+  chatStore.loadSessions().then(() => {
+    chatStore.switchSession(item.session_id, item.message_id)
+  })
   router.push({ name: 'hermes.chat' })
 }
 
@@ -73,21 +77,28 @@ function sanitizeFilename(name: string): string {
 }
 
 async function downloadMd(item: any) {
-  // Try to get the preceding user message as filename
   let filename = sanitizeFilename(item.session_title || 'Favorites')
+  let userContent = ''
   try {
-    const userContent = await fetchPrecedingUserMessage(item.message_id, item.session_id)
-    if (userContent) {
-      filename = sanitizeFilename(userContent)
-    }
+    userContent = await fetchPrecedingUserMessage(item.message_id, item.session_id) || ''
+    if (userContent) filename = sanitizeFilename(userContent)
   } catch { /* fallback to session title */ }
 
   const lines = [
     `# ${item.session_title || 'Favorites'}`,
-    `> ${formatTime(item.favorited_at)} · ${item.role === 'assistant' ? 'AI' : 'User'}`,
     '',
-    item.content,
   ]
+  if (userContent) {
+    lines.push('## User')
+    lines.push('')
+    lines.push(userContent)
+    lines.push('')
+    lines.push('---')
+    lines.push('')
+  }
+  lines.push(`## ${item.role === 'assistant' ? 'AI' : 'User'}`)
+  lines.push('')
+  lines.push(item.content)
   const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

@@ -48,6 +48,7 @@ export default {
     update: '更新',
     create: '作成',
     saveFailed: '保存に失敗しました',
+    needsRestart: 'ゲートウェイを再起動して変更を適用してください。',
     deleteFailed: '削除に失敗しました',
     ok: 'OK',
     copied: 'コピーしました',

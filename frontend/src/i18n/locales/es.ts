@@ -48,6 +48,7 @@ export default {
     update: 'Actualizar',
     create: 'Crear',
     saveFailed: 'Error al guardar',
+    needsRestart: 'Reinicie la puerta de enlace para aplicar los cambios.',
     deleteFailed: 'Error al eliminar',
     ok: 'OK',
     copied: 'Copiado',

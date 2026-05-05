@@ -48,6 +48,7 @@ export default {
     update: 'Aktualisieren',
     create: 'Erstellen',
     saveFailed: 'Speichern fehlgeschlagen',
+    needsRestart: 'Starten Sie das Gateway neu, um die Änderungen zu übernehmen.',
     deleteFailed: 'Loschen fehlgeschlagen',
     ok: 'OK',
     copied: 'Kopiert',

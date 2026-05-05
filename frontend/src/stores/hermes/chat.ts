@@ -1,5 +1,5 @@
 import { startRun, streamRunEvents, resumeSession, type RunEvent } from '@/api/hermes/chat'
-import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, fetchSessionMessageCount, renameSession, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
+import { deleteSession as deleteSessionApi, fetchSession, fetchSessions, fetchSessionMessageCount, fetchSourceCounts, renameSession, type HermesMessage, type SessionSummary } from '@/api/hermes/sessions'
 import { getApiKey } from '@/api/client'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -59,12 +59,13 @@ export interface Session {
   parentSessionId?: string | null
   lineageCount?: number
   lineageMessageCount?: number
-  ancestors?: Array<{
+  children?: Array<{
     id: string
     title: string
     messageCount: number
     startedAt: number
     endedAt: number | null
+    source?: string
   }>
   loadedParentIds?: string[]
 }
@@ -193,12 +194,13 @@ function mapHermesSession(s: SessionSummary): Session {
     parentSessionId: s.parent_session_id || null,
     lineageCount: (s as any).lineage_count || 0,
     lineageMessageCount: (s as any).lineage_message_count ?? undefined,
-    ancestors: (s as any).ancestors?.map((a: any) => ({
-      id: a.id,
-      title: a.title || '',
-      messageCount: a.message_count || 0,
-      startedAt: Math.round((a.ended_at || a.started_at) * 1000),
-      endedAt: a.ended_at != null ? Math.round(a.ended_at * 1000) : null,
+    children: (s as any).children?.map((c: any) => ({
+      id: c.id,
+      title: c.title || '',
+      messageCount: c.message_count || 0,
+      startedAt: Math.round((c.started_at || 0) * 1000),
+      endedAt: c.ended_at != null ? Math.round(c.ended_at * 1000) : null,
+      source: c.source || undefined,
     })) || [],
   }
 }
@@ -346,7 +348,11 @@ export const useChatStore = defineStore('chat', () => {
   })
   const isLoadingSessions = ref(false)
   const sessionsLoaded = ref(false)
+  const allSessionsLoaded = ref(false)
   const isLoadingMessages = ref(false)
+  const sourceCounts = ref<Record<string, number>>({})
+  const activeSourceFilter = ref<string | null>(null)
+  const PAGE_SIZE = 50
   const isRunActive = computed(() => isStreaming.value)
 
   // Compression state
@@ -368,14 +374,9 @@ export const useChatStore = defineStore('chat', () => {
 
   // Visible sessions: hide child sessions that are part of a lineage chain
   // (their messages are shown under the parent/root session)
-  const visibleSessions = computed<Session[]>(() => {
-    const allIds = new Set(sessions.value.map(s => s.id))
-    return sessions.value.filter(s => {
-      // If this session has a parent that exists in the list, it's a child — hide it
-      if (s.parentSessionId && allIds.has(s.parentSessionId)) return false
-      return true
-    })
-  })
+  // Backend already returns tree-grouped entries (no parent/child overlap).
+  // Expose directly without client-side filtering.
+  const visibleSessions = computed<Session[]>(() => sessions.value)
 
   function isSessionLive(sessionId: string): boolean {
     return streamStates.value.has(sessionId) || serverWorking.value.has(sessionId)
@@ -412,25 +413,18 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function loadSessions() {
-    isLoadingSessions.value = true
-    try {
-      const list = await fetchSessions()
-      const fresh = list.map(mapHermesSession)
+  async function _loadSessionPage(source: string | undefined, offset: number, preserveState: boolean) {
+    const list = await fetchSessions(source, PAGE_SIZE, offset)
+    const fresh = list.map(mapHermesSession)
+    if (offset === 0) {
+      // Fresh load — preserve messages and local-only sessions
+      allSessionsLoaded.value = fresh.length < PAGE_SIZE
       const freshIds = new Set(fresh.map(s => s.id))
-      // Preserve already-loaded messages for sessions that are still present,
-      // so we don't blow away the active session's messages on refresh.
       const msgsByIdBefore = new Map(sessions.value.map(s => [s.id, s.messages]))
       for (const s of fresh) {
         const prev = msgsByIdBefore.get(s.id)
         if (prev && prev.length) s.messages = prev
       }
-      // Preserve local-only sessions the server hasn't seen yet — e.g. a chat
-      // that was just created and whose first run is still in-flight. Without
-      // this, refreshing mid-run would wipe the session and fall back to
-      // sessions[0], which is exactly what the user reported.
-      // Sessions without an active in-flight run are considered deleted and
-      // cleaned up along with their cached messages.
       const localOnly = sessions.value.filter(s => {
         if (freshIds.has(s.id)) return false
         if (readInFlight(s.id)) return true
@@ -438,19 +432,32 @@ export const useChatStore = defineStore('chat', () => {
         return false
       })
       sessions.value = [...localOnly, ...fresh]
-
-      // Restore last active session, fallback to most recent.
-      // Also check if savedId is an ancestor (excluded from sessions list
-      // by the backend) — if so, keep it so switchSession can create a stub
-      // and expand the ancestor list in the sidebar.
+    } else {
+      // Append page
+      if (fresh.length === 0) {
+        allSessionsLoaded.value = true
+        return
+      }
+      sessions.value.push(...fresh)
+      if (fresh.length < PAGE_SIZE) allSessionsLoaded.value = true
+    }
+    // Load message counts for new sessions in background
+    if (fresh.length > 0) {
+      const newIds = new Set(fresh.map(s => s.id))
+      for (const id of newIds) {
+        fetchSessionMessageCount(id).then(res => {
+          const target = sessions.value.find(s => s.id === id)
+          if (target) target.lineageMessageCount = res.message_count
+        }).catch(() => {})
+      }
+    }
+    if (preserveState) {
       const savedId = activeSessionId.value
       let targetId: string | undefined
       if (savedId) {
         if (sessions.value.some(s => s.id === savedId)) {
           targetId = savedId
-        } else if (sessions.value.some(s => s.ancestors?.some(a => a.id === savedId))) {
-          // savedId is an ancestor — switchSession will create a stub and
-          // expand the correct ancestor list automatically.
+        } else if (sessions.value.some(s => s.children?.some(c => c.id === savedId))) {
           targetId = savedId
         }
       }
@@ -460,14 +467,47 @@ export const useChatStore = defineStore('chat', () => {
       if (targetId) {
         await switchSession(targetId)
       }
+    }
+  }
 
-      // Async: load lineageMessageCount for each session in background
-      loadMessageCounts()
+  async function loadSessions() {
+    isLoadingSessions.value = true
+    allSessionsLoaded.value = false
+    try {
+      const [_, counts] = await Promise.all([
+        _loadSessionPage(undefined, 0, true),
+        fetchSourceCounts().catch(() => ({})).then(c => { sourceCounts.value = c }),
+      ])
     } catch (err) {
       console.error('Failed to load sessions:', err)
     } finally {
       isLoadingSessions.value = false
       sessionsLoaded.value = true
+    }
+  }
+
+  async function loadSessionsBySource(source: string | null) {
+    activeSourceFilter.value = source
+    isLoadingSessions.value = true
+    allSessionsLoaded.value = false
+    try {
+      await _loadSessionPage(source ?? undefined, 0, false)
+    } catch (err) {
+      console.error('Failed to load sessions by source:', err)
+    } finally {
+      isLoadingSessions.value = false
+    }
+  }
+
+  async function loadMoreSessions() {
+    if (allSessionsLoaded.value || isLoadingSessions.value) return
+    isLoadingSessions.value = true
+    try {
+      await _loadSessionPage(activeSourceFilter.value ?? undefined, sessions.value.length, false)
+    } catch (err) {
+      console.error('Failed to load more sessions:', err)
+    } finally {
+      isLoadingSessions.value = false
     }
   }
 
@@ -517,7 +557,7 @@ export const useChatStore = defineStore('chat', () => {
     // so the sidebar can expand the ancestor list and highlight it
     if (!activeSession.value) {
       const ownerSession = sessions.value.find(
-        s => s.ancestors?.some(a => a.id === sessionId)
+        s => s.children?.some(c => c.id === sessionId)
       )
       expandAncestorsForId.value = ownerSession?.id || null
     } else {
@@ -537,13 +577,14 @@ export const useChatStore = defineStore('chat', () => {
       if (!activeSession.value) {
         // Find the child session that references this ancestor
         const parentChild = sessions.value.find(
-          s => s.ancestors?.some(a => a.id === sessionId)
+          s => s.children?.some(c => c.id === sessionId)
         ) || sessions.value.find(
           s => s.id === data.parentSessionId
         )
+        const ancestorMeta = parentChild?.children?.find(c => c.id === sessionId)
         const stub: Session = {
           id: sessionId,
-          title: '',
+          title: ancestorMeta?.title || '',
           messages: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -1644,6 +1685,9 @@ export const useChatStore = defineStore('chat', () => {
     compressionState,
     isLoadingSessions,
     sessionsLoaded,
+    allSessionsLoaded,
+    sourceCounts,
+    activeSourceFilter,
     isLoadingMessages,
 
     newChat,
@@ -1657,6 +1701,8 @@ export const useChatStore = defineStore('chat', () => {
     sendMessage,
     stopStreaming,
     loadSessions,
+    loadSessionsBySource,
+    loadMoreSessions,
     refreshActiveSession,
     getThinkingObservation,
     noteThinkingDelta,

@@ -156,10 +156,11 @@ async def update_config(req: Request, body: dict):
         cfg[section] = {}
     cfg[section].update(values)
     _save_hermes_config(cfg, profile)
+    needs_restart = False
     if section in _GATEWAY_PLATFORM_SECTIONS:
         _ensure_allow_all_users(profile)
-        asyncio.create_task(_restart_gateway_if_running(profile))
-    return {"ok": True}
+        needs_restart = True
+    return {"ok": True, "needs_restart": needs_restart}
 
 
 @router.get("/config/models")
@@ -627,9 +628,7 @@ async def save_credentials(req: Request, body: dict):
     cfg["platforms"] = platforms
     _save_hermes_config(cfg, profile)
     _ensure_allow_all_users(profile)
-    if has_update:
-        asyncio.create_task(_restart_gateway_if_running(profile))
-    return {"ok": True}
+    return {"ok": True, "needs_restart": bool(has_update)}
 
 
 @router.get("/config/provider-presets")

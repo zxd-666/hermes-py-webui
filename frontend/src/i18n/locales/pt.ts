@@ -48,6 +48,7 @@ export default {
     update: 'Atualizar',
     create: 'Criar',
     saveFailed: 'Falha ao salvar',
+    needsRestart: 'Reinicie o gateway para aplicar as alterações.',
     deleteFailed: 'Falha ao excluir',
     ok: 'OK',
     copied: 'Copiado',

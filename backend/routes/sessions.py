@@ -10,7 +10,7 @@ from ..db import (
     list_sessions, get_session, get_session_messages,
     delete_session, rename_session, search_sessions,
     get_usage_stats, get_session_lineage, get_child_session_ids,
-    get_lineage_message_count,
+    get_lineage_message_count, count_sessions_by_source,
 )
 
 router = APIRouter(prefix="/api/hermes", tags=["sessions"])
@@ -143,14 +143,23 @@ async def sessions_usage(request: Request, ids: str = Query("")):
 
 # ─── Core session endpoints ───
 
+@router.get("/sessions/count-by-source")
+async def sessions_count_by_source(request: Request):
+    """Return raw session count per source (DB-level, no tree grouping)."""
+    profile = _get_profile(request)
+    counts = count_sessions_by_source(profile)
+    return counts
+
+
 @router.get("/sessions")
 async def sessions_list(
     request: Request,
     source: Optional[str] = Query(None),
     limit: int = Query(50),
+    offset: int = Query(0),
 ):
     profile = _get_profile(request)
-    sessions = list_sessions(source=source, limit=limit, profile=profile)
+    sessions = list_sessions(source=source, limit=limit, offset=offset, profile=profile)
     wmap = _load_workspace_map()
     for s in sessions:
         s["workspace"] = wmap.get(s["id"])

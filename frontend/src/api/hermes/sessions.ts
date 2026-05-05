@@ -24,12 +24,13 @@ export interface SessionSummary {
   parent_session_id?: string | null
   lineage_count?: number
   lineage_message_count?: number
-  ancestors?: Array<{
+  children?: Array<{
     id: string
     title: string
     message_count: number
     started_at: number
     ended_at: number | null
+    source?: string
   }>
 }
 
@@ -57,13 +58,18 @@ export interface HermesMessage {
   reasoning: string | null
 }
 
-export async function fetchSessions(source?: string, limit?: number): Promise<SessionSummary[]> {
+export async function fetchSessions(source?: string, limit?: number, offset?: number): Promise<SessionSummary[]> {
   const params = new URLSearchParams()
   if (source) params.set('source', source)
   if (limit) params.set('limit', String(limit))
+  if (offset) params.set('offset', String(offset))
   const query = params.toString()
   const res = await request<{ sessions: SessionSummary[] }>(`/api/hermes/sessions${query ? `?${query}` : ''}`)
   return res.sessions
+}
+
+export async function fetchSourceCounts(): Promise<Record<string, number>> {
+  return request<Record<string, number>>('/api/hermes/sessions/count-by-source')
 }
 
 export async function searchSessions(q: string, source?: string, limit?: number): Promise<SessionSearchResult[]> {

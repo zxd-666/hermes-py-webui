@@ -4,7 +4,9 @@ import { fetchWorkspaces } from '@/api/hermes/workspaces'
 import type { WorkspacePreset } from '@/api/hermes/workspaces'
 import { useChatStore, type Session } from '@/stores/hermes/chat'
 import { useAppStore } from '@/stores/hermes/app'
+import { useSettingsStore } from '@/stores/hermes/settings'
 import { useSessionBrowserPrefsStore } from '@/stores/hermes/session-browser-prefs'
+import { fetchSourceCounts } from '@/api/hermes/sessions'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NButton, NDropdown, NInput, NModal, NSelect, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
@@ -71,15 +73,31 @@ onUnmounted(() => {
   // Gracefully disconnect any active stream without cancelling the AI run
   const sid = chatStore.activeSessionId
   if (sid) chatStore.disconnectStream(sid)
+  sessionListRef.value?.removeEventListener('scroll', handleSessionListScroll)
 })
 const showRenameModal = ref(false)
 const renameValue = ref('')
 const renameSessionId = ref<string | null>(null)
+const sessionListRef = ref<HTMLElement | null>(null)
+
+function handleSessionListScroll() {
+  const el = sessionListRef.value
+  if (!el) return
+  // Trigger load when scrolled to within 100px of bottom
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+    chatStore.loadMoreSessions()
+  }
+}
+
+watch(sessionListRef, (el, oldEl) => {
+  oldEl?.removeEventListener('scroll', handleSessionListScroll)
+  if (el) el.addEventListener('scroll', handleSessionListScroll)
+})
+
 const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
 const isEditingTitle = ref(false)
 const editTitleValue = ref('')
 const editTitleRef = ref<HTMLInputElement | null>(null)
-const selectedSourceFilter = ref<string | null>(null)
 
 // Source sort order
 const SOURCE_ORDER = ['9898', 'webui', 'feishu', 'cli', 'cron']
@@ -93,33 +111,34 @@ function sortSessionsByTime(items: Session[]): Session[] {
   return [...items].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
 }
 
-// Source filter options (derived from actual sessions)
+// Source filter options (from backend DB counts)
 const sourceFilterOptions = computed(() => {
-  const sourceCounts = new Map<string, number>()
-  for (const s of chatStore.visibleSessions) {
-    const src = s.source || '9898'
-    sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1)
-  }
-  const sorted = [...sourceCounts.entries()].sort(([a], [b]) => sourceSortKey(a) - sourceSortKey(b) || a.localeCompare(b))
+  const counts = chatStore.sourceCounts
+  if (!counts || Object.keys(counts).length === 0) return []
+  const sorted = Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .sort(([a], [b]) => sourceSortKey(a) - sourceSortKey(b) || a.localeCompare(b))
   return sorted.map(([source, count]) => ({ label: `${getSourceLabel(source)} ${count}`, value: source }))
 })
+
+function handleSourceFilterChange(source: string | null) {
+  chatStore.loadSessionsBySource(source)
+}
 
 // Pinned sessions (always shown regardless of filter)
 const pinnedSessions = computed(() =>
   sortSessionsByTime(chatStore.visibleSessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
 )
 
-// Filtered sessions (flat list, filtered by source if selected)
-const filteredSessions = computed(() => {
-  const sessions = chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
-  if (!selectedSourceFilter.value) return sortSessionsByTime(sessions)
-  return sortSessionsByTime(sessions.filter(s => (s.source || '9898') === selectedSourceFilter.value))
-})
+// All non-pinned sessions (filtering is done server-side via activeSourceFilter)
+const filteredSessions = computed(() =>
+  sortSessionsByTime(chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))),
+)
 
-/** True if the session or one of its ancestors is the active session */
+/** True if the session or one of its children is the active session */
 function isSessionActive(s: Session): boolean {
   if (s.id === chatStore.activeSessionId) return true
-  return s.ancestors?.some(a => a.id === chatStore.activeSessionId) ?? false
+  return s.children?.some(c => c.id === chatStore.activeSessionId) ?? false
 }
 
 // Select the most recent session if none is active
@@ -436,7 +455,7 @@ function handleWorkspaceSelect(val: string) {
       <div class="session-list-header">
           <NSelect
             v-if="showSessions && sourceFilterOptions.length >= 1"
-            :value="selectedSourceFilter"
+            :value="chatStore.activeSourceFilter"
             :options="sourceFilterOptions"
             size="tiny"
             clearable
@@ -444,7 +463,7 @@ function handleWorkspaceSelect(val: string) {
             class="source-filter-select"
             :arrow="false"
             :consistent-menu-width="false"
-            @update:value="v => selectedSourceFilter = v"
+            @update:value="handleSourceFilterChange"
           />
         <div class="session-list-actions">
           <NButton quaternary size="tiny" @click="handleNewChat" circle>
@@ -459,7 +478,7 @@ function handleWorkspaceSelect(val: string) {
           </NButton>
         </div>
       </div>
-      <div v-if="showSessions" class="session-items">
+      <div v-if="showSessions" ref="sessionListRef" class="session-items">
         <div v-if="chatStore.isLoadingSessions && chatStore.visibleSessions.length === 0" class="session-loading">{{ t('common.loading') }}</div>
         <div v-else-if="chatStore.visibleSessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
 
@@ -477,8 +496,8 @@ function handleWorkspaceSelect(val: string) {
             :streaming="chatStore.isSessionLive(s.id)"
             @select="handleSessionClick(s.id)"
             @contextmenu="handleContextMenu($event, s.id)"
-            @select-ancestor="handleSessionClick"
-            @ancestor-contextmenu="(e, id) => handleContextMenu(e, id)"
+            @select-child="handleSessionClick"
+            @child-contextmenu="(e, id) => handleContextMenu(e, id)"
           />
         </template>
 
@@ -492,10 +511,11 @@ function handleWorkspaceSelect(val: string) {
             :streaming="chatStore.isSessionLive(s.id)"
             @select="handleSessionClick(s.id)"
             @contextmenu="handleContextMenu($event, s.id)"
-            @select-ancestor="handleSessionClick"
-            @ancestor-contextmenu="(e, id) => handleContextMenu(e, id)"
+            @select-child="handleSessionClick"
+            @child-contextmenu="(e, id) => handleContextMenu(e, id)"
           />
         </template>
+        <div v-if="chatStore.isLoadingSessions && chatStore.visibleSessions.length > 0" class="session-loading session-loading--more">...</div>
       </div>
     </aside>
 
@@ -789,6 +809,11 @@ function handleWorkspaceSelect(val: string) {
   font-size: 12px;
   color: $text-muted;
   text-align: center;
+}
+
+.session-loading--more {
+  padding: 8px 10px;
+  animation: spin 1.2s linear infinite;
 }
 
 :deep(.session-item) {

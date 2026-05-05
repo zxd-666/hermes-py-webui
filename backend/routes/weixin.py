@@ -208,11 +208,9 @@ async def poll_weixin_qr_status(qrcode: str = Query(...)):
             )
 
         # Persist credentials
-        from .config_route import _restart_gateway_if_running
         profile = session_data.get("profile")
         _save_account(account_id, token, resp_base_url, user_id, profile=profile)
         _update_config_platform(account_id, token, resp_base_url, profile=profile)
-        asyncio.create_task(_restart_gateway_if_running(profile))
 
         # Clean up session
         _qr_sessions.pop(qrcode, None)
@@ -271,8 +269,6 @@ async def save_weixin_credentials(req: Request, body: dict):
     base_url = body.get("base_url", ILINK_BASE_URL)
     user_id = body.get("user_id", "")
 
-    from .config_route import _restart_gateway_if_running
     _save_account(account_id, token, base_url, user_id, profile=profile)
     _update_config_platform(account_id, token, base_url, profile=profile)
-    asyncio.create_task(_restart_gateway_if_running(profile))
     return {"ok": True}

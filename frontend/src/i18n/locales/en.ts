@@ -23,6 +23,7 @@ export default {
     update: 'Update',
     create: 'Create',
     saveFailed: 'Save failed',
+    needsRestart: 'Restart the gateway to apply changes.',
     deleteFailed: 'Delete failed',
     done: 'Done',
     failed: 'Failed',
@@ -160,6 +161,7 @@ export default {
     thinkingChars: '{count} chars',
     copyBubble: 'Copy message',
     copiedBubble: 'Message copied',
+    downloadBubble: 'Download as Markdown',
     copyFailed: 'Copy failed',
   },
 

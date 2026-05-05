@@ -52,10 +52,10 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  async function saveSection(section: string, values: Record<string, any>) {
+  async function saveSection(section: string, values: Record<string, any>): Promise<{ needs_restart?: boolean }> {
     saving.value = true
     try {
-      await configApi.updateConfigSection(section, values)
+      const res = await configApi.updateConfigSection(section, values) as any
     switch (section) {
       case 'display': display.value = { ...display.value, ...values }; break
       case 'agent': agent.value = { ...agent.value, ...values }; break
@@ -82,6 +82,7 @@ export const useSettingsStore = defineStore('settings', () => {
         break
       }
     }
+    return { needs_restart: !!res?.needs_restart }
     } finally {
       saving.value = false
     }

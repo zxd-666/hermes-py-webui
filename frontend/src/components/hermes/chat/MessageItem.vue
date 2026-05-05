@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { useMessage, NPopover } from "naive-ui";
 import { downloadFile } from "@/api/hermes/download";
 import { copyToClipboard } from "@/utils/clipboard";
+import { fetchPrecedingUserMessage } from "@/api/hermes/favorites";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import { parseThinking, countThinkingChars } from "@/utils/thinking-parser";
 import { useChatStore } from "@/stores/hermes/chat";
@@ -92,6 +93,48 @@ async function copyBubbleContent() {
     return
   }
   toast.error(t('chat.copyFailed'))
+}
+
+// Download bubble content as markdown (same logic as FavoritesView)
+function sanitizeFilename(name: string): string {
+  return name.replace(/[\\/:*?"<>|\n\r]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'untitled'
+}
+
+async function downloadBubbleContent() {
+  const text = copyableContent.value
+  if (!text) return
+  let filename = sanitizeFilename(chatStore.activeSession?.title || 'Hermes')
+  let userContent = ''
+  try {
+    const sid = props.message.sessionId || chatStore.activeSessionId
+    if (sid) {
+      userContent = await fetchPrecedingUserMessage(props.message.id, sid) || ''
+      if (userContent) filename = sanitizeFilename(userContent)
+    }
+  } catch { /* fallback to session title */ }
+
+  const lines = [
+    `# ${chatStore.activeSession?.title || 'Hermes'}`,
+    '',
+  ]
+  if (userContent) {
+    lines.push('## User')
+    lines.push('')
+    lines.push(userContent)
+    lines.push('')
+    lines.push('---')
+    lines.push('')
+  }
+  lines.push('## AI')
+  lines.push('')
+  lines.push(text)
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${filename}.md`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const parsedThinking = computed(() =>
@@ -556,6 +599,29 @@ const renderedToolResult = computed(() => {
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
             </button>
+            <button
+              v-if="copyableContent && isAssistant && !message.isStreaming"
+              class="copy-bubble-btn"
+              @click="downloadBubbleContent"
+              :title="t('chat.downloadBubble')"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+            <button
+              v-if="isAssistant && !message.isStreaming"
+              class="copy-bubble-btn"
+              :class="{ 'fav-active': isFav }"
+              :title="favLabel"
+              @click="toggleFavorite"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" :fill="isFav ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </button>
             <span
               v-if="showCost && sessionCost && props.isLastAssistant && !message.isStreaming"
               class="message-cost"
@@ -872,6 +938,22 @@ const renderedToolResult = computed(() => {
       color: #cccccc;
       background: rgba(255, 255, 255, 0.08);
     }
+  }
+}
+
+.copy-bubble-btn.fav-active {
+  color: #f5a623;
+
+  .dark & {
+    color: #f5a623;
+
+    &:hover {
+      color: #ffc94d;
+    }
+  }
+
+  &:hover {
+    color: #ffc94d;
   }
 }
 

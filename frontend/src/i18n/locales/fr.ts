@@ -48,6 +48,7 @@ export default {
     update: 'Mettre a jour',
     create: 'Creer',
     saveFailed: 'Echec de l\'enregistrement',
+    needsRestart: 'Redémarrez la passerelle pour appliquer les modifications.',
     deleteFailed: 'Echec de la suppression',
     ok: 'OK',
     copied: 'Copie',

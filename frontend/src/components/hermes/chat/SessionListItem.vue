@@ -16,8 +16,8 @@ const chatStore = useChatStore()
 const emit = defineEmits<{
   select: []
   contextmenu: [event: MouseEvent]
-  selectAncestor: [ancestorId: string]
-  ancestorContextmenu: [event: MouseEvent, ancestorId: string]
+  selectChild: [childId: string]
+  childContextmenu: [event: MouseEvent, childId: string]
 }>()
 
 const ancestorsExpanded = ref(false)
@@ -25,7 +25,7 @@ const ancestorsExpanded = ref(false)
 const ancestorCount = computed(() => Math.max(0, (props.session.lineageCount || 1) - 1))
 const hasAncestors = computed(() => ancestorCount.value > 0)
 
-// Auto-expand ancestor list when requested (e.g. from favorites/search jump)
+// Auto-expand children list when requested (e.g. from favorites/search jump)
 watch(
   () => chatStore.expandAncestorsForId,
   (targetId) => {
@@ -64,7 +64,7 @@ watch(
             v-if="hasAncestors"
             class="ancestor-toggle"
             @click.stop="ancestorsExpanded = !ancestorsExpanded"
-            :title="ancestorsExpanded ? '收起' : `${ancestorCount} 段历史会话`"
+            :title="ancestorsExpanded ? '收起' : `${ancestorCount} 段关联会话`"
           >
             <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="ancestor-chevron" :class="{ rotated: ancestorsExpanded }">
               <polyline points="9 18 15 12 9 6" />
@@ -78,18 +78,18 @@ watch(
       </span>
     </div>
   </button>
-  <!-- Ancestors (historical segments) -->
+  <!-- Children (related sessions in the same tree) -->
   <div v-if="hasAncestors && ancestorsExpanded" class="ancestor-list">
     <div
-      v-for="a in (session.ancestors || [])"
-      :key="a.id"
+      v-for="c in (session.children || [])"
+      :key="c.id"
       class="ancestor-item"
-      :class="{ active: chatStore.activeSessionId === a.id }"
-      @click.stop="emit('selectAncestor', a.id)"
-      @contextmenu.stop="emit('ancestorContextmenu', $event, a.id)"
+      :class="{ active: chatStore.activeSessionId === c.id }"
+      @click.stop="emit('selectChild', c.id)"
+      @contextmenu.stop="emit('childContextmenu', $event, c.id)"
     >
-      <span class="ancestor-title">{{ a.title || 'Untitled' }}</span>
-      <span class="ancestor-meta">{{ a.messageCount }}条{{ session.source ? ` · ${getSourceLabel(session.source)}` : '' }} · {{ formatTimestampMs(a.endedAt || a.startedAt) }}</span>
+      <span class="ancestor-title">{{ c.title || 'Untitled' }}</span>
+      <span class="ancestor-meta">{{ c.messageCount }}条{{ c.source ? ` · ${getSourceLabel(c.source)}` : '' }} · {{ formatTimestampMs(c.endedAt || c.startedAt) }}</span>
     </div>
   </div>
 </template>

@@ -48,6 +48,7 @@ export default {
     update: '업데이트',
     create: '생성',
     saveFailed: '저장 실패',
+    needsRestart: '게이트웨이를 재시작해야 변경사항이 적용됩니다.',
     deleteFailed: '삭제 실패',
     ok: '확인',
     copied: '복사됨',
