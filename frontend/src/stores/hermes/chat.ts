@@ -683,6 +683,54 @@ export const useChatStore = defineStore('chat', () => {
     return s?.messages || []
   }
 
+  /**
+   * Export a session's user & assistant messages as an xlsx file.
+   * If messages aren't loaded locally, fetches from API first.
+   * Only includes role=user and role=assistant, sorted by timestamp asc.
+   */
+  async function exportSessionMessages(sessionId: string) {
+    let msgs = getSessionMsgs(sessionId)
+
+    // If session hasn't been loaded, fetch messages from API
+    if (msgs.length === 0) {
+      try {
+        const data = await resumeSession(sessionId)
+        if (data.messages?.length) {
+          msgs = mapHermesMessages(data.messages as any[])
+        }
+      } catch (e) {
+        console.warn('[exportSessionMessages] failed to fetch:', e)
+        return
+      }
+    }
+
+    const filtered = msgs
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .sort((a, b) => a.timestamp - b.timestamp)
+
+    if (filtered.length === 0) return
+
+    const session = sessions.value.find(s => s.id === sessionId)
+    const title = (session?.title || 'session').replace(/[\\/:*?"<>|]/g, '_')
+
+    const XLSX = await import('xlsx')
+    const rows = filtered.map(m => ({
+      '时间': new Date(m.timestamp).toLocaleString('zh-CN', { hour12: false }),
+      '发送方': m.role === 'user' ? '用户' : 'AI',
+      '内容': m.content,
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [
+      { wch: 22 },
+      { wch: 8 },
+      { wch: 80 },
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31))
+    XLSX.writeFile(wb, `${title}.xlsx`)
+  }
+
   function addMessage(sessionId: string, msg: Message) {
     const s = sessions.value.find(s => s.id === sessionId)
     if (s) s.messages.push(msg)
@@ -1571,6 +1619,7 @@ export const useChatStore = defineStore('chat', () => {
     switchSession,
     switchSessionModel,
     disconnectStream,
+    exportSessionMessages,
     loadParentSession,
     clearProviderFromSessions,
     deleteSession,

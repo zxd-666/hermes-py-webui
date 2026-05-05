@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
-import { onMounted } from 'vue'
+import { NButton, NIcon, NModal } from 'naive-ui'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/hermes/usage'
 import StatCards from '@/components/hermes/usage/StatCards.vue'
@@ -12,6 +12,7 @@ import HourlyActivity from '@/components/hermes/usage/HourlyActivity.vue'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
+const showTips = ref(false)
 
 onMounted(() => {
   usageStore.loadSessions()
@@ -21,11 +22,47 @@ onMounted(() => {
 <template>
   <div class="usage-view">
     <header class="page-header">
-      <h2 class="header-title">{{ t('usage.title') }}</h2>
+      <div class="header-title-row">
+        <h2 class="header-title">{{ t('usage.title') }}</h2>
+        <NIcon class="tips-icon" @click="showTips = true">ⓘ</NIcon>
+      </div>
       <NButton size="small" quaternary :loading="usageStore.isLoading" @click="usageStore.loadSessions()">
         {{ t('usage.refresh') }}
       </NButton>
     </header>
+
+    <NModal v-model:show="showTips" preset="card" :title="t('usage.tipsTitle')" class="tips-modal" :style="{ maxWidth: '520px' }">
+      <div class="tips-list">
+        <div class="tips-item">
+          <b>{{ t('usage.allTokens') }}</b>
+          <span>{{ t('usage.tipsAllTokens') }}</span>
+        </div>
+        <div class="tips-item">
+          <b>{{ t('usage.recentTokens') }}</b>
+          <span>{{ t('usage.tipsRecentTokens') }}</span>
+        </div>
+        <div class="tips-item">
+          <b>{{ t('usage.inputTokens') }} / {{ t('usage.outputTokens') }}</b>
+          <span>{{ t('usage.tipsInputOutput') }}</span>
+        </div>
+        <div class="tips-item">
+          <b>{{ t('usage.cacheHitRate') }}</b>
+          <span>{{ t('usage.tipsCacheHit') }}</span>
+        </div>
+        <div class="tips-item">
+          <b>{{ t('usage.avgTokensPerSession') }}</b>
+          <span>{{ t('usage.tipsAvgTokens') }}</span>
+        </div>
+        <div class="tips-item">
+          <b>{{ t('usage.allSessions') }} / {{ t('usage.recentSessions') }}</b>
+          <span>{{ t('usage.tipsSessions') }}</span>
+        </div>
+        <div class="tips-item">
+          <b>{{ t('usage.allMessages') }} / {{ t('usage.recentMessages') }}</b>
+          <span>{{ t('usage.tipsMessages') }}</span>
+        </div>
+      </div>
+    </NModal>
 
     <div class="usage-content">
       <div v-if="usageStore.isLoading && !usageStore.hasData" class="usage-loading">
@@ -82,5 +119,45 @@ onMounted(() => {
   padding: 60px 0;
   color: $text-muted;
   font-size: 14px;
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tips-icon {
+  cursor: pointer;
+  font-size: 16px;
+  color: $text-muted;
+  transition: color 0.2s;
+
+  &:hover {
+    color: $text-primary;
+  }
+}
+
+.tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tips-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  b {
+    font-size: 13px;
+    color: $text-primary;
+  }
+
+  span {
+    font-size: 12px;
+    color: $text-muted;
+    line-height: 1.5;
+  }
 }
 </style>

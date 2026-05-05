@@ -121,6 +121,7 @@ export default {
     monitorRoleUser: 'ユーザー',
     monitorRoleAssistant: 'アシスタント',
     copySessionId: 'セッション ID をコピー',
+    exportMessages: 'メッセージをエクスポート',
     renamed: '名前を変更しました',
     renameFailed: '名前の変更に失敗しました',
     renameSession: 'セッション名の変更',

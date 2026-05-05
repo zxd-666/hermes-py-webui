@@ -127,6 +127,7 @@ export default {
     monitorRoleUser: 'User',
     monitorRoleAssistant: 'Assistant',
     copySessionId: 'Copy Session ID',
+    exportMessages: 'Export Messages',
     renamed: 'Renamed',
     renameFailed: 'Rename failed',
     renameDuplicate: 'This title already exists',
@@ -700,6 +701,14 @@ export default {
     sourceBreakdown: 'Source Breakdown (Last 30d)',
     topSessions: 'Top Sessions by Input Tokens (Last 30d)',
     untitled: 'Untitled',
+    tipsTitle: 'Stats Explained',
+    tipsAllTokens: 'Total tokens consumed across all your conversations since records began.',
+    tipsRecentTokens: 'Tokens used in the last 30 days — gives you a sense of recent usage.',
+    tipsInputOutput: 'Input tokens = what you send plus context fed to the AI. Output tokens = what the AI generates in response.',
+    tipsCacheHit: 'When the provider supports caching, repeated context skips re-computation. Higher hit rate = lower cost.',
+    tipsAvgTokens: 'Average tokens consumed per conversation (session), useful for estimating per-chat cost.',
+    tipsSessions: 'Total number of conversations created, and how many were started in the last 30 days.',
+    tipsMessages: 'Total messages between you and the AI (excluding system prompts and tool calls), plus the last 30 days.',
   },
   // Channels
   channels: {

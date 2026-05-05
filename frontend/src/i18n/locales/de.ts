@@ -121,6 +121,7 @@ export default {
     monitorRoleUser: 'Benutzer',
     monitorRoleAssistant: 'Assistent',
     copySessionId: 'Sitzungs-ID kopieren',
+    exportMessages: 'Nachrichten exportieren',
     renamed: 'Umbenannt',
     renameFailed: 'Umbenennung fehlgeschlagen',
     renameSession: 'Sitzung umbenennen',

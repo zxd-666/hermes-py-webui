@@ -126,6 +126,7 @@ export default {
     monitorRoleUser: '用户',
     monitorRoleAssistant: '助手',
     copySessionId: '复制会话 ID',
+    exportMessages: '导出消息',
     renamed: '已重命名',
     renameFailed: '重命名失败',
     renameDuplicate: '该标题已存在，请使用其他名称',
@@ -701,6 +702,14 @@ export default {
     sourceBreakdown: '来源分布（近 30 天）',
     topSessions: '输入 Token Top 会话（近 30 天）',
     untitled: '无标题',
+    tipsTitle: '统计项说明',
+    tipsAllTokens: '从有记录以来，你和 AI 来回对话一共消耗了多少 Token。',
+    tipsRecentTokens: '最近 30 天内消耗的 Token 总量，用来看最近的使用量级。',
+    tipsInputOutput: '输入 Token 是你发的内容加上上下文传给 AI 的量；输出 Token 是 AI 回复你生成的量。',
+    tipsCacheHit: '模型提供商支持缓存时，重复的上下文不用重新计算，命中率越高越省钱。',
+    tipsAvgTokens: '平均每次对话（一个会话）消耗多少 Token，用来评估单次对话的成本。',
+    tipsSessions: '总共创建了多少个对话（会话），以及最近 30 天新建了多少个。',
+    tipsMessages: '你和 AI 一共发了多少条消息（不含系统提示、工具调用等），以及最近 30 天的。',
   },
   // 频道
   channels: {

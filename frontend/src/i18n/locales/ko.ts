@@ -121,6 +121,7 @@ export default {
     monitorRoleUser: '사용자',
     monitorRoleAssistant: '어시스턴트',
     copySessionId: '세션 ID 복사',
+    exportMessages: '메시지 내보내기',
     renamed: '이름이 변경되었습니다',
     renameFailed: '이름 변경 실패',
     renameSession: '세션 이름 변경',

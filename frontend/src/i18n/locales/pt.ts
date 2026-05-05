@@ -121,6 +121,7 @@ export default {
     monitorRoleUser: 'Usuário',
     monitorRoleAssistant: 'Assistente',
     copySessionId: 'Copiar ID da sessão',
+    exportMessages: 'Exportar Mensagens',
     renamed: 'Renomeado',
     renameFailed: 'Falha ao renomear',
     renameSession: 'Renomear sessao',

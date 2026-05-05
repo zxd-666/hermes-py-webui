@@ -264,6 +264,7 @@ const contextMenuOptions = computed(() => {
     { label: t('chat.rename'), key: 'rename' },
     ...(!isAncestor ? [{ label: t('chat.setWorkspace'), key: 'workspace' }] : []),
     { label: t('chat.copySessionId'), key: 'copy-id' },
+    { label: t('chat.exportMessages'), key: 'export-messages' },
     ...(canDel && !isAncestor ? [{ label: t('common.delete'), key: 'delete' }] : []),
   ]
 })
@@ -289,6 +290,8 @@ function handleContextMenuSelect(key: string) {
   }
   if (key === 'copy-id') {
     copySessionId(contextSessionId.value)
+  } else if (key === 'export-messages') {
+    chatStore.exportSessionMessages(contextSessionId.value)
   } else if (key === 'workspace') {
     openWorkspaceModal(contextSessionId.value)
   } else if (key === 'rename') {
