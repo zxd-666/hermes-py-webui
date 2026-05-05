@@ -49,6 +49,7 @@ export default {
   sidebar: {
     chat: '会话',
     search: '搜索',
+    favorites: '收藏',
     jobs: '任务',
     models: '模型',
     profiles: '用户',
@@ -885,5 +886,19 @@ export default {
     tailscaleStep4Title: '温馨提示',
     tailscaleStep4Desc: '确保电脑上的 Tailscale 客户端保持运行。Tailscale 免费版支持最多 100 台设备，个人使用完全足够。',
     tailscaleLearnMore: '查看 Tailscale 官方文档',
+  },
+
+  favorites: {
+    title: '收藏',
+    empty: '还没有收藏的消息',
+    emptyHint: '点击 AI 回复消息的头像即可收藏',
+    removeFrom: '来源',
+    cancelFavorite: '取消收藏',
+    addFavorite: '复制',
+    copy: '复制',
+    download: '下载',
+    copied: '已复制',
+    favorited: '已收藏',
+    canceledFavorite: '已取消收藏',
   },
 }

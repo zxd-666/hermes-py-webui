@@ -33,6 +33,7 @@ from .routes.weixin import router as weixin_router
 from .routes.terminal import router as terminal_router
 from .routes.channels import router as channels_router
 from .routes.workspaces import router as workspaces_router
+from .routes.favorites import router as favorites_router
 from .routes.files import upload_files as _upload_files
 
 app = FastAPI(title="Hermes Py WebUI", version="0.1.0")
@@ -95,6 +96,7 @@ app.include_router(weixin_router)
 app.include_router(terminal_router)
 app.include_router(channels_router)
 app.include_router(workspaces_router)
+app.include_router(favorites_router)
 
 # Chat attachment upload — frontend sends POST /upload with FormData
 app.post("/upload")(_upload_files)

@@ -2,12 +2,13 @@
 import type { Message } from "@/stores/hermes/chat";
 import { computed, onBeforeUnmount, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
-import { useMessage } from "naive-ui";
+import { useMessage, NPopover } from "naive-ui";
 import { downloadFile } from "@/api/hermes/download";
 import { copyToClipboard } from "@/utils/clipboard";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import { parseThinking, countThinkingChars } from "@/utils/thinking-parser";
 import { useChatStore } from "@/stores/hermes/chat";
+import { useFavoritesStore } from "@/stores/hermes/favorites";
 import { useSettingsStore } from "@/stores/hermes/settings";
 import { useProfilesStore } from "@/stores/hermes/profiles";
 import {
@@ -23,6 +24,7 @@ const { t } = useI18n();
 const toast = useMessage();
 
 const chatStore = useChatStore();
+const favStore = useFavoritesStore();
 const isSystem = computed(() => props.message.role === "system");
 const toolExpanded = ref(false);
 const previewUrl = ref<string | null>(null);
@@ -33,6 +35,30 @@ const profilesStore = useProfilesStore();
 const assistantAvatar = computed(() => profilesStore.activeAvatar || '/logo.png');
 
 const showCost = computed(() => !!settingsStore.display.show_cost);
+
+// --- Favorites ---
+const isAssistant = computed(() => props.message.role === 'assistant');
+const isFav = computed(() => isAssistant.value && !props.message.isStreaming && favStore.isFavorited(props.message.id));
+const favLabel = computed(() => isFav.value ? t('favorites.cancelFavorite') : t('favorites.addFavorite'));
+const favBusy = ref(false);
+
+async function toggleFavorite() {
+  if (favBusy.value || !isAssistant.value || props.message.isStreaming) return
+  favBusy.value = true
+  try {
+    const nowFav = await favStore.toggle({
+      message_id: props.message.id,
+      session_id: props.message.sessionId || chatStore.activeSessionId || '',
+      role: props.message.role,
+      content: props.message.content || '',
+      session_title: chatStore.activeSession?.title || '',
+      message_ts: props.message.timestamp ? new Date(props.message.timestamp).toISOString() : '',
+    })
+    toast.success(nowFav ? t('favorites.favorited') : t('favorites.canceledFavorite'))
+  } finally {
+    favBusy.value = false
+  }
+}
 
 const sessionCost = computed(() => {
   const session = chatStore.activeSession;
@@ -387,8 +413,22 @@ const renderedToolResult = computed(() => {
     </template>
     <template v-else>
       <div class="msg-body">
+        <NPopover v-if="isAssistant && !message.isStreaming" trigger="click" placement="bottom-start" :raw="true">
+          <template #trigger>
+            <img
+              :src="assistantAvatar"
+              alt="Hermes"
+              class="msg-avatar"
+              :class="{ 'fav-active': isFav }"
+            />
+          </template>
+          <div class="fav-popover" @click="toggleFavorite">
+            <span class="fav-popover-icon">{{ isFav ? '⭐' : '☆' }}</span>
+            <span>{{ favLabel }}</span>
+          </div>
+        </NPopover>
         <img
-          v-if="message.role === 'assistant'"
+          v-else-if="message.role === 'assistant'"
           :src="assistantAvatar"
           alt="Hermes"
           class="msg-avatar"
@@ -571,6 +611,12 @@ const renderedToolResult = computed(() => {
       height: 40px;
       flex-shrink: 0;
       margin-top: 2px;
+      cursor: default;
+      transition: filter 0.2s;
+
+      &.fav-active {
+        filter: drop-shadow(0 0 4px rgba(255, 193, 7, 0.5));
+      }
     }
 
     .message-bubble {
@@ -1030,5 +1076,25 @@ const renderedToolResult = computed(() => {
   .message.system .msg-body {
     max-width: 100%;
   }
+}
+
+.fav-popover {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: $text-primary;
+  background: $bg-card;
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.fav-popover-icon {
+  font-size: 15px;
+  flex-shrink: 0;
 }
 </style>

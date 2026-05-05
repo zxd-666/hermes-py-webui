@@ -85,6 +85,11 @@ const router = createRouter({
       name: 'hermes.systemSettings',
       component: () => import('@/views/hermes/SystemSettingsView.vue'),
     },
+    {
+      path: '/hermes/favorites',
+      name: 'hermes.favorites',
+      component: () => import('@/views/hermes/FavoritesView.vue'),
+    },
   ],
 })
 

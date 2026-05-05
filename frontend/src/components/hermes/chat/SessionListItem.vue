@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Session } from '@/stores/hermes/chat'
 import { useChatStore } from '@/stores/hermes/chat'
 import { formatTimestampMs, getSourceLabel } from '@/shared/session-display'
@@ -24,6 +24,16 @@ const ancestorsExpanded = ref(false)
 
 const ancestorCount = computed(() => Math.max(0, (props.session.lineageCount || 1) - 1))
 const hasAncestors = computed(() => ancestorCount.value > 0)
+
+// Auto-expand ancestor list when requested (e.g. from favorites/search jump)
+watch(
+  () => chatStore.expandAncestorsForId,
+  (targetId) => {
+    if (targetId === props.session.id && hasAncestors.value) {
+      ancestorsExpanded.value = true
+    }
+  },
+)
 </script>
 
 <template>

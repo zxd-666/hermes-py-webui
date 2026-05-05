@@ -159,6 +159,16 @@ function scrollToMessage(messageId: string) {
     const el = document.getElementById(`message-${messageId}`);
     if (el) {
       el.scrollIntoView({ block: 'center' });
+      chatStore.clearFocusMessage();
+    } else if (chatStore.messages.length > 0) {
+      // DOM not ready yet (e.g. messages just loaded) — retry once after another tick
+      requestAnimationFrame(() => {
+        const el2 = document.getElementById(`message-${messageId}`);
+        if (el2) {
+          el2.scrollIntoView({ block: 'center' });
+        }
+        chatStore.clearFocusMessage();
+      });
     }
   });
 }
@@ -185,11 +195,21 @@ watch(
   },
 );
 
+// After messages finish loading, re-attempt focus scroll (in case earlier attempts missed)
+watch(
+  () => chatStore.isLoadingMessages,
+  (loading, wasLoading) => {
+    if (wasLoading && !loading && chatStore.focusMessageId) {
+      nextTick(() => scrollToMessage(chatStore.focusMessageId!));
+    }
+  },
+);
+
 // When a run starts (user just sent a message), always scroll to bottom once
 watch(
   () => chatStore.isRunActive,
   (v) => {
-    if (v) scrollToBottom();
+    if (v && !chatStore.focusMessageId) scrollToBottom();
   },
 );
 

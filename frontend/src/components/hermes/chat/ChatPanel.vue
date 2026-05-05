@@ -62,6 +62,8 @@ onMounted(() => {
   handleMobileChange(mobileQuery)
   mobileQuery.addEventListener('change', handleMobileChange)
   loadHeaderWorkspaces()
+  // Preload favorite IDs so star icons appear immediately
+  import('@/stores/hermes/favorites').then(({ useFavoritesStore }) => useFavoritesStore().loadIds())
 })
 
 onUnmounted(() => {
@@ -113,6 +115,12 @@ const filteredSessions = computed(() => {
   if (!selectedSourceFilter.value) return sortSessionsByTime(sessions)
   return sortSessionsByTime(sessions.filter(s => (s.source || '9898') === selectedSourceFilter.value))
 })
+
+/** True if the session or one of its ancestors is the active session */
+function isSessionActive(s: Session): boolean {
+  if (s.id === chatStore.activeSessionId) return true
+  return s.ancestors?.some(a => a.id === chatStore.activeSessionId) ?? false
+}
 
 // Select the most recent session if none is active
 watch(
@@ -464,7 +472,7 @@ function handleWorkspaceSelect(val: string) {
             v-for="s in pinnedSessions"
             :key="`pinned-${s.id}`"
             :session="s"
-            :active="s.id === chatStore.activeSessionId"
+            :active="isSessionActive(s)"
             :pinned="true"
             :streaming="chatStore.isSessionLive(s.id)"
             @select="handleSessionClick(s.id)"
@@ -479,7 +487,7 @@ function handleWorkspaceSelect(val: string) {
             v-for="s in filteredSessions"
             :key="s.id"
             :session="s"
-            :active="s.id === chatStore.activeSessionId"
+            :active="isSessionActive(s)"
             :pinned="false"
             :streaming="chatStore.isSessionLive(s.id)"
             @select="handleSessionClick(s.id)"

@@ -733,6 +733,20 @@ export default {
     unsupportedBackend: '現在のターミナルバックエンドはファイルのダウンロードに対応していません',
     invalidPath: '無効なファイルパス',
     download: 'ダウンロード',
-    downloadFile: 'ファイルをダウンロード',
+    tailscaleLearnMore: 'Learn more about Tailscale',
+  },
+
+  favorites: {
+    title: 'Favorites',
+    empty: 'No favorites yet',
+    emptyHint: 'Click an AI message avatar to bookmark it',
+    removeFrom: 'From',
+    cancelFavorite: 'Remove',
+    addFavorite: 'コピー',
+    copy: 'コピー',
+    download: 'DL',
+    copied: 'コピー済',
+    favorited: 'Added to favorites',
+    canceledFavorite: 'Removed from favorites',
   },
 }

@@ -22,6 +22,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
   timestamp: number
+  sessionId?: string  // 实际存储该消息的 session（可能和 activeSessionId 不同，如 ancestor）
   toolName?: string
   toolPreview?: string
   toolArgs?: string
@@ -165,6 +166,7 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
       role: msg.role,
       content: msg.content || '',
       timestamp: Math.round(msg.timestamp * 1000),
+      sessionId: msg.session_id || undefined,
       reasoning: msg.reasoning ? msg.reasoning : undefined,
       model: (msg as any).model || undefined,
     })
@@ -331,6 +333,9 @@ export const useChatStore = defineStore('chat', () => {
   })()
   const activeSessionId = ref<string | null>(_restoredSessionId)
   const focusMessageId = ref<string | null>(null)
+  function clearFocusMessage() { focusMessageId.value = null }
+  /** If set, the SessionListItem owning this ID should expand its ancestor list */
+  const expandAncestorsForId = ref<string | null>(null)
   const streamStates = ref<Map<string, { abort: () => void; disconnect: () => void }>>(new Map())
   /** sessionId → server-reported isWorking status */
   const serverWorking = ref<Set<string>>(new Set())
@@ -434,11 +439,24 @@ export const useChatStore = defineStore('chat', () => {
       })
       sessions.value = [...localOnly, ...fresh]
 
-      // Restore last active session, fallback to most recent
+      // Restore last active session, fallback to most recent.
+      // Also check if savedId is an ancestor (excluded from sessions list
+      // by the backend) — if so, keep it so switchSession can create a stub
+      // and expand the ancestor list in the sidebar.
       const savedId = activeSessionId.value
-      const targetId = savedId && sessions.value.some(s => s.id === savedId)
-        ? savedId
-        : sessions.value[0]?.id
+      let targetId: string | undefined
+      if (savedId) {
+        if (sessions.value.some(s => s.id === savedId)) {
+          targetId = savedId
+        } else if (sessions.value.some(s => s.ancestors?.some(a => a.id === savedId))) {
+          // savedId is an ancestor — switchSession will create a stub and
+          // expand the correct ancestor list automatically.
+          targetId = savedId
+        }
+      }
+      if (!targetId) {
+        targetId = sessions.value[0]?.id
+      }
       if (targetId) {
         await switchSession(targetId)
       }
@@ -494,6 +512,17 @@ export const useChatStore = defineStore('chat', () => {
     const legacyActiveKey = legacyStorageKey()
     if (legacyActiveKey) removeItem(legacyActiveKey)
     activeSession.value = sessions.value.find(s => s.id === sessionId) || null
+
+    // If target is an ancestor (not a top-level session), find its leaf parent
+    // so the sidebar can expand the ancestor list and highlight it
+    if (!activeSession.value) {
+      const ownerSession = sessions.value.find(
+        s => s.ancestors?.some(a => a.id === sessionId)
+      )
+      expandAncestorsForId.value = ownerSession?.id || null
+    } else {
+      expandAncestorsForId.value = null
+    }
 
     isLoadingMessages.value = true
 
@@ -1606,6 +1635,8 @@ export const useChatStore = defineStore('chat', () => {
     activeSessionId,
     activeSession,
     focusMessageId,
+    clearFocusMessage,
+    expandAncestorsForId,
     messages,
     isStreaming,
     isRunActive,

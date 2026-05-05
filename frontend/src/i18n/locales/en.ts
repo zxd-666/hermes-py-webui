@@ -50,6 +50,7 @@ export default {
   sidebar: {
     chat: 'Chat',
     search: 'Search',
+    favorites: 'Favorites',
     jobs: 'Jobs',
     models: 'Models',
     profiles: 'Profiles',
@@ -883,6 +884,20 @@ export default {
     tailscaleStep3Desc: 'On your phone, open <code>http://100.x.x.x:9898</code> (replace with your computer\'s Tailscale IP) in the browser to access Hermes remotely.',
     tailscaleStep4Title: 'Tips',
     tailscaleStep4Desc: 'Keep Tailscale running on your computer. The free plan supports up to 100 devices — more than enough for personal use.',
-    tailscaleLearnMore: 'Tailscale Documentation',
+    tailscaleLearnMore: 'Learn more about Tailscale',
+  },
+
+  favorites: {
+    title: 'Favorites',
+    empty: 'No favorites yet',
+    emptyHint: 'Click an AI message avatar to bookmark it',
+    removeFrom: 'From',
+    cancelFavorite: 'Remove',
+    addFavorite: 'Bookmark',
+    copy: 'Copy',
+    download: 'Download',
+    copied: 'Copied',
+    favorited: 'Added to favorites',
+    canceledFavorite: 'Removed from favorites',
   },
 }
