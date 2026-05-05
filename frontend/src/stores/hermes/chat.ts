@@ -331,7 +331,7 @@ export const useChatStore = defineStore('chat', () => {
   })()
   const activeSessionId = ref<string | null>(_restoredSessionId)
   const focusMessageId = ref<string | null>(null)
-  const streamStates = ref<Map<string, { abort: () => void }>>(new Map())
+  const streamStates = ref<Map<string, { abort: () => void; disconnect: () => void }>>(new Map())
   /** sessionId → server-reported isWorking status */
   const serverWorking = ref<Set<string>>(new Set())
   const isStreaming = computed(() => {
@@ -604,6 +604,15 @@ export const useChatStore = defineStore('chat', () => {
     activeSession.value.provider = provider || ''
   }
 
+  /** Gracefully disconnect an active stream for a session without cancelling the AI run.
+   *  Used when navigating away — the backend event queue stays alive for reconnect. */
+  function disconnectStream(sid: string) {
+    const state = streamStates.value.get(sid)
+    if (state) {
+      state.disconnect()
+    }
+  }
+
   async function loadParentSession(sessionId?: string) {
     const sid = sessionId || activeSessionId.value
     if (!sid) return
@@ -796,7 +805,7 @@ export const useChatStore = defineStore('chat', () => {
       let runHadToolActivity = false
 
       // Send run via HTTP + stream events via SSE
-      let ctrl: { abort: () => void } | null = null
+      let ctrl: { abort: () => void; disconnect: () => void } | null = null
       const { run_id } = await startRun(runPayload)
       markInFlight(sid, run_id)
 
@@ -1192,7 +1201,7 @@ export const useChatStore = defineStore('chat', () => {
           return
         }
 
-        streamStates.value.set(sid, { abort: () => { controller.abort(); closed = true } })
+        streamStates.value.set(sid, { abort: () => { controller.abort(); closed = true }, disconnect: () => { controller.abort(); closed = true } })
         serverWorking.value.add(sid)
 
         const reader = res.body!.getReader()
@@ -1561,6 +1570,7 @@ export const useChatStore = defineStore('chat', () => {
     newChat,
     switchSession,
     switchSessionModel,
+    disconnectStream,
     loadParentSession,
     clearProviderFromSessions,
     deleteSession,

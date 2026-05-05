@@ -80,7 +80,7 @@ export function streamRunEvents(
   onEvent: (event: RunEvent) => void,
   onDone: () => void,
   onError: (err: Error) => void,
-): { abort: () => void } {
+): { abort: () => void; disconnect: () => void } {
   const controller = new AbortController()
   let closed = false
 
@@ -168,6 +168,15 @@ export function streamRunEvents(
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         }).catch(() => {})
+        closed = true
+      }
+    },
+    /** Disconnect the SSE fetch without cancelling the AI run on the backend.
+     *  The backend keeps the event queue alive so a later reconnect can pick up
+     *  remaining events (up to the TTL expiry). */
+    disconnect: () => {
+      if (!closed) {
+        controller.abort()
         closed = true
       }
     },

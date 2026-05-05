@@ -66,6 +66,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   mobileQuery?.removeEventListener('change', handleMobileChange)
+  // Gracefully disconnect any active stream without cancelling the AI run
+  const sid = chatStore.activeSessionId
+  if (sid) chatStore.disconnectStream(sid)
 })
 const showRenameModal = ref(false)
 const renameValue = ref('')
