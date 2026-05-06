@@ -114,6 +114,7 @@ export default {
     newChat: '新建对话',
     deleteSession: '确定删除此会话？',
     sessionDeleted: '会话已删除',
+    deleteSessionConfirm: '确定要删除这个会话吗？此操作不可撤销。',
     rename: '重命名',
     pin: '置顶',
     unpin: '取消置顶',

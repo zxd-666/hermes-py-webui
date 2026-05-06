@@ -115,6 +115,7 @@ export default {
     newChat: 'New Chat',
     deleteSession: 'Delete this session?',
     sessionDeleted: 'Session deleted',
+    deleteSessionConfirm: 'Are you sure you want to delete this session? This action cannot be undone.',
     rename: 'Rename',
     pin: 'Pin',
     unpin: 'Unpin',

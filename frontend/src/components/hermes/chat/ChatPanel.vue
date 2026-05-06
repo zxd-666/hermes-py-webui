@@ -8,7 +8,7 @@ import { useSettingsStore } from '@/stores/hermes/settings'
 import { useSessionBrowserPrefsStore } from '@/stores/hermes/session-browser-prefs'
 import { fetchSourceCounts } from '@/api/hermes/sessions'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NButton, NDropdown, NInput, NModal, NSelect, useMessage } from 'naive-ui'
+import { NButton, NDropdown, NInput, NModal, NSelect, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { getSourceLabel } from '@/shared/session-display'
 import { copyToClipboard } from '@/utils/clipboard'
@@ -21,6 +21,7 @@ const chatStore = useChatStore()
 const appStore = useAppStore()
 const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
 const message = useMessage()
+const dialog = useDialog()
 const { t } = useI18n()
 
 const currentMode = ref<'chat' | 'live'>('chat')
@@ -335,7 +336,14 @@ function handleContextMenuSelect(key: string) {
       renameInputRef.value?.focus()
     })
   } else if (key === 'delete') {
-    handleDeleteSession(contextSessionId.value)
+    const sessionId = contextSessionId.value
+    dialog.warning({
+      title: t('common.delete'),
+      content: t('chat.deleteSessionConfirm'),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => handleDeleteSession(sessionId),
+    })
   }
 }
 
