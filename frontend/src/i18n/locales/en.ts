@@ -599,6 +599,7 @@ export default {
       selectProvider: 'Select Provider',
       selectModel: 'Select Model',
       selectProviderFirst: 'Select a provider first',
+      formatHint: '⚠ Only supports providers with OpenAI Chat Completions format. Anthropic and MiniMax endpoints are not compatible.',
       advanced: 'Advanced',
       timeout: 'Timeout',
       timeoutHint: 'Request timeout (seconds)',

@@ -587,6 +587,7 @@ export default {
       selectProvider: '选择模型厂商',
       selectModel: '选择模型',
       selectProviderFirst: '请先选择模型厂商',
+      formatHint: '⚠ 仅支持 OpenAI Chat Completions 格式的模型厂商，Anthropic 和 MiniMax 端点不兼容。',
       advanced: '高级设置',
       timeout: '超时时间',
       timeoutHint: '请求超时时间（秒）',

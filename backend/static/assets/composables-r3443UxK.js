@@ -1,0 +1,1 @@
+import{n as e}from"./warn-MV9BENh8.js";import{A as t,ii as n}from"./index-Cjkiv8U3.js";function r(){let r=n(t,null);return r===null&&e(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};
