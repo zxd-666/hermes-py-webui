@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { NButton, NSpin, NEmpty, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { i18n } from '@/i18n'
 import { useFilesStore, isImageFile, isMarkdownFile, isTextFile } from '@/stores/hermes/files'
 import { downloadFile } from '@/api/hermes/download'
 import type { FileEntry } from '@/api/hermes/files'
@@ -28,7 +29,7 @@ function formatSize(bytes: number): string {
 function formatDate(iso: string): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleString()
+  return d.toLocaleString(i18n.global.locale.value)
 }
 
 function getFileIcon(entry: FileEntry): string {

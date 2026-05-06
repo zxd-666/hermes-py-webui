@@ -29,7 +29,7 @@ const lanUrl = computed(() => {
   // Fallback: use current hostname if accessed via LAN IP
   const host = window.location.hostname
   if (host !== 'localhost' && host !== '127.0.0.1') return `http://${host}:9898`
-  return 'http://<局域网IP>:9898'
+  return t('systemSettings.lanIpPlaceholder')
 })
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -244,15 +244,15 @@ onMounted(loadStatus)
       <div class="confirm-body">
         <p v-if="!lanDisabling" class="confirm-text">{{ t('systemSettings.lanAccessConfirm') }}</p>
         <p v-if="!lanDisabling" class="confirm-url" @click="copyUrl">{{ lanUrl }}</p>
-        <p v-if="lanDisabling" class="confirm-text">关闭后将无法通过 <span class="confirm-url" style="display:inline" @click="copyUrl">{{ lanUrl }}</span> 进行访问</p>
-        <p class="confirm-text">确定后服务重启，需要手动刷新下页面～</p>
+        <p v-if="lanDisabling" class="confirm-text">{{ t('systemSettings.lanDisableWarning') }} <span class="confirm-url" style="display:inline" @click="copyUrl">{{ lanUrl }}</span> {{ t('systemSettings.lanDisableWarningEnd') }}</p>
+        <p class="confirm-text">{{ t('systemSettings.restartHint') }}</p>
       </div>
       <template #action>
         <button class="btn btn-cancel" @click="showLanConfirm = false; lanDisabling = false">
-          {{ t('common.cancel') || '取消' }}
+          {{ t('common.cancel') }}
         </button>
         <button class="btn btn-confirm" @click="doSetLanAccess(!lanDisabling)">
-          {{ t('common.confirm') || '确认' }}
+          {{ t('common.confirm') }}
         </button>
       </template>
     </NModal>
@@ -288,10 +288,10 @@ onMounted(loadStatus)
       </div>
       <template #action>
         <button class="btn btn-cancel" @click="showPasswordSetup = false">
-          {{ t('common.cancel') || '取消' }}
+          {{ t('common.cancel') }}
         </button>
         <button class="btn btn-confirm" :disabled="!passwordValid || passwordLoading" @click="doSetupPassword">
-          {{ t('common.confirm') || '确认' }}
+          {{ t('common.confirm') }}
         </button>
       </template>
     </NModal>
@@ -301,10 +301,10 @@ onMounted(loadStatus)
       <p class="confirm-text">{{ t('systemSettings.disablePasswordConfirm') }}</p>
       <template #action>
         <button class="btn btn-cancel" @click="showPasswordDisable = false">
-          {{ t('common.cancel') || '取消' }}
+          {{ t('common.cancel') }}
         </button>
         <button class="btn btn-confirm btn-danger" @click="doDisablePassword">
-          {{ t('common.confirm') || '确认' }}
+          {{ t('common.confirm') }}
         </button>
       </template>
     </NModal>
@@ -340,7 +340,7 @@ onMounted(loadStatus)
             {{ t('systemSettings.tailscaleLearnMore') }}
           </a>
           <button class="btn btn-confirm" @click="showPublicAccess = false">
-            {{ t('common.confirm') || '确认' }}
+            {{ t('common.confirm') }}
           </button>
         </div>
       </template>

@@ -102,7 +102,7 @@ async function toggleRedactPii(name: string, value: boolean) {
               </div>
             </div>
             <div class="gateway-actions">
-              <div class="pii-toggle" title="自动检测并隐藏敏感信息（密码、密钥等）">
+              <div class="pii-toggle" :title="t('gateways.piiToggleHint')">
                 <span class="pii-label">{{ t('settings.privacy.redactPii') }}</span>
                 <NSwitch
                   size="small"

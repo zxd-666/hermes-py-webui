@@ -4,6 +4,7 @@ import { NButton, NTooltip, useMessage } from 'naive-ui'
 import type { Job } from '@/api/hermes/jobs'
 import { useJobsStore } from '@/stores/hermes/jobs'
 import { useI18n } from 'vue-i18n'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   job: Job
@@ -44,7 +45,7 @@ const scheduleExpr = computed(() => {
 
 const formatTime = (t?: string | null) => {
   if (!t) return '—'
-  return new Date(t).toLocaleString()
+  return new Date(t).toLocaleString(i18n.global.locale.value)
 }
 
 async function handlePause() {

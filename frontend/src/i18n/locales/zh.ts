@@ -127,6 +127,11 @@ export default {
     prevSegment: '上一段',
     nextSegment: '下一段',
     collapse: '收起',
+    loadAction: '加载',
+    earlierConversation: '更早的对话',
+    folderEmpty: '（空）',
+    noWorkspaces: '暂无工作区文件夹',
+    folderSelected: '已选择：',
     chatMode: '聊天',
     liveMode: '实时',
     liveSessions: '实时会话',
@@ -232,6 +237,7 @@ export default {
       runNow: '立即运行',
       triggerImmediately: '立即触发',
     },
+    deleted: '（已删除）',
     runHistory: {
       title: '运行历史',
       runs: '次运行',
@@ -616,6 +622,7 @@ export default {
     stopFailed: '停止失败',
     sessionSettings: '会话设置',
     sessionReset: '会话重置',
+    piiToggleHint: '自动检测并隐藏敏感信息（密码、密钥等）',
   },
 
   // 语言
@@ -896,12 +903,17 @@ export default {
     tailscaleStep4Title: '温馨提示',
     tailscaleStep4Desc: '确保电脑上的 Tailscale 客户端保持运行。Tailscale 免费版支持最多 100 台设备，个人使用完全足够。',
     tailscaleLearnMore: '查看 Tailscale 官方文档',
+    lanIpPlaceholder: 'http://<局域网IP>:9898',
+    lanDisableWarning: '关闭后将无法通过',
+    lanDisableWarningEnd: '进行访问',
+    restartHint: '确定后服务重启，需要手动刷新下页面～',
   },
 
   favorites: {
     title: '收藏',
     empty: '还没有收藏的消息',
-    emptyHint: '点击 AI 回复消息的头像即可收藏',
+    collapse: '收起',
+    expandAll: '展开全部',
     removeFrom: '来源',
     cancelFavorite: '取消收藏',
     addFavorite: '复制',

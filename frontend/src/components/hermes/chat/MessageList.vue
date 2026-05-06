@@ -250,7 +250,7 @@ watch(currentToolCalls, () => {
           <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <span>{{ lineageHint }}</span>
-        <span class="lineage-action">加载</span>
+        <span class="lineage-action">{{ t('chat.loadAction') }}</span>
       </div>
       <button v-if="hasLoadedHistory" class="lineage-nav-btn" :title="t('chat.nextSegment')" @click.stop="navigateDivider('down')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
@@ -259,7 +259,7 @@ watch(currentToolCalls, () => {
     <template v-for="(item, idx) in renderList" :key="item.kind === 'divider' ? 'divider' : item.message.id">
       <div v-if="item.kind === 'divider'" class="lineage-divider">
         <span class="lineage-divider-line"></span>
-        <span class="lineage-divider-text">更早的对话</span>
+        <span class="lineage-divider-text">{{ t('chat.earlierConversation') }}</span>
         <span class="lineage-divider-line"></span>
       </div>
       <MessageItem

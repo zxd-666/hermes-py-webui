@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { i18n } from '@/i18n'
 import { useUsageStore } from '@/stores/hermes/usage'
 
 const { t } = useI18n()
@@ -16,7 +17,7 @@ function formatTokens(n: number): string {
 function formatTime(ts: number): string {
   if (!ts) return '--'
   const d = new Date(ts * 1000)
-  return d.toLocaleDateString()
+  return d.toLocaleDateString(i18n.global.locale.value)
 }
 
 function goSession(id: string) {

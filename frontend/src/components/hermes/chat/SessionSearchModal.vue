@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NInput, NModal, NSpin, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { i18n } from '@/i18n'
 import { fetchSessions, searchSessions, type SessionSearchResult, type SessionSummary } from '@/api/hermes/sessions'
 import { useChatStore } from '@/stores/hermes/chat'
 import { useSessionSearch } from '@/composables/useSessionSearch'
@@ -61,7 +62,8 @@ function formatSource(source: string): string {
 function formatTime(ts?: number): string {
   if (!ts) return ''
   const date = new Date(ts * 1000)
-  return date.toLocaleString([], {
+  const locale = i18n.global.locale.value || 'en'
+  return date.toLocaleString(locale, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

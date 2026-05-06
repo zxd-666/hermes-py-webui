@@ -137,7 +137,7 @@ watch(() => props.selectedJobId, () => {
             >
               <div class="group-header" @click="toggleGroup(jobId)">
                 <span class="group-toggle">{{ collapsedGroups.has(jobId) ? '▸' : '▾' }}</span>
-                <span class="group-name">{{ groupedRuns![jobId].name }}<span v-if="groupedRuns![jobId].deleted" class="group-deleted">（已删除）</span></span>
+                <span class="group-name">{{ groupedRuns![jobId].name }}<span v-if="groupedRuns![jobId].deleted" class="group-deleted">{{ t('jobs.deleted') }}</span></span>
                 <span class="group-count">{{ groupedRuns![jobId].runs.length }}</span>
               </div>
               <div v-if="!collapsedGroups.has(jobId)" class="group-runs">

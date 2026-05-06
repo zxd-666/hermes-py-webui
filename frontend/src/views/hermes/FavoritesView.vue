@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { i18n } from '@/i18n'
 import { useMessage } from 'naive-ui'
 import { useFavoritesStore } from '@/stores/hermes/favorites'
 import { useChatStore } from '@/stores/hermes/chat'
@@ -58,9 +59,9 @@ function formatTime(ts: string) {
     // Try ISO format without Z suffix
     const d2 = new Date(ts)
     if (isNaN(d2.getTime())) return ts
-    return d2.toLocaleString()
+    return d2.toLocaleString(i18n.global.locale.value)
   }
-  return d.toLocaleString()
+  return d.toLocaleString(i18n.global.locale.value)
 }
 
 async function copyContent(item: any) {
@@ -153,7 +154,7 @@ async function downloadMd(item: any) {
           <MarkdownRenderer :content="isExpanded(item.id) ? item.content : truncatedContent(item.content)" />
         </div>
         <button v-if="item.content && item.content.length > TRUNCATE_LEN" class="fav-expand-btn" @click="toggleExpand(item.id)">
-          {{ isExpanded(item.id) ? '收起' : '展开全部' }}
+          {{ isExpanded(item.id) ? t('favorites.collapse') : t('favorites.expandAll') }}
         </button>
       </div>
       </div>
