@@ -737,11 +737,9 @@ onUnmounted(() => {
 }
 
 .session-list-title {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
-  color: $text-muted;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: $text-primary;
 }
 
 .session-items {

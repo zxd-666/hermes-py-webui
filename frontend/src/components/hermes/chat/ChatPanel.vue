@@ -1081,4 +1081,10 @@ function handleWorkspaceSelect(val: string) {
 .source-filter-select .n-base-selection__arrow {
   visibility: hidden;
 }
+
+html.dark .source-filter-select .n-base-selection {
+  --n-placeholder-color: #f0f0f0 !important;
+  --n-text-color: #f0f0f0 !important;
+  color: #f0f0f0 !important;
+}
 </style>
