@@ -71,8 +71,8 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
                 if not any(m.get("source") == source for m in members):
                     continue
 
-            # Sort by started_at DESC — newest first
-            members.sort(key=lambda m: m.get("started_at") or 0, reverse=True)
+            # Sort by last_message_ts DESC — most recently active first
+            members.sort(key=lambda m: m.get("last_message_ts") or m.get("started_at") or 0, reverse=True)
 
             entry = _row_to_dict_like(members[0])
             children_raw = members[1:]
