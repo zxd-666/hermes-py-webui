@@ -295,10 +295,9 @@ const contextMenuOptions = computed(() => {
   return [
     ...(!isAncestor ? [{ label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' }] : []),
     { label: t('chat.rename'), key: 'rename' },
-    ...(!isAncestor ? [{ label: t('chat.setWorkspace'), key: 'workspace' }] : []),
     { label: t('chat.copySessionId'), key: 'copy-id' },
     { label: t('chat.exportMessages'), key: 'export-messages' },
-    ...(canDel && !isAncestor ? [{ label: t('common.delete'), key: 'delete' }] : []),
+    ...(canDel ? [{ label: t('common.delete'), key: 'delete' }] : []),
   ]
 })
 
