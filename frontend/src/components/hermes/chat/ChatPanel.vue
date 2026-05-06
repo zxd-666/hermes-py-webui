@@ -665,7 +665,7 @@ function handleWorkspaceSelect(val: string) {
 }
 
 .session-list {
-  width: 220px;
+  width: 228px;
   border-right: 1px solid $border-color;
   display: flex;
   flex-direction: column;
@@ -1070,9 +1070,12 @@ function handleWorkspaceSelect(val: string) {
   --n-color-active: transparent !important;
   --n-color-hover: transparent !important;
   --n-arrow-color: transparent !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
-  color: #1a1a1a !important;
+  --n-padding-single: 0 !important;
+  --n-placeholder-color: #262626 !important;
+  --n-text-color: #262626 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #262626 !important;
 }
 
 .source-filter-select .n-base-selection__arrow {
