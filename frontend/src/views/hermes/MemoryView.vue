@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { NButton, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { i18n } from '@/i18n'
 import MarkdownRenderer from '@/components/hermes/chat/MarkdownRenderer.vue'
 import { fetchMemory, saveMemory, type MemoryData } from '@/api/hermes/skills'
 
@@ -55,7 +56,8 @@ async function handleSave() {
 
 function formatTime(ts: number | null): string {
   if (!ts) return ''
-  return new Date(ts * 1000).toLocaleString([], {
+  const locale = (i18n.global.locale as unknown as { value: string }).value || 'en'
+  return new Date(ts * 1000).toLocaleString(locale, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',

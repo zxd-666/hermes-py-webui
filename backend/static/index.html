@@ -5,14 +5,56 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Primary Meta Tags -->
   <title>Hermes</title>
-  <script type="module" crossorigin src="/assets/index-D5dXwMlV.js"></script>
+  <meta name="title" content="Hermes — AI Agent Web UI" />
+  <meta name="description" content="9898是专门为 Hermes 搭建的 WebUI，走极简Python路线，靠原生http.server搭建，直接导入AIAgent实现进程内聊天，用SSE流式处理，具有轻量且与CLI会话互通的优势。支持消息搜索、收藏、定时任务、频道链接、技能、模型管理、配置、日志、数据统计、网关管理、用户管理等功能，可一键设置开机自启、内网访问、访问密码，还提供公开访问详细教程。用 Hermes，上9898～" />
+  <meta name="keywords" content="AI Agent, LLM, Multi-Model, Chat, Hermes, AI Platform" />
+
+  <!-- Open Graph (微信 / Facebook / 通用) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Hermes — AI Agent Web UI" />
+  <meta property="og:description" content="9898是专门为 Hermes 搭建的 WebUI，走极简Python路线，靠原生http.server搭建，直接导入AIAgent实现进程内聊天，用SSE流式处理，具有轻量且与CLI会话互通的优势。支持消息搜索、收藏、定时任务、频道链接、技能、模型管理、配置、日志、数据统计、网关管理、用户管理等功能，可一键设置开机自启、内网访问、访问密码，还提供公开访问详细教程。用 Hermes，上9898～" />
+  <meta property="og:site_name" content="Hermes" />
+  <meta property="og:image" content="/logo.png" />
+  <meta property="og:image:width" content="200" />
+  <meta property="og:image:height" content="200" />
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:title" content="Hermes — AI Agent Web UI" />
+  <meta property="twitter:description" content="9898是专门为 Hermes 搭建的 WebUI，走极简Python路线，靠原生http.server搭建，直接导入AIAgent实现进程内聊天，用SSE流式处理，具有轻量且与CLI会话互通的优势。支持消息搜索、收藏、定时任务、频道链接、技能、模型管理、配置、日志、数据统计、网关管理、用户管理等功能，可一键设置开机自启、内网访问、访问密码，还提供公开访问详细教程。用 Hermes，上9898～" />
+  <meta property="twitter:image" content="/logo.png" />
+
+  <!-- Theme Color -->
+  <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+
+  <!-- 动态补全 og:url 和图片绝对路径（微信分享必需） -->
+  <script>
+    (function () {
+      var origin = location.origin;
+      var set = function (prop, val) {
+        var el = document.querySelector('meta[property="' + prop + '"]');
+        if (el) el.setAttribute('content', val);
+      };
+      set('og:url', origin + location.pathname);
+      set('twitter:image', origin + '/logo.png');
+      // og:image 补全绝对路径
+      var ogImg = document.querySelector('meta[property="og:image"]');
+      if (ogImg && ogImg.getAttribute('content').indexOf('://') === -1) {
+        ogImg.setAttribute('content', origin + ogImg.getAttribute('content'));
+      }
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-BitqNn_8.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/chunk-Dlc7tRH4.js">
   <link rel="modulepreload" crossorigin href="/assets/preload-helper-DSXbuxSR.js">
   <link rel="modulepreload" crossorigin href="/assets/_baseFor-tDInUmcl.js">
   <link rel="modulepreload" crossorigin href="/assets/warn-MV9BENh8.js">
-  <link rel="modulepreload" crossorigin href="/assets/index-D5dXwMlV.js">
-  <link rel="modulepreload" crossorigin href="/assets/system-CJyFClxz.js">
+  <link rel="modulepreload" crossorigin href="/assets/index-BitqNn_8.js">
+  <link rel="modulepreload" crossorigin href="/assets/system-CMyEvHiE.js">
   <link rel="stylesheet" crossorigin href="/assets/index-DnM8zwDh.css">
 </head>
 

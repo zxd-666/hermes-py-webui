@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n'
+
 const SOURCE_LABELS: Record<string, string> = {
   telegram: 'Telegram',
   api_server: 'API Server',
@@ -24,14 +26,18 @@ export function getSourceLabel(source?: string): string {
   return SOURCE_LABELS[source] || source
 }
 
+function currentLocale(): string {
+  return (i18n.global.locale as unknown as { value: string }).value || 'en'
+}
+
 export function formatTimestampMs(timestamp: number): string {
   if (!timestamp) return ''
   const date = new Date(timestamp)
   const now = new Date()
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString(currentLocale(), { hour: '2-digit', minute: '2-digit' })
   }
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(currentLocale(), { month: 'short', day: 'numeric' })
 }
 
 export function formatTimestampSeconds(timestamp: number): string {

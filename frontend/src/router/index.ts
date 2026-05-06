@@ -1,5 +1,32 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { hasApiKey } from '@/api/client'
+import { i18n } from '@/i18n'
+
+const SITE_TITLE = 'Hermes'
+
+const routeTitleKeys: Record<string, string> = {
+  'hermes.chat': 'sidebar.chat',
+  'hermes.favorites': 'sidebar.favorites',
+  'hermes.jobs': 'sidebar.jobs',
+  'hermes.models': 'sidebar.models',
+  'hermes.profiles': 'sidebar.profiles',
+  'hermes.skills': 'sidebar.skills',
+  'hermes.memory': 'sidebar.memory',
+  'hermes.logs': 'sidebar.logs',
+  'hermes.usage': 'sidebar.usage',
+  'hermes.channels': 'sidebar.channels',
+  'hermes.gateways': 'sidebar.gateways',
+  'hermes.terminal': 'sidebar.terminal',
+  'hermes.systemSettings': 'sidebar.systemSettings',
+  'hermes.files': 'sidebar.files',
+  'hermes.groupChat': 'sidebar.groupChat',
+}
+
+function setPageTitle(routeName: string | symbol | null | undefined) {
+  const key = routeTitleKeys[routeName as string]
+  const { t } = i18n.global
+  document.title = key ? `${t(key)} - ${SITE_TITLE}` : SITE_TITLE
+}
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -93,8 +120,8 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((_to, _from, next) => {
-  next()
+router.beforeEach((to) => {
+  setPageTitle(to.name)
 })
 
 export default router

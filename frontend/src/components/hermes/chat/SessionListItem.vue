@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Session } from '@/stores/hermes/chat'
 import { useChatStore } from '@/stores/hermes/chat'
 import { formatTimestampMs, getSourceLabel } from '@/shared/session-display'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   session: Session
@@ -64,14 +67,14 @@ watch(
             v-if="hasAncestors"
             class="ancestor-toggle"
             @click.stop="ancestorsExpanded = !ancestorsExpanded"
-            :title="ancestorsExpanded ? '收起' : `${ancestorCount} 段关联会话`"
+            :title="ancestorsExpanded ? t('chat.collapse') : t('chat.lineageSegments', { count: ancestorCount })"
           >
             <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="ancestor-chevron" :class="{ rotated: ancestorsExpanded }">
               <polyline points="9 18 15 12 9 6" />
             </svg>
-            {{ ancestorCount }}段
+            {{ ancestorCount }}{{ t('chat.segmentUnit') }}
           </span>
-          <span>{{ session.lineageMessageCount ?? '--' }}条</span>
+          <span>{{ session.lineageMessageCount ?? '--' }}{{ t('chat.messageUnit') }}</span>
           <span v-if="session.source">{{ getSourceLabel(session.source) }}</span>
           <span>{{ formatTimestampMs(session.updatedAt) }}</span>
         </span>
@@ -89,7 +92,7 @@ watch(
       @contextmenu.stop="emit('childContextmenu', $event, c.id)"
     >
       <span class="ancestor-title">{{ c.title || 'Untitled' }}</span>
-      <span class="ancestor-meta">{{ c.messageCount }}条{{ c.source ? ` · ${getSourceLabel(c.source)}` : '' }} · {{ formatTimestampMs(c.endedAt || c.startedAt) }}</span>
+      <span class="ancestor-meta">{{ c.messageCount }}{{ t('chat.messageUnit') }}{{ c.source ? ` · ${getSourceLabel(c.source)}` : '' }} · {{ formatTimestampMs(c.endedAt || c.startedAt) }}</span>
     </div>
   </div>
 </template>

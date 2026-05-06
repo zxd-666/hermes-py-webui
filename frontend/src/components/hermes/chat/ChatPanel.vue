@@ -178,6 +178,12 @@ const activeSessionSource = computed(() =>
   currentMode.value === 'chat' ? (chatStore.activeSession?.source || '') : '',
 )
 
+watch(
+  () => chatStore.isStreaming ? t('chat.typing') : activeSessionTitle.value,
+  (title) => { document.title = `${title} - Hermes` },
+  { immediate: true },
+)
+
 // Header model selector
 const modelOptions = computed(() => {
   const groups: { type: 'group'; label: string; key: string; children: { label: string; value: string; disabled?: boolean }[] }[] = []
@@ -454,7 +460,7 @@ function handleWorkspaceSelect(val: string) {
     <aside v-if="currentMode === 'chat'" class="session-list" :class="{ collapsed: !showSessions }">
       <div class="session-list-header">
           <NSelect
-            v-if="showSessions && sourceFilterOptions.length >= 1"
+            v-if="showSessions && sourceFilterOptions.length >= 1 && !chatStore.isStreaming"
             :value="chatStore.activeSourceFilter"
             :options="sourceFilterOptions"
             size="tiny"
@@ -613,8 +619,8 @@ function handleWorkspaceSelect(val: string) {
             @keydown.escape="cancelEditTitle"
             @blur="confirmEditTitle"
           />
-          <span v-else class="header-session-title" @dblclick="startEditTitle">{{ headerTitle }}</span>
-          <span v-if="activeSessionSource" class="source-badge">{{ getSourceLabel(activeSessionSource) }}</span>
+          <span v-else class="header-session-title" @dblclick="startEditTitle">{{ chatStore.isStreaming ? t('chat.typing') : headerTitle }}</span>
+          <span v-if="activeSessionSource && !chatStore.isStreaming" class="source-badge">{{ getSourceLabel(activeSessionSource) }}</span>
         </div>
         <div class="header-actions">
           <template v-if="currentMode === 'chat'">

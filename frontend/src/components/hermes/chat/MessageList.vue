@@ -61,7 +61,7 @@ const lineageHint = computed(() => {
   const s = chatStore.activeSession;
   if (!s) return '';
   const count = (s.loadedParentIds?.length || 0) + 1;
-  return `第 ${count} 段更早的记录`;
+  return t('chat.lineageHint', { count });
 });
 
 async function onLoadLineage() {
@@ -242,7 +242,7 @@ watch(currentToolCalls, () => {
       <p>{{ t("chat.emptyState", { name: (profilesStore.activeProfileName === 'default' ? 'Hermes' : profilesStore.activeProfileName) || 'Hermes' }) }}</p>
     </div>
     <div v-if="hasLineage || hasLoadedHistory" class="lineage-bar">
-      <button v-if="hasLoadedHistory" class="lineage-nav-btn" title="上一段" @click.stop="navigateDivider('up')">
+      <button v-if="hasLoadedHistory" class="lineage-nav-btn" :title="t('chat.prevSegment')" @click.stop="navigateDivider('up')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
       </button>
       <div v-if="hasLineage" class="lineage-load" @click="onLoadLineage">
@@ -252,7 +252,7 @@ watch(currentToolCalls, () => {
         <span>{{ lineageHint }}</span>
         <span class="lineage-action">加载</span>
       </div>
-      <button v-if="hasLoadedHistory" class="lineage-nav-btn" title="下一段" @click.stop="navigateDivider('down')">
+      <button v-if="hasLoadedHistory" class="lineage-nav-btn" :title="t('chat.nextSegment')" @click.stop="navigateDivider('down')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </button>
     </div>
