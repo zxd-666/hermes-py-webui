@@ -37,12 +37,81 @@ export interface PrivacyConfig {
   redact_pii?: boolean
 }
 
+export interface DelegationConfig {
+  max_concurrent_children?: number
+  max_spawn_depth?: number
+  orchestrator_enabled?: boolean
+  subagent_auto_approve?: boolean
+  child_timeout_seconds?: number
+  max_iterations?: number
+}
+
+export interface SessionsConfig {
+  retention_days?: number
+  auto_prune?: boolean
+  vacuum_after_prune?: boolean
+  min_interval_hours?: number
+}
+
+export interface CompressionConfig {
+  enabled?: boolean
+  threshold?: number
+  target_ratio?: number
+  keep_recent?: number
+  protect_last_n?: number
+  model?: string
+  provider?: string
+  summary_model?: string
+}
+
+export interface FallbackModelConfig {
+  model?: string
+  provider?: string
+}
+
+export interface AuxiliaryModelConfig {
+  model?: string
+  provider?: string
+  base_url?: string
+  api_key?: string
+  timeout?: number
+  max_concurrency?: number
+  download_timeout?: number
+  api_mode?: string
+}
+
+export interface ApprovalsConfig {
+  mode?: string
+  cron_mode?: string
+  timeout?: number
+}
+
+export interface HumanDelayConfig {
+  mode?: string
+  min_ms?: number
+  max_ms?: number
+}
+
+export interface SecurityConfig {
+  redact_secrets?: boolean
+  allow_private_urls?: boolean
+  tirith_enabled?: boolean
+}
+
 export interface AppConfig {
   display?: DisplayConfig
   agent?: AgentConfig
+  delegation?: DelegationConfig
   memory?: MemoryConfig
   session_reset?: SessionResetConfig
+  sessions?: SessionsConfig
   privacy?: PrivacyConfig
+  compression?: CompressionConfig
+  fallback_model?: FallbackModelConfig
+  auxiliary?: Record<string, AuxiliaryModelConfig>
+  approvals?: ApprovalsConfig
+  human_delay?: HumanDelayConfig
+  security?: SecurityConfig
   telegram?: Record<string, any>
   discord?: Record<string, any>
   slack?: Record<string, any>

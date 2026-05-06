@@ -2,7 +2,7 @@
 import { ref, watch, computed, onMounted } from 'vue'
 
 // Provider presets loaded from CLI registry
-import { NModal, NForm, NFormItem, NInput, NInputNumber, NButton, NSelect, NRadioGroup, NRadioButton, useMessage, useDialog } from 'naive-ui'
+import { NModal, NForm, NFormItem, NInput, NInputNumber, NButton, NSelect, NRadioGroup, NRadioButton, NTag, useMessage, useDialog } from 'naive-ui'
 import type { AvailableModelGroup } from '@/api/hermes/system'
 import { fetchProviderPresets, type ProviderPreset } from '@/api/hermes/system'
 import { PROVIDER_PRESETS } from '@/shared/providers'
@@ -48,9 +48,10 @@ const formData = ref({
   name: '',
   base_url: '',
   api_key: '',
-  model: '',
+  models: [] as string[],
   context_length: null as number | null,
 })
+const manualModelInput = ref('')
 
 const modelOptions = ref<Array<{ label: string; value: string }>>([])
 
@@ -68,6 +69,7 @@ const isNous = computed(() => selectedPreset.value === NOUS_KEY)
 const isCopilot = computed(() => selectedPreset.value === COPILOT_KEY)
 const isAlibabaCoding = computed(() => selectedPreset.value === ALIBABA_CODING_KEY)
 const alibabaCodingRegion = ref<'intl' | 'cn'>('intl')
+const isCustom = computed(() => providerType.value === 'custom')
 
 const presetOptions = computed(() =>
   presetList.value.map(p => ({ label: p.name, value: p.id })),
@@ -82,9 +84,24 @@ function autoGenerateName(url: string): string {
   return host.charAt(0).toUpperCase() + host.slice(1)
 }
 
+function addModel(modelName: string) {
+  const name = modelName.trim()
+  if (!name || formData.value.models.includes(name)) return
+  formData.value.models.push(name)
+}
+
+function removeModel(modelName: string) {
+  formData.value.models = formData.value.models.filter(m => m !== modelName)
+}
+
+function handleManualAdd() {
+  addModel(manualModelInput.value)
+  manualModelInput.value = ''
+}
+
 watch(selectedPreset, (val) => {
   if (isEditMode.value) return
-  formData.value.model = ''
+  formData.value.models = []
   alibabaCodingRegion.value = 'intl'
   if (val) {
     const preset = presetList.value.find(p => p.id === val)
@@ -96,14 +113,14 @@ watch(selectedPreset, (val) => {
     const presetDef = PROVIDER_PRESETS.find(p => p.value === val)
     if (presetDef && presetDef.models.length > 0) {
       modelOptions.value = presetDef.models.map(m => ({ label: m, value: m }))
-      formData.value.model = presetDef.models[0]
+      formData.value.models = [presetDef.models[0]]
     } else {
       // Fallback: if this provider already exists in the store, use its models
       const existing = modelsStore.allProviders.find(g => g.provider === val)
       if (existing) {
         modelOptions.value = existing.models.map(m => ({ label: m, value: m }))
         if (existing.models.length > 0) {
-          formData.value.model = existing.models[0]
+          formData.value.models = [existing.models[0]]
         }
       } else {
         modelOptions.value = []
@@ -130,7 +147,7 @@ watch(() => formData.value.base_url, (url) => {
 watch(providerType, () => {
   if (isEditMode.value) return
   modelOptions.value = []
-  formData.value = { name: '', base_url: '', api_key: '', model: '', context_length: null }
+  formData.value = { name: '', base_url: '', api_key: '', models: [], context_length: null }
   selectedPreset.value = null
 })
 
@@ -150,7 +167,7 @@ onMounted(async () => {
     formData.value.name = p.label
     formData.value.base_url = p.base_url
     formData.value.api_key = p.api_key || ''
-    formData.value.model = p.models.length > 0 ? p.models[0] : ''
+    formData.value.models = [...p.models]
     if (p.provider.startsWith('custom:')) {
       providerType.value = 'custom'
       modelOptions.value = p.models.map(m => ({ label: m, value: m }))
@@ -188,8 +205,15 @@ async function fetchModels() {
     if (!Array.isArray(data.data)) throw new Error(t('models.unexpectedFormat'))
 
     modelOptions.value = data.data.map(m => ({ label: m.id, value: m.id }))
-    if (modelOptions.value.length > 0 && !formData.value.model) {
-      formData.value.model = modelOptions.value[0].value
+    // Custom mode: add all fetched models; preset mode: only default to first
+    if (isCustom.value) {
+      for (const m of modelOptions.value) {
+        if (!formData.value.models.includes(m.value)) {
+          formData.value.models.push(m.value)
+        }
+      }
+    } else if (modelOptions.value.length > 0 && formData.value.models.length === 0) {
+      formData.value.models = [modelOptions.value[0].value]
     }
     message.success(t('models.foundModels', { count: modelOptions.value.length }))
   } catch (e: any) {
@@ -212,7 +236,7 @@ async function handleSave() {
       await updateProvider(props.editProvider!.provider, {
         name: formData.value.name.trim(),
         base_url: formData.value.base_url.trim(),
-        model: formData.value.model,
+        models: formData.value.models,
         ...(formData.value.api_key.trim() ? { api_key: formData.value.api_key.trim() } : {}),
       })
       message.success(t('models.providerUpdated'))
@@ -277,7 +301,7 @@ async function handleSave() {
       name: formData.value.name.trim(),
       base_url: formData.value.base_url.trim(),
       api_key: formData.value.api_key.trim(),
-      model: formData.value.model,
+      models: formData.value.models,
       context_length: contextLength,
       providerKey,
     })
@@ -453,6 +477,64 @@ function handleClose() {
           style="width: 100%"
         />
       </NFormItem>
+
+      <!-- Preset: single model select -->
+      <NFormItem v-if="providerType === 'preset' && modelOptions.length > 0" :label="t('models.model')">
+        <NSelect
+          :value="formData.models[0] || null"
+          :options="modelOptions"
+          :placeholder="t('models.chooseModel')"
+          :show-tooltip="true"
+          @update:value="v => formData.models = v ? [v] : []"
+        />
+      </NFormItem>
+
+      <!-- Custom: multiple models -->
+      <NFormItem v-if="isCustom" :label="t('models.models')">
+        <div class="multi-model-input">
+          <div class="model-tags">
+            <NTag
+              v-for="m in formData.models"
+              :key="m"
+              size="small"
+              closable
+              @close="removeModel(m)"
+            >
+              {{ m }}
+            </NTag>
+            <NInput
+              v-model:value="manualModelInput"
+              size="small"
+              :placeholder="formData.models.length === 0 ? t('models.addModelPlaceholder') : ''"
+              class="model-input-inline"
+              @keydown.enter.prevent="handleManualAdd"
+            />
+          </div>
+          <div class="model-actions">
+            <NButton
+              v-if="formData.base_url"
+              size="tiny"
+              quaternary
+              :loading="fetchingModels"
+              @click="fetchModels"
+            >
+              {{ t('models.fetchModels') }}
+            </NButton>
+          </div>
+          <div v-if="modelOptions.length > 0 && formData.models.length < modelOptions.length" class="model-suggestions">
+            <NButton
+              v-for="opt in modelOptions.filter(o => !formData.models.includes(o.value))"
+              :key="opt.value"
+              size="tiny"
+              quaternary
+              type="primary"
+              @click="addModel(opt.value)"
+            >
+              + {{ opt.label }}
+            </NButton>
+          </div>
+        </div>
+      </NFormItem>
     </NForm>
 
     <template #footer>
@@ -489,5 +571,47 @@ function handleClose() {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.multi-model-input {
+  width: 100%;
+}
+
+.model-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.09));
+  border-radius: 6px;
+  min-height: 34px;
+  background: var(--n-color, transparent);
+}
+
+.model-input-inline {
+  flex: 1;
+  min-width: 120px;
+}
+
+.model-input-inline :deep(.n-input__input-el),
+.model-input-inline :deep(.n-input-wrapper) {
+  padding: 0 !important;
+}
+
+.model-input-inline :deep(.n-input__border),
+.model-input-inline :deep(.n-input__state-border) {
+  display: none !important;
+}
+
+.model-actions {
+  margin-top: 4px;
+}
+
+.model-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
 }
 </style>
