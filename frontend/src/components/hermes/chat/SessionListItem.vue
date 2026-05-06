@@ -92,7 +92,7 @@ watch(
       @contextmenu.stop="emit('childContextmenu', $event, c.id)"
     >
       <span class="ancestor-title">{{ c.title || 'Untitled' }}</span>
-      <span class="ancestor-meta">{{ c.messageCount }}{{ t('chat.messageUnit') }}{{ c.source ? ` · ${getSourceLabel(c.source)}` : '' }} · {{ formatTimestampMs(c.endedAt || c.startedAt) }}</span>
+      <span class="ancestor-meta">{{ c.messageCount }}{{ t('chat.messageUnit') }}{{ c.source ? ` · ${getSourceLabel(c.source)}` : '' }} · {{ formatTimestampMs(c.lastMessageTs || c.endedAt || c.startedAt) }}</span>
     </div>
   </div>
 </template>

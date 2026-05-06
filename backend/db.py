@@ -89,6 +89,7 @@ def list_sessions(source: Optional[str] = None, limit: int = 50, offset: int = 0
                     "message_count": c.get("message_count") or 0,
                     "started_at": c.get("started_at"),
                     "ended_at": c.get("ended_at"),
+                    "last_message_ts": c.get("last_message_ts"),
                     "source": c.get("source"),
                 })
             entry["children"] = children

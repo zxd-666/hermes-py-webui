@@ -30,6 +30,7 @@ export interface SessionSummary {
     message_count: number
     started_at: number
     ended_at: number | null
+    last_message_ts?: number | null
     source?: string
   }>
 }

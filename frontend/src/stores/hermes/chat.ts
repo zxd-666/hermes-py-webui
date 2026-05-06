@@ -65,6 +65,7 @@ export interface Session {
     messageCount: number
     startedAt: number
     endedAt: number | null
+    lastMessageTs: number | null
     source?: string
   }>
   loadedParentIds?: string[]
@@ -200,6 +201,7 @@ function mapHermesSession(s: SessionSummary): Session {
       messageCount: c.message_count || 0,
       startedAt: Math.round((c.started_at || 0) * 1000),
       endedAt: c.ended_at != null ? Math.round(c.ended_at * 1000) : null,
+      lastMessageTs: c.last_message_ts != null ? Math.round(c.last_message_ts * 1000) : null,
       source: c.source || undefined,
     })) || [],
   }
