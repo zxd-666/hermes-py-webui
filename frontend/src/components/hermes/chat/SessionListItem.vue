@@ -28,7 +28,8 @@ const ancestorsExpanded = ref(false)
 const ancestorCount = computed(() => Math.max(0, (props.session.lineageCount || 1) - 1))
 const hasAncestors = computed(() => ancestorCount.value > 0)
 
-// Auto-expand children list when requested (e.g. from favorites/search jump)
+// Auto-expand children list when requested (e.g. from favorites/search jump,
+// or page refresh where the watch registers after the value is already set)
 watch(
   () => chatStore.expandAncestorsForId,
   (targetId) => {
@@ -36,6 +37,7 @@ watch(
       ancestorsExpanded.value = true
     }
   },
+  { immediate: true },
 )
 </script>
 
