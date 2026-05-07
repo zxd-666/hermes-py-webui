@@ -56,6 +56,7 @@ export interface Session {
   endedAt?: number | null
   lastActiveAt?: number
   workspace?: string | null
+  pinned?: boolean
   parentSessionId?: string | null
   lineageCount?: number
   lineageMessageCount?: number
@@ -192,6 +193,7 @@ function mapHermesSession(s: SessionSummary): Session {
     endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
     lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
     workspace: s.workspace || null,
+    pinned: s.pinned || false,
     parentSessionId: s.parent_session_id || null,
     lineageCount: (s as any).lineage_count || 0,
     lineageMessageCount: (s as any).lineage_message_count ?? undefined,

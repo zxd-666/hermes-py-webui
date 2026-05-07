@@ -25,6 +25,10 @@ export interface MemoryConfig {
   user_profile_enabled?: boolean
   memory_char_limit?: number
   user_char_limit?: number
+  nudge_interval?: number
+  retrieval_threshold?: number
+  max_memory_entries?: number
+  flush_min_turns?: number
 }
 
 export interface SessionResetConfig {

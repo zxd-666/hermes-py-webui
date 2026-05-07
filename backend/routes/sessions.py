@@ -22,22 +22,68 @@ def _get_profile(request: Request) -> str | None:
     name = request.headers.get("x-hermes-profile", "").strip()
     return name if name else None
 
-# ─── Workspace persistence ───
+# ─── Session meta persistence (workspace + pinned) ───
 
-_WORKSPACE_META = HERMES_HOME / "webui_session_meta.json"
-
-
-def _load_workspace_map() -> dict:
-    if _WORKSPACE_META.exists():
-        try:
-            return json.loads(_WORKSPACE_META.read_text())
-        except Exception:
-            pass
-    return {}
+_SESSION_META = HERMES_HOME / "webui_session_meta.json"
 
 
-def _save_workspace_map(data: dict):
-    _WORKSPACE_META.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+def _load_session_meta() -> dict:
+    """Load session meta map. Auto-migrates legacy flat {id: workspace} format."""
+    if not _SESSION_META.exists():
+        return {}
+    try:
+        raw = json.loads(_SESSION_META.read_text())
+    except Exception:
+        return {}
+    # Detect legacy flat format (first value is a plain string)
+    if raw:
+        sample = next(iter(raw.values()))
+        if isinstance(sample, str):
+            migrated = {}
+            for sid, val in raw.items():
+                if val:
+                    migrated[sid] = {"workspace": val}
+            _save_session_meta(migrated)
+            return migrated
+    return raw
+
+
+def _save_session_meta(data: dict):
+    _SESSION_META.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _get_session_workspace(meta: dict, session_id: str) -> str | None:
+    entry = meta.get(session_id)
+    return entry.get("workspace") if isinstance(entry, dict) else (entry or None)
+
+
+def _get_session_pinned(meta: dict, session_id: str) -> bool:
+    entry = meta.get(session_id)
+    return bool(entry.get("pinned")) if isinstance(entry, dict) else False
+
+
+def _set_session_workspace(meta: dict, session_id: str, workspace: str) -> dict:
+    if session_id not in meta:
+        meta[session_id] = {}
+    if workspace:
+        meta[session_id]["workspace"] = workspace
+    else:
+        meta[session_id].pop("workspace", None)
+        if not meta[session_id]:
+            meta.pop(session_id, None)
+    return meta
+
+
+def _set_session_pinned(meta: dict, session_id: str, pinned: bool) -> dict:
+    if session_id not in meta:
+        meta[session_id] = {}
+    if pinned:
+        meta[session_id]["pinned"] = True
+    else:
+        meta[session_id].pop("pinned", None)
+        if not meta[session_id]:
+            meta.pop(session_id, None)
+    return meta
 
 
 # ─── Conversation endpoints (MUST be before /sessions/{session_id}) ───
@@ -52,7 +98,7 @@ async def conversation_summaries(
     """List conversation summaries with richer data."""
     profile = _get_profile(request)
     sessions = list_sessions(source=source, limit=limit, profile=profile)
-    wmap = _load_workspace_map()
+    meta = _load_session_meta()
     summaries = []
     for s in sessions:
         msgs = get_session_messages(s["id"], limit=3, profile=profile)
@@ -79,7 +125,8 @@ async def conversation_summaries(
             "estimated_cost_usd": s.get("estimated_cost_usd", 0),
             "preview": preview,
             "is_active": not s.get("ended_at"),
-            "workspace": wmap.get(s["id"]),
+            "workspace": _get_session_workspace(meta, s["id"]),
+            "pinned": _get_session_pinned(meta, s["id"]),
         })
     return {"sessions": summaries}
 
@@ -160,9 +207,10 @@ async def sessions_list(
 ):
     profile = _get_profile(request)
     sessions = list_sessions(source=source, limit=limit, offset=offset, profile=profile)
-    wmap = _load_workspace_map()
+    meta = _load_session_meta()
     for s in sessions:
-        s["workspace"] = wmap.get(s["id"])
+        s["workspace"] = _get_session_workspace(meta, s["id"])
+        s["pinned"] = _get_session_pinned(meta, s["id"])
         msgs = get_session_messages(s["id"], limit=3, profile=profile)
         for m in reversed(msgs):
             if m.get("role") == "user" and m.get("content"):
@@ -216,13 +264,20 @@ async def session_rename(request: Request, session_id: str, body: dict):
 async def session_workspace(session_id: str, body: dict):
     """Set or clear workspace for a session. Persists to JSON file."""
     workspace = body.get("workspace", "").strip()
-    wmap = _load_workspace_map()
-    if workspace:
-        wmap[session_id] = workspace
-    else:
-        wmap.pop(session_id, None)
-    _save_workspace_map(wmap)
+    meta = _load_session_meta()
+    _set_session_workspace(meta, session_id, workspace)
+    _save_session_meta(meta)
     return {"ok": True}
+
+
+@router.post("/sessions/{session_id}/pin")
+async def session_pin(session_id: str, body: dict):
+    """Set or clear pinned state for a session. Persists to JSON file."""
+    pinned = bool(body.get("pinned", False))
+    meta = _load_session_meta()
+    _set_session_pinned(meta, session_id, pinned)
+    _save_session_meta(meta)
+    return {"ok": True, "pinned": pinned}
 
 
 @router.get("/workspace/folders")

@@ -21,6 +21,7 @@ export interface SessionSummary {
   actual_cost_usd: number | null
   cost_status: string
   workspace?: string | null
+  pinned?: boolean
   parent_session_id?: string | null
   lineage_count?: number
   lineage_message_count?: number
@@ -122,6 +123,18 @@ export async function setSessionWorkspace(id: string, workspace: string | null):
     await request(`/api/hermes/sessions/${id}/workspace`, {
       method: 'POST',
       body: JSON.stringify({ workspace: workspace || '' }),
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function setSessionPin(id: string, pinned: boolean): Promise<boolean> {
+  try {
+    await request(`/api/hermes/sessions/${id}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({ pinned }),
     })
     return true
   } catch {

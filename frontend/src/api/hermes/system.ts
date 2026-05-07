@@ -98,6 +98,7 @@ export async function updateProvider(poolKey: string, data: {
   base_url?: string
   api_key?: string
   model?: string
+  models?: string[]
 }): Promise<void> {
   await request(`/api/hermes/config/providers/${encodeURIComponent(poolKey)}`, {
     method: 'PUT',

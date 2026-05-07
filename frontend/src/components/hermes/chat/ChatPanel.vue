@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { renameSession, setSessionWorkspace } from '@/api/hermes/sessions'
+import { renameSession, setSessionWorkspace, setSessionPin } from '@/api/hermes/sessions'
 import { fetchWorkspaces } from '@/api/hermes/workspaces'
 import type { WorkspacePreset } from '@/api/hermes/workspaces'
 import { useChatStore, type Session } from '@/stores/hermes/chat'
@@ -128,12 +128,12 @@ function handleSourceFilterChange(source: string | null) {
 
 // Pinned sessions (always shown regardless of filter)
 const pinnedSessions = computed(() =>
-  sortSessionsByTime(chatStore.visibleSessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
+  sortSessionsByTime(chatStore.visibleSessions.filter(session => session.pinned)),
 )
 
 // All non-pinned sessions (filtering is done server-side via activeSourceFilter)
 const filteredSessions = computed(() =>
-  sortSessionsByTime(chatStore.visibleSessions.filter(s => !sessionBrowserPrefsStore.isPinned(s.id))),
+  sortSessionsByTime(chatStore.visibleSessions.filter(s => !s.pinned)),
 )
 
 /** True if the session or one of its children is the active session */
@@ -148,23 +148,13 @@ watch(
   (loaded) => {
     if (!loaded) return
     const recentSession = chatStore.visibleSessions
-      .filter(s => !sessionBrowserPrefsStore.isPinned(s.id))
+      .filter(s => !s.pinned)
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
     if (recentSession && !chatStore.activeSessionId) {
       chatStore.switchSession(recentSession.id)
     }
   },
   { once: true },
-)
-
-watch(
-  () => [chatStore.sessionsLoaded, ...chatStore.visibleSessions.map(session => session.id)],
-  value => {
-    const sessionIds = value.slice(1) as string[]
-    if (!value[0] || sessionIds.length === 0) return
-    sessionBrowserPrefsStore.pruneMissingSessions(sessionIds)
-  },
-  { immediate: true },
 )
 
 const activeSessionTitle = computed(() =>
@@ -279,15 +269,15 @@ async function copySessionId(id?: string) {
 }
 
 function handleDeleteSession(id: string) {
-  sessionBrowserPrefsStore.removePinned(id)
   chatStore.deleteSession(id)
   message.success(t('chat.sessionDeleted'))
 }
 
 const contextSessionId = ref<string | null>(null)
-const contextSessionPinned = computed(() =>
-  contextSessionId.value ? sessionBrowserPrefsStore.isPinned(contextSessionId.value) : false,
-)
+const contextSessionPinned = computed(() => {
+  if (!contextSessionId.value) return false
+  return chatStore.sessions.find(s => s.id === contextSessionId.value)?.pinned || false
+})
 
 const contextMenuOptions = computed(() => {
   const canDel = contextSessionId.value !== chatStore.activeSessionId || chatStore.visibleSessions.length > 1
@@ -318,7 +308,11 @@ function handleContextMenuSelect(key: string) {
   showContextMenu.value = false
   if (!contextSessionId.value) return
   if (key === 'pin') {
-    sessionBrowserPrefsStore.togglePinned(contextSessionId.value)
+    const session = chatStore.sessions.find(s => s.id === contextSessionId.value)
+    if (!session) return
+    const newPinned = !session.pinned
+    setSessionPin(contextSessionId.value!, newPinned)
+    session.pinned = newPinned
     return
   }
   if (key === 'copy-id') {
@@ -644,7 +638,7 @@ function handleWorkspaceSelect(val: string) {
                 :show-tooltip="true"
               />
               <NSelect
-                :key="chatStore.activeSessionId"
+                :key="chatStore.activeSessionId ?? ''"
                 :value="chatStore.activeSession?.workspace || undefined"
                 :options="headerWorkspaceOptions"
                 size="small"
