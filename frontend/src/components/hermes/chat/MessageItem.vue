@@ -2,10 +2,11 @@
 import type { Message } from "@/stores/hermes/chat";
 import { computed, onBeforeUnmount, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
-import { useMessage, NPopover } from "naive-ui";
+import { useMessage, NPopover, useDialog } from "naive-ui";
 import { downloadFile } from "@/api/hermes/download";
 import { copyToClipboard } from "@/utils/clipboard";
 import { fetchPrecedingUserMessage } from "@/api/hermes/favorites";
+import { deleteMessage as deleteMessageApi } from "@/api/hermes/sessions";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import { parseThinking, countThinkingChars } from "@/utils/thinking-parser";
 import { useChatStore } from "@/stores/hermes/chat";
@@ -23,6 +24,7 @@ const TOOL_PAYLOAD_DISPLAY_LIMIT = 2000;
 const props = defineProps<{ message: Message; highlight?: boolean; isLastAssistant?: boolean }>();
 const { t } = useI18n();
 const toast = useMessage();
+const dialog = useDialog();
 
 const chatStore = useChatStore();
 const favStore = useFavoritesStore();
@@ -83,6 +85,40 @@ const copyableContent = computed(() => {
   if (!content.trim()) return null
   return content
 })
+
+const canDelete = computed(() => {
+  return !props.message.isStreaming && props.message.role !== 'system'
+})
+
+const deleteBusy = ref(false)
+
+async function handleDeleteMessage() {
+  if (deleteBusy.value || !canDelete.value) return
+  dialog.warning({
+    title: t('chat.deleteMessage'),
+    content: t('chat.deleteMessageConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      deleteBusy.value = true
+      try {
+        const sessionId = props.message.sessionId || chatStore.activeSessionId || ''
+        if (!sessionId) return
+        const ok = await deleteMessageApi(sessionId, Number(props.message.id))
+        if (ok) {
+          chatStore.removeMessage(props.message.id)
+          toast.success(t('chat.messageDeleted'))
+        } else {
+          toast.error(t('common.operationFailed'))
+        }
+      } catch {
+        toast.error(t('common.operationFailed'))
+      } finally {
+        deleteBusy.value = false
+      }
+    },
+  })
+}
 
 async function copyBubbleContent() {
   const text = copyableContent.value
@@ -620,6 +656,21 @@ const renderedToolResult = computed(() => {
             >
               <svg width="14" height="14" viewBox="0 0 24 24" :fill="isFav ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </button>
+            <button
+              v-if="canDelete"
+              class="copy-bubble-btn delete-msg-btn"
+              :title="t('chat.deleteMessage')"
+              :disabled="deleteBusy"
+              @click="handleDeleteMessage"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6"/>
+                <path d="M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
               </svg>
             </button>
             <span

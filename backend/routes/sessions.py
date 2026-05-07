@@ -8,7 +8,7 @@ from typing import Optional
 from ..config import HERMES_HOME
 from ..db import (
     list_sessions, get_session, get_session_messages,
-    delete_session, rename_session, search_sessions,
+    delete_session, delete_message, rename_session, search_sessions,
     get_usage_stats, get_session_lineage, get_child_session_ids,
     get_lineage_message_count, count_sessions_by_source,
 )
@@ -250,6 +250,15 @@ async def session_message_count(request: Request, session_id: str):
 async def session_delete(request: Request, session_id: str):
     profile = _get_profile(request)
     return {"deleted": delete_session(session_id, profile=profile)}
+
+
+@router.delete("/sessions/{session_id}/messages/{message_id}")
+async def message_delete(request: Request, session_id: str, message_id: str):
+    profile = _get_profile(request)
+    deleted = delete_message(message_id, session_id, profile=profile)
+    if not deleted:
+        return JSONResponse(status_code=404, content={"error": "message not found"})
+    return {"deleted": True}
 
 
 @router.post("/sessions/{session_id}/rename")

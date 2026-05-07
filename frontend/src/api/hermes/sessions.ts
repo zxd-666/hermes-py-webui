@@ -106,6 +106,15 @@ export async function deleteSession(id: string): Promise<boolean> {
   }
 }
 
+export async function deleteMessage(sessionId: string, messageId: number): Promise<boolean> {
+  try {
+    await request(`/api/hermes/sessions/${sessionId}/messages/${messageId}`, { method: 'DELETE' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function renameSession(id: string, title: string): Promise<{ ok: boolean; targetId: string | null; reason?: string }> {
   try {
     const res = await request<{ renamed: boolean; target_id: string; reason?: string }>(`/api/hermes/sessions/${id}/rename`, {

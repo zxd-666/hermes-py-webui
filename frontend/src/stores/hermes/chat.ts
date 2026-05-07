@@ -810,6 +810,16 @@ export const useChatStore = defineStore('chat', () => {
     if (s) s.messages.push(msg)
   }
 
+  function removeMessage(messageId: string) {
+    for (const s of sessions.value) {
+      const idx = s.messages.findIndex(m => m.id === messageId)
+      if (idx !== -1) {
+        s.messages.splice(idx, 1)
+        return
+      }
+    }
+  }
+
   function updateMessage(sessionId: string, id: string, update: Partial<Message>) {
     const s = sessions.value.find(s => s.id === sessionId)
     if (!s) return
@@ -1708,6 +1718,9 @@ export const useChatStore = defineStore('chat', () => {
     loadSessionsBySource,
     loadMoreSessions,
     refreshActiveSession,
+    addMessage,
+    removeMessage,
+    updateMessage,
     getThinkingObservation,
     noteThinkingDelta,
     noteReasoningStart,

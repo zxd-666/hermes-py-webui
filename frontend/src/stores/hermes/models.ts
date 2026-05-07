@@ -47,7 +47,9 @@ export const useModelsStore = defineStore('models', () => {
   }
 
   async function setDefaultModel(modelId: string, provider: string) {
-    await systemApi.updateDefaultModel({ default: modelId, provider })
+    // Hermes expects provider="custom", not the pool key "custom:xxx"
+    const hermesProvider = provider.startsWith('custom:') ? 'custom' : provider
+    await systemApi.updateDefaultModel({ default: modelId, provider: hermesProvider })
     defaultModel.value = modelId
     defaultProvider.value = provider
     const appStore = useAppStore()

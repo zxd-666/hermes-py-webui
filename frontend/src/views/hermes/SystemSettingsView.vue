@@ -5,7 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { fetchServiceStatus, installService, uninstallService, fetchLanAccess, fetchLocalIp, setLanAccess } from '@/api/hermes/system'
 import { fetchAuthStatus, setupPassword, removePassword } from '@/api/auth'
-import { clearApiKey } from '@/api/client'
+import { loginWithPassword } from '@/api/auth'
+import { setApiKey, clearApiKey } from '@/api/client'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -153,6 +154,9 @@ async function doSetupPassword() {
   passwordLoading.value = true
   try {
     await setupPassword(newPassword.value)
+    // setup clears all tokens, so auto-login to get a fresh one
+    const token = await loginWithPassword(newPassword.value)
+    setApiKey(token)
     accessPassword.value = true
     showPasswordSetup.value = false
     message.success(t('systemSettings.passwordEnabled'))

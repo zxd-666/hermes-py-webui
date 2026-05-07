@@ -224,6 +224,20 @@ def delete_session(session_id: str, profile: str | None = None) -> bool:
         conn.close()
 
 
+def delete_message(message_id: str, session_id: str, profile: str | None = None) -> bool:
+    """Delete a single message by its ID within a session."""
+    conn = _conn(profile)
+    try:
+        cur = conn.execute(
+            "DELETE FROM messages WHERE id = ? AND session_id = ?",
+            (message_id, session_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def rename_session(session_id: str, title: str, profile: str | None = None) -> dict:
     """Rename a session. If the session has descendants, update the
     **leaf** (last) session in the lineage chain instead, so the

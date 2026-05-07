@@ -6,7 +6,7 @@ import { useProfilesStore } from '@/stores/hermes/profiles'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import { fetchContextLength } from '@/api/hermes/sessions'
 import { NButton, NTooltip } from 'naive-ui'
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const chatStore = useChatStore()
@@ -40,18 +40,10 @@ onMounted(loadContextLength)
 watch(() => useProfilesStore().activeProfileName, loadContextLength)
 watch(() => useAppStore().selectedModel, loadContextLength)
 
-// Only show context stats when we have accurate data — i.e. after a WebUI
-// agent run that populated contextLength from context_compressor. Other
-// platforms store cumulative prompt_tokens in DB, so without a WebUI run
-// the bar would be misleading.
 const showContextInfo = computed(() => !!chatStore.activeSession?.contextLength)
 
-// inputTokens now reflects last_prompt_tokens (actual context window usage),
-// not the cumulative sum. outputTokens is separate and not part of context usage.
 const contextTokens = computed(() => showContextInfo.value ? (chatStore.activeSession?.inputTokens ?? 0) : 0)
 
-// Prefer agent-reported context_length (from context_compressor, accurate after probe)
-// over static config value (from config.yaml, may not match actual provider limit).
 const effectiveContextLength = computed(() =>
   chatStore.activeSession?.contextLength || contextLength.value,
 )
@@ -173,6 +165,37 @@ function isImeEnter(e: KeyboardEvent): boolean {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  // Slash command panel keyboard navigation
+  if (slashVisible.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      slashHighlightIndex.value = (slashHighlightIndex.value + 1) % filteredSlashCommands.value.length
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      slashHighlightIndex.value =
+        (slashHighlightIndex.value - 1 + filteredSlashCommands.value.length) % filteredSlashCommands.value.length
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      slashVisible.value = false
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !isImeEnter(e)) {
+      e.preventDefault()
+      const cmd = filteredSlashCommands.value[slashHighlightIndex.value]
+      if (cmd) {
+        selectSlashCommand(cmd)
+      } else {
+        slashVisible.value = false
+        handleSend()
+      }
+      return
+    }
+  }
+
   if (e.key !== 'Enter' || e.shiftKey) return
   if (isImeEnter(e)) return
 
@@ -203,10 +226,200 @@ function formatSize(bytes: number): string {
 function isImage(type: string): boolean {
   return type.startsWith('image/')
 }
+
+// ─── Slash Command Selector ──────────────────────────────────────
+
+interface SlashCommand {
+  name: string
+  aliases: string[]
+  desc: string
+  hint: string
+  category: string
+}
+
+// Command definitions (name/aliases/hint are language-independent)
+const SLASH_CMD_DEFS = [
+  { name: 'new', aliases: ['reset'], descKey: 'new', hint: '', catKey: 'session' },
+  { name: 'retry', aliases: [], descKey: 'retry', hint: '', catKey: 'session' },
+  { name: 'undo', aliases: [], descKey: 'undo', hint: '', catKey: 'session' },
+  { name: 'title', aliases: [], descKey: 'title', hint: '[name]', catKey: 'session' },
+  { name: 'branch', aliases: ['fork'], descKey: 'branch', hint: '[name]', catKey: 'session' },
+  { name: 'compress', aliases: [], descKey: 'compress', hint: '[focus topic]', catKey: 'session' },
+  { name: 'rollback', aliases: [], descKey: 'rollback', hint: '[number]', catKey: 'session' },
+  { name: 'stop', aliases: [], descKey: 'stop', hint: '', catKey: 'session' },
+  { name: 'background', aliases: ['bg', 'btw'], descKey: 'background', hint: '<prompt>', catKey: 'session' },
+  { name: 'agents', aliases: ['tasks'], descKey: 'agents', hint: '', catKey: 'session' },
+  { name: 'queue', aliases: ['q'], descKey: 'queue', hint: '<prompt>', catKey: 'session' },
+  { name: 'steer', aliases: [], descKey: 'steer', hint: '<prompt>', catKey: 'session' },
+  { name: 'status', aliases: [], descKey: 'status', hint: '', catKey: 'session' },
+  { name: 'profile', aliases: [], descKey: 'profile', hint: '', catKey: 'session' },
+  { name: 'resume', aliases: [], descKey: 'resume', hint: '[name]', catKey: 'session' },
+  // Configuration
+  { name: 'model', aliases: ['provider'], descKey: 'model', hint: '[model] [--provider name] [--global]', catKey: 'config' },
+  { name: 'personality', aliases: [], descKey: 'personality', hint: '[name]', catKey: 'config' },
+  { name: 'yolo', aliases: [], descKey: 'yolo', hint: '', catKey: 'config' },
+  { name: 'reasoning', aliases: [], descKey: 'reasoning', hint: '[level|show|hide]', catKey: 'config' },
+  { name: 'fast', aliases: [], descKey: 'fast', hint: '[normal|fast|status]', catKey: 'config' },
+  { name: 'voice', aliases: [], descKey: 'voice', hint: '[on|off|tts|status]', catKey: 'config' },
+  // Tools
+  { name: 'reload-mcp', aliases: ['reload_mcp'], descKey: 'reloadMcp', hint: '', catKey: 'tools' },
+  // Info
+  { name: 'commands', aliases: [], descKey: 'commands', hint: '[page]', catKey: 'info' },
+  { name: 'help', aliases: [], descKey: 'help', hint: '', catKey: 'info' },
+  { name: 'usage', aliases: [], descKey: 'usage', hint: '', catKey: 'info' },
+  { name: 'insights', aliases: [], descKey: 'insights', hint: '[days]', catKey: 'info' },
+  { name: 'debug', aliases: [], descKey: 'debug', hint: '', catKey: 'info' },
+  // Gateway only
+  { name: 'approve', aliases: [], descKey: 'approve', hint: '[session|always]', catKey: 'session' },
+  { name: 'deny', aliases: [], descKey: 'deny', hint: '', catKey: 'session' },
+  { name: 'sethome', aliases: ['set-home'], descKey: 'sethome', hint: '', catKey: 'session' },
+  { name: 'update', aliases: [], descKey: 'update', hint: '', catKey: 'info' },
+  { name: 'restart', aliases: [], descKey: 'restart', hint: '', catKey: 'info' },
+]
+
+const SLASH_COMMANDS = computed<SlashCommand[]>(() =>
+  SLASH_CMD_DEFS.map(d => ({
+    name: d.name,
+    aliases: d.aliases,
+    desc: t(`slashCmd.desc.${d.descKey}`),
+    hint: d.hint,
+    category: t(`slashCmd.category.${d.catKey}`),
+  }))
+)
+
+const slashVisible = ref(false)
+const slashHighlightIndex = ref(0)
+const slashPanelRef = ref<HTMLDivElement>()
+
+const slashQuery = computed(() => {
+  const text = inputText.value
+  if (!text.startsWith('/')) return ''
+  const afterSlash = text.slice(1)
+  const spaceIdx = afterSlash.indexOf(' ')
+  return spaceIdx === -1 ? afterSlash : afterSlash.slice(0, spaceIdx)
+})
+
+const filteredSlashCommands = computed(() => {
+  const q = slashQuery.value.toLowerCase()
+  const cmds = SLASH_COMMANDS.value
+  if (!q) return cmds
+  return cmds.filter(
+    (cmd: SlashCommand) =>
+      cmd.name.toLowerCase().startsWith(q) ||
+      cmd.aliases.some((a: string) => a.toLowerCase().startsWith(q)),
+  )
+})
+
+// Group commands by category, preserving order of first appearance
+const groupedSlashCommands = computed(() => {
+  const groups: { category: string; commands: SlashCommand[] }[] = []
+  let currentCat = ''
+  for (const cmd of filteredSlashCommands.value) {
+    if (cmd.category !== currentCat) {
+      groups.push({ category: cmd.category, commands: [cmd] })
+      currentCat = cmd.category
+    } else {
+      groups[groups.length - 1].commands.push(cmd)
+    }
+  }
+  return groups
+})
+
+// Pre-compute flat index offsets for each group so the template can map group+cmd → flat index
+const groupOffsets = computed(() => {
+  const offsets: number[] = []
+  let offset = 0
+  for (const group of groupedSlashCommands.value) {
+    offsets.push(offset)
+    offset += group.commands.length
+  }
+  return offsets
+})
+
+/** Map (groupIndex, commandIndex) → flat index in filteredSlashCommands */
+function getFlatIndex(gi: number, ci: number): number {
+  return (groupOffsets.value[gi] ?? 0) + ci
+}
+
+// Reset highlight when filtered list changes
+watch(filteredSlashCommands, (cmds) => {
+  if (slashHighlightIndex.value >= cmds.length) {
+    slashHighlightIndex.value = Math.max(0, cmds.length - 1)
+  }
+})
+
+// Show/hide panel based on input
+watch(inputText, () => {
+  if (inputText.value.startsWith('/') && filteredSlashCommands.value.length > 0) {
+    if (!slashVisible.value) {
+      slashVisible.value = true
+      slashHighlightIndex.value = 0
+    }
+  } else {
+    slashVisible.value = false
+  }
+})
+
+function selectSlashCommand(cmd: SlashCommand) {
+  inputText.value = `/${cmd.name} `
+  slashVisible.value = false
+  nextTick(() => {
+    textareaRef.value?.focus()
+  })
+}
+
+function onSlashPanelClick(e: MouseEvent) {
+  e.stopPropagation()
+}
+
+function onDocumentClick(e: MouseEvent) {
+  if (slashVisible.value && slashPanelRef.value && !slashPanelRef.value.contains(e.target as Node)) {
+    slashVisible.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
+})
 </script>
 
 <template>
   <div class="chat-input-area">
+    <!-- Slash command selector panel -->
+    <div
+      v-if="slashVisible && filteredSlashCommands.length > 0"
+      ref="slashPanelRef"
+      class="slash-panel"
+      @click="onSlashPanelClick"
+    >
+      <template v-for="(group, gi) in groupedSlashCommands" :key="group.category">
+        <div class="slash-group-title">{{ group.category }}</div>
+        <div
+          v-for="(cmd, ci) in group.commands"
+          :key="cmd.name"
+          class="slash-item"
+          :class="{ 'slash-item--active': slashHighlightIndex === getFlatIndex(gi, ci) }"
+          @mouseenter="slashHighlightIndex = getFlatIndex(gi, ci)"
+          @click="selectSlashCommand(cmd)"
+        >
+          <span class="slash-item-name">
+            /{{ cmd.name }}
+            <span v-if="cmd.aliases.length" class="slash-item-aliases">
+              ({{ cmd.aliases.join(', ') }})
+            </span>
+          </span>
+          <span class="slash-item-desc">
+            {{ cmd.desc }}
+            <span v-if="cmd.hint" class="slash-item-hint">{{ cmd.hint }}</span>
+          </span>
+        </div>
+      </template>
+    </div>
+
     <!-- Top bar: attach + context info -->
     <div class="input-top-bar">
       <NTooltip trigger="hover">
@@ -314,6 +527,7 @@ function isImage(type: string): boolean {
 @use '@/styles/variables' as *;
 
 .chat-input-area {
+  position: relative;
   padding: 12px 20px 16px;
   border-top: 1px solid $border-color;
   flex-shrink: 0;
@@ -488,5 +702,84 @@ function isImage(type: string): boolean {
   border-color: var(--accent-info);
   border-style: dashed;
   background-color: rgba(var(--accent-info-rgb), 0.04);
+}
+
+// ─── Slash Command Panel ────────────────────────────────────
+
+.slash-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 20px;
+  right: 20px;
+  margin-bottom: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  background-color: $bg-card;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 4px 0;
+
+  .dark & {
+    background-color: #2a2a2a;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.slash-group-title {
+  font-size: 11px;
+  color: $text-muted;
+  padding: 6px 14px 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  user-select: none;
+}
+
+.slash-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background-color $transition-fast;
+  user-select: none;
+
+  &:hover,
+  &--active {
+    background-color: rgba(var(--accent-primary-rgb), 0.08);
+  }
+}
+
+.slash-item-name {
+  font-family: $font-code;
+  font-size: 13px;
+  color: $accent-primary;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 90px;
+}
+
+.slash-item-aliases {
+  font-family: $font-ui;
+  font-size: 11px;
+  color: $text-muted;
+  margin-left: 4px;
+}
+
+.slash-item-desc {
+  font-size: 13px;
+  color: $text-secondary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slash-item-hint {
+  color: $text-muted;
+  margin-left: 4px;
+  font-family: $font-code;
+  font-size: 12px;
 }
 </style>

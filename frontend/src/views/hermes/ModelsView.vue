@@ -164,7 +164,6 @@ async function handleSaved() {
           {{ t('settings.auxiliary.title') }}
           <span v-if="configuredCount > 0" class="configured-badge">{{ configuredCount }}/{{ auxiliaryKeys.length }}</span>
         </h4>
-        <p class="section-hint">{{ t('settings.auxiliary.formatHint') }}</p>
         <div class="auxiliary-list">
           <div
             v-for="item in auxiliaryKeys"

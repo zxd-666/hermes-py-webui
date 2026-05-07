@@ -62,6 +62,85 @@ def _save_hermes_config(cfg: dict, profile: str | None = None):
     tmp.rename(config_path)
 
 
+# ── .env / custom_providers helpers ─────────────────────────────────
+
+def _read_env_file(profile: str | None = None) -> dict[str, str]:
+    """Read .env file into key-value dict."""
+    env_path = _profile_home(profile) / ".env"
+    env_vars: dict[str, str] = {}
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                k, _, v = line.partition("=")
+                env_vars[k.strip()] = v.strip()
+    return env_vars
+
+
+def _upsert_env_var(var_name: str, value: str, profile: str | None = None):
+    """Set or update a variable in .env, preserving comments and order."""
+    env_path = _profile_home(profile) / ".env"
+    if not env_path.exists():
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        env_path.write_text("")
+    lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    updated = False
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            new_lines.append(line)
+            continue
+        if "=" in stripped:
+            k, _, _ = stripped.partition("=")
+            if k.strip() == var_name:
+                new_lines.append(f"{var_name}={value}")
+                updated = True
+                continue
+        new_lines.append(line)
+    if not updated:
+        new_lines.append(f"{var_name}={value}")
+    env_path.write_text("\n".join(new_lines) + "\n")
+
+
+def _delete_env_var(var_name: str, profile: str | None = None):
+    """Delete a variable from .env file."""
+    env_path = _profile_home(profile) / ".env"
+    if not env_path.exists():
+        return
+    lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    new_lines = [
+        line for line in lines
+        if not (
+            line.strip()
+            and "=" in line.strip()
+            and line.strip().partition("=")[0].strip() == var_name
+        )
+    ]
+    env_path.write_text("\n".join(new_lines) + "\n")
+
+
+def _generate_env_var_name(name: str, existing_env: dict[str, str]) -> str:
+    """Generate a unique CUSTOM_*_API_KEY env var name from provider name."""
+    import re
+    base = re.sub(r"[^a-zA-Z0-9]", "_", name.strip()).upper()
+    base = re.sub(r"_+", "_", base).strip("_")
+    candidate = f"CUSTOM_{base}_API_KEY"
+    if candidate not in existing_env:
+        return candidate
+    i = 2
+    while f"CUSTOM_{base}_{i}_API_KEY" in existing_env:
+        i += 1
+    return f"CUSTOM_{base}_{i}_API_KEY"
+
+
+def _is_masked(value: str) -> bool:
+    """Check if a value looks like a masked placeholder."""
+    return bool(value and ("•" in value or all(c in "*•" for c in value)))
+
+
 # Platform sections that affect gateway runtime (not just display settings)
 _GATEWAY_PLATFORM_SECTIONS = {
     "telegram", "discord", "slack", "whatsapp", "matrix",
@@ -263,7 +342,8 @@ async def get_available_models(req: Request):
         all_providers.append(g)
         groups.append(g)
 
-    # --- 1a. custom_providers (Hermes CLI registry) ---
+    # --- 1a. custom_providers (config.yaml list) ---
+    env_vars = _read_env_file(profile)
     for cp in cfg.get("custom_providers", []):
         if not isinstance(cp, dict):
             continue
@@ -272,14 +352,26 @@ async def get_available_models(req: Request):
             continue
         pool_key = f"custom:{name}"
         base_url = cp.get("base_url", "")
-        api_key = cp.get("api_key", "") or cp.get("key_env", "")
-        models = []
-        if cp.get("models"):
-            m = cp["models"]
-            models = list(m.keys()) if isinstance(m, dict) else list(m)
+        # Resolve api_key: key_env (from .env) > api_key (inline)
+        key_env = str(cp.get("key_env", "") or "").strip()
+        raw_key = ""
+        display_key = ""
+        if key_env and key_env in env_vars:
+            raw_key = env_vars[key_env]
+            display_key = _mask(raw_key)
+        elif cp.get("api_key"):
+            raw_key = str(cp["api_key"])
+            display_key = _mask(raw_key)
+        # Models: dict format { "model-name": { "context_length": ... } } or list
+        models: list[str] = []
+        cp_models = cp.get("models")
+        if isinstance(cp_models, dict):
+            models = list(cp_models.keys())
+        elif isinstance(cp_models, list):
+            models = list(cp_models)
         if not models and cp.get("model"):
-            models = [cp["model"]]
-        add_group(pool_key, name, base_url, models, api_key)
+            models = [str(cp["model"])]
+        add_group(pool_key, name, base_url, models, display_key)
 
     # --- 1b. credentials_pool providers ---
     pool = cfg.get("credentials_pool") or {}
@@ -291,7 +383,8 @@ async def get_available_models(req: Request):
         models = pool_cfg.get("models", [])
         if not models and pool_cfg.get("model"):
             models = [pool_cfg["model"]]
-        label = pool_key.split(":", 1)[1] if ":" in pool_key else pool_key
+        # label: pool_cfg.name (custom name) > pool_key suffix > pool_key
+        label = pool_cfg.get("name") or (pool_key.split(":", 1)[1] if ":" in pool_key else pool_key)
         add_group(pool_key, label, base_url, models, api_key)
 
     # --- 2. .env API keys → builtin providers ---
@@ -356,6 +449,19 @@ async def get_available_models(req: Request):
             "",
         )
 
+    # Fix stale default_provider: if it's just "custom" or doesn't match any group,
+    # find the group that actually contains the default model
+    if default and default_provider:
+        matched = any(
+            default_provider == g["provider"] and default in g["models"]
+            for g in groups
+        )
+        if not matched and default_provider == "custom":
+            for g in groups:
+                if g["provider"].startswith("custom:") and default in g["models"]:
+                    default_provider = g["provider"]
+                    break
+
     return {
         "default": default,
         "default_provider": default_provider,
@@ -366,91 +472,169 @@ async def get_available_models(req: Request):
 
 @router.post("/config/providers")
 async def add_provider(req: Request, body: dict):
-    """Add a provider to the credentials pool."""
+    """Add a provider to custom_providers list."""
     profile = _profile_from_request(req)
     name = body.get("name", "")
     base_url = body.get("base_url", "")
-    api_key = body.get("api_key", "")
-    model = body.get("model", "")
+    api_key = body.get("api_key", "").strip()
+    api_mode = body.get("api_mode", "")
+    models = body.get("models", [])
+    context_length = body.get("context_length")
     provider_key = body.get("providerKey")
 
     if not name:
         return {"error": "provider name required"}
 
     cfg = _load_hermes_config(profile)
-    pool = cfg.get("credentials_pool") or {}
+    providers = cfg.get("custom_providers") or []
+    if not isinstance(providers, list):
+        providers = []
 
-    # Preset provider: use registry key as pool_key (e.g. "zai", "anthropic")
-    # Custom provider: prefix with "custom:" (e.g. "custom:My Provider")
-    if provider_key:
-        pool_key = provider_key
-    else:
-        pool_key = f"custom:{name}"
+    # Prevent duplicate names
+    if any(isinstance(e, dict) and e.get("name") == name for e in providers):
+        return {"error": f"provider '{name}' already exists"}
 
-    pool[pool_key] = {
+    # Determine the provider key for matching
+    # Use providerKey if given (for preset providers like zai, minimax-cn),
+    # otherwise auto-generate from name
+    if provider_key and provider_key not in ("custom", "custom:"):
+        # Builtin/preset provider — just set env var, don't add to custom_providers
+        env_name = _generate_env_var_name(name, _read_env_file(profile))
+        _upsert_env_var(env_name, api_key, profile)
+        return {"ok": True}
+
+    # Custom provider — add to custom_providers list
+    env_vars = _read_env_file(profile)
+    env_name = _generate_env_var_name(name, env_vars)
+
+    entry: dict = {
+        "name": name,
         "base_url": base_url,
-        "api_key": api_key,
-        "model": model,
+        "key_env": env_name,
     }
-    if body.get("context_length"):
-        pool[pool_key]["context_length"] = body["context_length"]
+    if api_mode:
+        entry["api_mode"] = api_mode
+    if models:
+        entry["models"] = models
+    if context_length:
+        entry["context_length"] = context_length
 
-    cfg["credentials_pool"] = pool
+    providers.append(entry)
+    cfg["custom_providers"] = providers
     _save_hermes_config(cfg, profile)
+
+    # Write api_key to .env
+    if api_key:
+        _upsert_env_var(env_name, api_key, profile)
+
     return {"ok": True}
 
 
 @router.delete("/config/providers/{pool_key:path}")
 async def remove_provider(req: Request, pool_key: str):
-    """Remove a provider from credentials_pool, custom_providers, or hide a builtin."""
+    """Remove a provider from custom_providers, credentials_pool, or hide a builtin."""
     profile = _profile_from_request(req)
     cfg = _load_hermes_config(profile)
     removed = False
 
-    # 1. Try credentials_pool (exact key match)
+    # Extract name from key
+    prov_name = pool_key.split(":", 1)[1] if ":" in pool_key else pool_key
+
+    # 1. Try custom_providers (match by name)
+    providers = cfg.get("custom_providers") or []
+    if isinstance(providers, list):
+        original_len = len(providers)
+        # Find entry to get key_env before removing
+        key_env = ""
+        for entry in providers:
+            if isinstance(entry, dict) and entry.get("name") == prov_name:
+                key_env = str(entry.get("key_env", "") or "").strip()
+                break
+        providers = [
+            e for e in providers
+            if not (isinstance(e, dict) and e.get("name") == prov_name)
+        ]
+        if len(providers) < original_len:
+            cfg["custom_providers"] = providers
+            _save_hermes_config(cfg, profile)
+            # Clean up .env var
+            if key_env:
+                _delete_env_var(key_env, profile)
+            removed = True
+
+    # 2. Try credentials_pool (backward compat)
     pool = cfg.get("credentials_pool") or {}
     if pool_key in pool:
         del pool[pool_key]
         cfg["credentials_pool"] = pool
         removed = True
 
-    # 2. Try custom_providers — match name with or without "custom:" prefix
-    name = pool_key.removeprefix("custom:")
-    customs = cfg.get("custom_providers", [])
-    original_len = len(customs)
-    cfg["custom_providers"] = [
-        cp for cp in customs
-        if not (isinstance(cp, dict) and cp.get("name", "") == name)
-    ]
-    if len(cfg["custom_providers"]) < original_len:
-        removed = True
+    if removed:
+        return {"ok": True}
 
-    if not removed:
-        # 3. Builtin provider (from .env) — add to hidden_providers
-        hidden = set(cfg.get("hidden_providers", []))
-        hidden.add(pool_key)
-        cfg["hidden_providers"] = sorted(hidden)
-
+    # 3. Builtin provider — add to hidden_providers
+    hidden = set(cfg.get("hidden_providers", []))
+    hidden.add(pool_key)
+    cfg["hidden_providers"] = sorted(hidden)
     _save_hermes_config(cfg, profile)
     return {"ok": True}
 
 
 @router.put("/config/providers/{pool_key:path}")
 async def update_provider(req: Request, pool_key: str, body: dict):
-    """Update a provider in the credentials pool."""
+    """Update a provider in custom_providers (or credentials_pool for compat)."""
     profile = _profile_from_request(req)
     cfg = _load_hermes_config(profile)
+    needs_restart = False
+
+    # Extract provider name from key (custom:NAME → NAME)
+    prov_name = pool_key.split(":", 1)[1] if ":" in pool_key else pool_key
+
+    # Try custom_providers first
+    providers = cfg.get("custom_providers") or []
+    if isinstance(providers, list):
+        for entry in providers:
+            if isinstance(entry, dict) and entry.get("name") == prov_name:
+                # Update models
+                if "models" in body:
+                    entry["models"] = body["models"]
+                # Update api_mode
+                if "api_mode" in body:
+                    entry["api_mode"] = body["api_mode"]
+                # Update context_length
+                if "context_length" in body:
+                    entry["context_length"] = body["context_length"]
+                # Update api_key via .env
+                api_key = str(body.get("api_key", "") or "").strip()
+                if api_key and not _is_masked(api_key):
+                    key_env = str(entry.get("key_env", "") or "").strip()
+                    if key_env:
+                        _upsert_env_var(key_env, api_key, profile)
+                        needs_restart = True
+                # name and base_url are read-only — ignored
+                cfg["custom_providers"] = providers
+                _save_hermes_config(cfg, profile)
+                if needs_restart:
+                    await _restart_gateway_if_running(profile)
+                return {"ok": True}
+
+    # Fallback: credentials_pool (backward compat during transition)
     pool = cfg.get("credentials_pool") or {}
-    if pool_key not in pool:
-        return {"error": "provider not found"}
+    if pool_key in pool:
+        for key in ("name", "base_url", "api_key", "model", "models", "context_length"):
+            if key in body:
+                pool[pool_key][key] = body[key]
+        new_name = body.get("name", "")
+        if new_name and pool_key.startswith("custom:") and new_name != pool_key:
+            old_key = pool_key
+            new_key = f"custom:{new_name}"
+            if new_key != old_key and new_key not in pool:
+                pool[new_key] = pool.pop(old_key)
+        cfg["credentials_pool"] = pool
+        _save_hermes_config(cfg, profile)
+        return {"ok": True}
 
-    for key in ("name", "base_url", "api_key", "model", "context_length"):
-        if key in body:
-            pool[pool_key][key] = body[key]
-
-    cfg["credentials_pool"] = pool
-    _save_hermes_config(cfg, profile)
-    return {"ok": True}
+    return {"error": "provider not found"}
 
 
 @router.get("/config/credentials")
