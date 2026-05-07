@@ -644,6 +644,7 @@ function handleWorkspaceSelect(val: string) {
                 :show-tooltip="true"
               />
               <NSelect
+                :key="chatStore.activeSessionId"
                 :value="chatStore.activeSession?.workspace || undefined"
                 :options="headerWorkspaceOptions"
                 size="small"
