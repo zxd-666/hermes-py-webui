@@ -1015,7 +1015,7 @@ export default {
     expandAll: '展开全部',
     removeFrom: '来源',
     cancelFavorite: '取消收藏',
-    addFavorite: '复制',
+    addFavorite: '收藏',
     copy: '复制',
     download: '下载',
     copied: '已复制',
