@@ -45,14 +45,19 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   const res = await fetch(url, { ...options, headers })
 
-  // Global 401 handler — only redirect to login for local BFF endpoints
-  // Proxied gateway requests should not trigger logout
+  // Global 401 handler — for local BFF endpoints, clear stale token and
+  // redirect to login so the UI never silently degrades on auth expiry.
+  // Proxied gateway requests should not trigger logout.
   const isLocalBff = !path.startsWith('/api/hermes/v1/') &&
     !path.startsWith('/api/hermes/jobs') &&
     !path.startsWith('/api/hermes/skills')
 
-  if (res.status === 401) {
-    // Auth disabled — no redirect
+  if (res.status === 401 && isLocalBff) {
+    clearApiKey()
+    // Avoid redirect loops if already on the login page
+    if (router.currentRoute.value.name !== 'login') {
+      router.push({ name: 'login' })
+    }
   }
 
   if (!res.ok) {
