@@ -76,7 +76,6 @@ export default {
     logs: 'ログ',
     usage: '使用量',
     channels: 'チャンネル',
-    terminal: 'ターミナル',
     files: 'ファイル',
     groupChat: 'グループチャット',
     groupConversation: '会話',

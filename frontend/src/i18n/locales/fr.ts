@@ -76,7 +76,6 @@ export default {
     logs: 'Journaux',
     usage: 'Utilisation',
     channels: 'Canaux',
-    terminal: 'Terminal',
     files: 'Fichiers',
     groupChat: 'Chat de groupe',
     groupConversation: 'Conversation',

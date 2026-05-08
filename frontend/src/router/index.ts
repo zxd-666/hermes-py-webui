@@ -16,7 +16,6 @@ const routeTitleKeys: Record<string, string> = {
   'hermes.usage': 'sidebar.usage',
   'hermes.channels': 'sidebar.channels',
   'hermes.gateways': 'sidebar.gateways',
-  'hermes.terminal': 'sidebar.terminal',
   'hermes.systemSettings': 'sidebar.systemSettings',
   'hermes.files': 'sidebar.files',
   'hermes.groupChat': 'sidebar.groupChat',
@@ -86,11 +85,6 @@ const router = createRouter({
       path: '/hermes/channels',
       name: 'hermes.channels',
       component: () => import('@/views/hermes/ChannelsView.vue'),
-    },
-    {
-      path: '/hermes/terminal',
-      name: 'hermes.terminal',
-      component: () => import('@/views/hermes/TerminalView.vue'),
     },
     {
       name: 'hermes.groupChat',

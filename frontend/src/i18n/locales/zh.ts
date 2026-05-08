@@ -60,7 +60,6 @@ export default {
     usage: '统计',
     channels: '频道',
     gateways: '网关',
-    terminal: '终端',
     systemSettings: '设置',
     groupChat: '群聊',
     files: '文件',

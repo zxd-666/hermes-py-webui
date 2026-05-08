@@ -61,7 +61,6 @@ export default {
     usage: 'Stats',
     channels: 'Channels',
     gateways: 'Gateways',
-    terminal: 'Terminal',
     systemSettings: 'Settings',
     groupChat: 'Group Chat',
     files: 'Files',
