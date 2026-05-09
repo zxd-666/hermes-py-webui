@@ -89,12 +89,12 @@ async function handleToggle(category: string, skillName: string, newEnabled: boo
       <div v-if="!collapsedCategories.has(cat.name)" class="category-skills">
         <button
           v-for="skill in cat.skills"
-          :key="skill.name"
+          :key="skill.path || skill.name"
           class="skill-item"
           :class="{
-            active: selectedSkill === `${cat.name}/${skill.name}`,
+            active: selectedSkill === `${cat.name}/${skill.path || skill.name}`,
           }"
-          @click="handleSelect(cat.name, skill.name)"
+          @click="handleSelect(cat.name, skill.path || skill.name)"
         >
           <div class="skill-info">
             <span class="skill-name">{{ skill.name }}</span>

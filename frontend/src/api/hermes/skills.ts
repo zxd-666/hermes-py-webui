@@ -4,6 +4,7 @@ export interface SkillInfo {
   name: string
   description: string
   enabled?: boolean
+  path?: string  // relative path from category (e.g. "evaluation/lm-evaluation-harness")
 }
 
 export interface SkillCategory {

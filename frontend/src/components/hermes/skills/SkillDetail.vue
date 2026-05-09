@@ -102,9 +102,10 @@ async function loadSkill() {
   meta.value = { name: '', description: '', tags: [] }
   try {
     const skillPath = `${props.category}/${props.skill}/SKILL.md`
+    const skillRelPath = props.skill  // already the full relative path from category
     const [skillContent, skillFiles] = await Promise.all([
       fetchSkillContent(skillPath),
-      fetchSkillFiles(props.category, props.skill),
+      fetchSkillFiles(props.category, skillRelPath),
     ])
     content.value = skillContent
     files.value = skillFiles

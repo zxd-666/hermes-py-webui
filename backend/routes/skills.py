@@ -24,6 +24,28 @@ def _skill_dirs(home: Path) -> list[Path]:
     )
 
 
+def _find_all_skill_dirs(skills_root: Path) -> list[tuple[Path, Path]]:
+    """Recursively find all directories containing SKILL.md.
+
+    Returns list of (skill_dir, category_dir) tuples.
+    Category is the first-level directory under skills/.
+    Skill path is everything after the category.
+    """
+    results = []
+    if not skills_root.exists():
+        return results
+    for cat_dir in sorted(skills_root.iterdir()):
+        if not cat_dir.is_dir() or cat_dir.name.startswith(".") or cat_dir.name.startswith("_"):
+            continue
+        for root, dirs, files in os.walk(cat_dir):
+            # Skip hidden dirs
+            dirs[:] = [d for d in dirs if not d.startswith(".") and not d.startswith("_")]
+            if "SKILL.md" in files:
+                skill_dir = Path(root)
+                results.append((skill_dir, cat_dir))
+    return results
+
+
 def _parse_skill_md(skill_path: Path) -> dict:
     """Parse YAML frontmatter from SKILL.md."""
     content = ""
@@ -59,7 +81,9 @@ def _parse_skill_md(skill_path: Path) -> dict:
                         stripped = cl.strip().strip('"').strip("'")
                         if stripped:
                             desc_lines.append(stripped)
-                    description = " ".join(desc_lines)
+                    description = " ".join(desc_lines).strip()
+                    # Sanitize control characters that break JSON serialization
+                    description = description.replace("\n", " ").replace("\r", "").replace("\t", " ")
                 elif line.startswith("enabled:"):
                     enabled = line.split(":", 1)[1].strip().lower() not in ("false", "0", "no")
 
@@ -78,28 +102,41 @@ def _file_mtime(path: Path) -> Optional[float]:
 async def list_skills(request: Request):
     """List all skills grouped by category directory."""
     home = profile_home(profile_from_request(request))
+    skills_root = home / "skills"
+    all_skills = _find_all_skill_dirs(skills_root)
+
+    # Group by category
+    cat_skills: dict[str, list[dict]] = {}
+    cat_dirs: dict[str, Path] = {}
+    for skill_dir, cat_dir in all_skills:
+        cat_name = cat_dir.name
+        if cat_name not in cat_skills:
+            cat_skills[cat_name] = []
+            cat_dirs[cat_name] = cat_dir
+        info = _parse_skill_md(skill_dir)
+        # For deeply nested skills, store the relative path from category
+        # so the frontend can construct the correct URL
+        rel = skill_dir.relative_to(cat_dir)
+        info["path"] = str(rel)  # e.g. "evaluation/lm-evaluation-harness"
+        cat_skills[cat_name].append(info)
+
     categories = []
-    for cat_dir in _skill_dirs(home):
-        skills = []
-        for skill_dir in sorted(cat_dir.iterdir()):
-            if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
-                info = _parse_skill_md(skill_dir)
-                skills.append(info)
-        if skills:
-            cat_desc_file = cat_dir / "README.md"
-            cat_desc = ""
-            if cat_desc_file.exists():
-                first_lines = cat_desc_file.read_text(encoding="utf-8").splitlines()
-                cat_desc = first_lines[0].lstrip("#").strip() if first_lines else ""
-            categories.append({
-                "name": cat_dir.name,
-                "description": cat_desc,
-                "skills": skills,
-            })
+    for cat_name, skills in sorted(cat_skills.items()):
+        cat_dir = cat_dirs[cat_name]
+        cat_desc_file = cat_dir / "README.md"
+        cat_desc = ""
+        if cat_desc_file.exists():
+            first_lines = cat_desc_file.read_text(encoding="utf-8").splitlines()
+            cat_desc = first_lines[0].lstrip("#").strip() if first_lines else ""
+        categories.append({
+            "name": cat_name,
+            "description": cat_desc,
+            "skills": skills,
+        })
     return {"categories": categories}
 
 
-@router.get("/skills/{category}/{skill}/files")
+@router.get("/skills/{category}/{skill:path}/files")
 async def get_skill_files(category: str, skill: str, request: Request):
     """List files in a skill directory recursively."""
     home = profile_home(profile_from_request(request))

@@ -213,6 +213,20 @@ const STORAGE_KEY_PREFIX = 'hermes_active_session_'
 const LEGACY_STORAGE_KEY = 'hermes_active_session'
 const IN_FLIGHT_TTL_MS = 15 * 60 * 1000 // Give up after 15 minutes
 
+/** Merge DB-loaded messages with in-memory streaming messages.
+ *  DB messages won't have the still-streaming assistant reply (only persisted on run.completed),
+ *  so we append any streaming-only messages that aren't in the DB set. */
+function mergeMessagesPreservingStreaming(
+  dbMessages: Message[],
+  existingMessages: Message[],
+): Message[] {
+  const hasStreaming = existingMessages.some(m => m.isStreaming)
+  if (!hasStreaming) return dbMessages
+  const dbIds = new Set(dbMessages.map(m => m.id))
+  const streamingOnly = existingMessages.filter(m => m.isStreaming && !dbIds.has(m.id))
+  return [...dbMessages, ...streamingOnly]
+}
+
 // 获取当前 profile 名称，用于隔离缓存。
 // 从 profiles store 的 activeProfileName（同步 localStorage）读取，
 // 避免异步加载导致 chat store 初始化时拿到 null。
@@ -435,6 +449,28 @@ export const useChatStore = defineStore('chat', () => {
         removeItemWithLegacy(inFlightKey(s.id), legacyInFlightKey(s.id))
         return false
       })
+      // After page refresh, check if the restored activeSessionId has an
+      // in-flight run that the backend hasn't picked up yet. If so, create
+      // a stub so the session appears in the sidebar while the agent finishes.
+      const restoredId = activeSessionId.value
+      if (restoredId && !freshIds.has(restoredId) && !localOnly.some(s => s.id === restoredId)) {
+        const inflight = readInFlight(restoredId)
+        if (inflight) {
+          localOnly.unshift({
+            id: restoredId,
+            title: '',
+            source: '9898',
+            messages: [],
+            createdAt: inflight.startedAt,
+            updatedAt: inflight.startedAt,
+            messageCount: 0,
+            lineageCount: 0,
+            lineageMessageCount: 0,
+            loadedParentIds: [],
+            children: [],
+          })
+        }
+      }
       sessions.value = [...localOnly, ...fresh]
     } else {
       // Append page
@@ -619,7 +655,8 @@ export const useChatStore = defineStore('chat', () => {
       if (data.inputTokens != null) activeSession.value!.inputTokens = data.inputTokens
       if (data.outputTokens != null) activeSession.value!.outputTokens = data.outputTokens
       if (data.messages?.length) {
-        activeSession.value!.messages = mapHermesMessages(data.messages as any[])
+        const dbMsgs = mapHermesMessages(data.messages as any[])
+        activeSession.value!.messages = mergeMessagesPreservingStreaming(dbMsgs, activeSession.value!.messages)
       }
       if (!activeSession.value!.title) {
         const firstUser = activeSession.value!.messages.find(m => m.role === 'user')
@@ -1095,6 +1132,7 @@ export const useChatStore = defineStore('chat', () => {
             }
 
             case 'run.completed': {
+              try {
               const msgs = getSessionMsgs(sid)
               const lastMsg = msgs[msgs.length - 1]
               if (lastMsg?.isStreaming) {
@@ -1180,7 +1218,6 @@ export const useChatStore = defineStore('chat', () => {
                   timestamp: Date.now(),
                 })
               }
-              cleanup()
               updateSessionTitle(sid)
               persistSessionTitle(sid)
               // Completion sound
@@ -1192,6 +1229,8 @@ export const useChatStore = defineStore('chat', () => {
                   audio.play().catch(() => {})
                 }
               } catch {}
+              } finally {
+              cleanup()
               // the in-flight marker. If the browser is reloading right now
               // and kills us between the two localStorage writes, we want
               // the next page load to still see in-flight === true (so
@@ -1199,10 +1238,12 @@ export const useChatStore = defineStore('chat', () => {
               // around (cleared in-flight + stale streaming cache = UI stuck).
 
               clearInFlight(sid)
+              }
               break
             }
 
             case 'run.failed': {
+              try {
               const msgs = getSessionMsgs(sid)
               const lastErr = msgs[msgs.length - 1]
               if (lastErr?.isStreaming) {
@@ -1224,9 +1265,10 @@ export const useChatStore = defineStore('chat', () => {
                   msgs[i] = { ...m, toolStatus: 'error' }
                 }
               })
+              } finally {
               cleanup()
-
               clearInFlight(sid)
+              }
               break
             }
 
@@ -1364,6 +1406,15 @@ export const useChatStore = defineStore('chat', () => {
             } else if (trimmed === '' && currentEvent && currentData) {
               try {
                 const data = JSON.parse(currentData)
+                // If the run already completed, skip all delta processing and
+                // just reload from DB — avoids duplicating content that was
+                // already persisted by the backend during run.completed.
+                if (currentEvent === 'run.completed' || currentEvent === 'run.failed') {
+                  closed = true
+                  clearInFlight(sid)
+                  void refreshActiveSession()
+                  return
+                }
                 // Delegate to a minimal event handler
                 handleResumedEvent(sid, currentEvent, data, {
                   get runProducedAssistantText() { return runProducedAssistantText },
@@ -1618,7 +1669,8 @@ export const useChatStore = defineStore('chat', () => {
           try {
             const data = await resumeSession(sid)
             if (data.messages?.length && activeSession.value) {
-              activeSession.value.messages = mapHermesMessages(data.messages as any[])
+              const dbMsgs = mapHermesMessages(data.messages as any[])
+              activeSession.value.messages = mergeMessagesPreservingStreaming(dbMsgs, activeSession.value.messages)
             }
           } catch (_e) { /* non-critical */ }
           resumeInFlightRun(sid)
