@@ -248,8 +248,8 @@ async function handleMarkdownClick(event: MouseEvent): Promise<void> {
 @use '@/styles/variables' as *;
 
 .markdown-body {
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: inherit;
+  line-height: 1.7;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
@@ -264,8 +264,12 @@ async function handleMarkdownClick(event: MouseEvent): Promise<void> {
   }
 
   ul, ol {
-    padding-left: 20px;
+    padding-left: 28px;
     margin: 4px 0 8px;
+  }
+
+  ol {
+    list-style-position: outside;
   }
 
   li {
@@ -283,28 +287,47 @@ async function handleMarkdownClick(event: MouseEvent): Promise<void> {
 
   a {
     color: $accent-primary;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    text-decoration: none;
+    text-underline-offset: 3px;
+    background-image: linear-gradient(rgba(var(--accent-primary-rgb), 0.4), rgba(var(--accent-primary-rgb), 0.4));
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: color $transition-fast, background-size 0.25s ease;
+    padding-bottom: 1px;
 
     &:hover {
       color: $accent-hover;
+      background-size: 100% 1px;
     }
   }
 
   blockquote {
     margin: 8px 0;
-    padding: 4px 12px;
-    border-left: 3px solid $border-color;
+    padding: 8px 14px;
+    border-left: 3px solid rgba(var(--accent-primary-rgb), 0.5);
     color: $text-secondary;
+    background: rgba(var(--accent-primary-rgb), 0.03);
+    border-radius: 0 $radius-sm $radius-sm 0;
+
+    .dark & {
+      background: rgba(var(--accent-primary-rgb), 0.06);
+    }
   }
 
   code:not(.hljs) {
-    background: $code-bg;
+    background: rgba(var(--accent-primary-rgb), 0.08);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: $font-code;
-    font-size: 13px;
+    font-size: 0.875em;
     color: $accent-primary;
+    border: 1px solid rgba(var(--accent-primary-rgb), 0.12);
+
+    .dark & {
+      background: rgba(var(--accent-primary-rgb), 0.12);
+      border-color: rgba(var(--accent-primary-rgb), 0.2);
+    }
   }
 
   table {
@@ -315,16 +338,20 @@ async function handleMarkdownClick(event: MouseEvent): Promise<void> {
     overflow-x: auto;
 
     th, td {
-      padding: 6px 12px;
+      padding: 8px 14px;
       border: 1px solid $border-color;
       text-align: left;
-      font-size: 13px;
+      font-size: 0.875em;
     }
 
     th {
       background: rgba(var(--accent-primary-rgb), 0.08);
       color: $text-primary;
       font-weight: 600;
+    }
+
+    tr:hover td {
+      background: rgba(var(--accent-primary-rgb), 0.03);
     }
 
     td {

@@ -696,6 +696,18 @@ const renderedToolResult = computed(() => {
 .message {
   display: flex;
   flex-direction: column;
+  animation: msgFadeIn 0.3s ease-out;
+
+@keyframes msgFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
   &.user {
     align-items: flex-end;
@@ -747,7 +759,7 @@ const renderedToolResult = computed(() => {
 
     .dark & .message-bubble {
       background-color: transparent;
-      padding: 4px 0;
+      padding: 4px 0 2px;
     }
   }
 
@@ -787,7 +799,7 @@ const renderedToolResult = computed(() => {
 }
 
 .message-bubble {
-  padding: 12px 16px;
+  padding: 10px 16px 8px;
   font-size: 16px;
   line-height: 1.7;
   word-break: break-word;
@@ -955,8 +967,8 @@ const renderedToolResult = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 2px;
-  padding-left: 16px;
+  margin-top: 1px;
+  padding-left: 8px;
   opacity: 0;
   transition: opacity 0.15s ease;
 

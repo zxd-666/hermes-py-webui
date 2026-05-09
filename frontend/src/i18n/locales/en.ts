@@ -91,6 +91,7 @@ export default {
   chat: {
     contextRemaining: 'remaining',
     emptyState: 'Start a conversation with {name}',
+    emptyHint: 'Type a message below, or use /commands for quick actions.',
     inputPlaceholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
     attachFiles: 'Attach files',
     stop: 'Stop',

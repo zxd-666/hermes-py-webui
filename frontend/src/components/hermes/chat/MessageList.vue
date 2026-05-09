@@ -238,8 +238,11 @@ watch(currentToolCalls, () => {
 <template>
   <div ref="listRef" class="message-list" :class="{ compact: settingsStore.display.compact, 'no-stream': noStreamDisplay }">
     <div v-if="chatStore.messages.length === 0" class="empty-state">
-      <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Hermes" class="empty-logo" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
-      <p>{{ t("chat.emptyState", { name: (profilesStore.activeProfileName === 'default' ? 'Hermes' : profilesStore.activeProfileName) || 'Hermes' }) }}</p>
+      <div class="empty-avatar-ring">
+        <img :src="profilesStore.activeAvatar || '/logo.png'" alt="Hermes" class="empty-logo" :class="{ 'avatar-logo': profilesStore.activeAvatar }" />
+      </div>
+      <p class="empty-title">{{ t("chat.emptyState", { name: (profilesStore.activeProfileName === 'default' ? 'Hermes' : profilesStore.activeProfileName) || 'Hermes' }) }}</p>
+      <p class="empty-hint">{{ t("chat.emptyHint", { name: (profilesStore.activeProfileName === 'default' ? 'Hermes' : profilesStore.activeProfileName) || 'Hermes' }) }}</p>
     </div>
     <div v-if="hasLineage || hasLoadedHistory" class="lineage-bar">
       <button v-if="hasLoadedHistory" class="lineage-nav-btn" :title="t('chat.prevSegment')" @click.stop="navigateDivider('up')">
@@ -427,22 +430,61 @@ watch(currentToolCalls, () => {
   align-items: center;
   justify-content: center;
   color: $text-muted;
-  gap: 12px;
+  gap: 16px;
+  animation: emptyFadeIn 0.5s ease-out;
+
+  .empty-avatar-ring {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--accent-primary-rgb), 0.08);
+    border: 2px solid rgba(var(--accent-primary-rgb), 0.15);
+    margin-bottom: 4px;
+
+    .dark & {
+      background: rgba(var(--accent-primary-rgb), 0.12);
+      border-color: rgba(var(--accent-primary-rgb), 0.2);
+    }
+  }
 
   .empty-logo {
     width: 48px;
     height: 48px;
-    opacity: 0.25;
+    opacity: 0.35;
 
     &.avatar-logo {
-      border-radius: 12px;
+      border-radius: 50%;
       object-fit: cover;
-      opacity: 0.5;
+      opacity: 0.7;
     }
   }
 
-  p {
+  .empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-secondary;
+  }
+
+  .empty-hint {
     font-size: 14px;
+    color: $text-muted;
+    max-width: 280px;
+    text-align: center;
+    line-height: 1.5;
+  }
+}
+
+@keyframes emptyFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

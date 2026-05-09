@@ -68,12 +68,19 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: $border-color;
+  background: rgba(var(--text-muted-rgb), 0.3);
   border-radius: 3px;
+  transition: background 0.2s ease;
 
   &:hover {
-    background: $text-muted;
+    background: rgba(var(--text-muted-rgb), 0.5);
   }
+}
+
+// Firefox scrollbar
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--text-muted-rgb), 0.3) transparent;
 }
 
 ::selection {

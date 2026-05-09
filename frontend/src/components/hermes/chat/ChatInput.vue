@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Attachment } from '@/stores/hermes/chat'
+import type { WorkspacePreset } from '@/api/hermes/workspaces'
 import { useChatStore } from '@/stores/hermes/chat'
 import { useAppStore } from '@/stores/hermes/app'
 import { useProfilesStore } from '@/stores/hermes/profiles'
 import { useSettingsStore } from '@/stores/hermes/settings'
-import { fetchContextLength } from '@/api/hermes/sessions'
-import { NButton, NTooltip } from 'naive-ui'
+import { fetchContextLength, setSessionWorkspace } from '@/api/hermes/sessions'
+import { fetchWorkspaces } from '@/api/hermes/workspaces'
+import { NButton, NTooltip, NSelect, useMessage } from 'naive-ui'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -21,6 +23,87 @@ const dragCounter = ref(0)
 const isComposing = ref(false)
 
 const canSend = computed(() => inputText.value.trim() || attachments.value.length > 0)
+
+// --- Model & Workspace quick select ---
+
+const appStore = useAppStore()
+
+const modelOptions = computed(() => {
+  const groups: { type: 'group'; label: string; key: string; children: { label: string; value: string; disabled?: boolean }[] }[] = []
+  for (const g of appStore.modelGroups) {
+    const children: { label: string; value: string; disabled?: boolean }[] = []
+    for (const m of g.models) {
+      const meta = (g as any).model_meta?.[m]
+      children.push({ label: m + (meta?.disabled ? ' ✗' : ''), value: g.provider + '::' + m, disabled: !!meta?.disabled })
+    }
+    if (children.length) {
+      groups.push({ type: 'group', label: g.label || g.provider, key: g.provider, children })
+    }
+  }
+  return groups
+})
+
+const headerModelValue = computed(() => {
+  const model = chatStore.activeSession?.model || appStore.selectedModel
+  if (!model) return undefined
+  const provider = chatStore.activeSession?.provider || appStore.selectedProvider
+  if (provider) {
+    const group = appStore.modelGroups.find((g: any) => g.provider === provider && g.models.includes(model))
+    if (group) return group.provider + '::' + model
+  }
+  const group = appStore.modelGroups.find((g: any) => g.models.includes(model))
+  return group ? group.provider + '::' + model : undefined
+})
+
+function handleModelChange(compound: string) {
+  const sep = compound.indexOf('::')
+  const provider = compound.substring(0, sep)
+  const model = compound.substring(sep + 2)
+  if (chatStore.activeSession) {
+    chatStore.switchSessionModel(model, provider)
+  }
+}
+
+const selectedWorkspace = computed(() => chatStore.activeSession?.workspace || null)
+
+const message = useMessage()
+
+// Workspace selector
+const workspacePresets = ref<WorkspacePreset[]>([])
+
+const workspaceOptions = computed(() => {
+  const opts = workspacePresets.value.map(ws => ({
+    label: ws.name,
+    value: ws.path,
+  }))
+  const currentWs = chatStore.activeSession?.workspace
+  if (currentWs && !workspacePresets.value.some(ws => ws.path === currentWs)) {
+    opts.push({ label: currentWs, value: currentWs })
+  }
+  return opts
+})
+
+async function loadWorkspacePresets() {
+  try {
+    workspacePresets.value = await fetchWorkspaces()
+  } catch {
+    workspacePresets.value = []
+  }
+}
+
+async function handleWorkspaceChange(path: string | null) {
+  const sid = chatStore.activeSessionId
+  if (!sid) return
+  const ok = await setSessionWorkspace(sid, path || null)
+  if (ok) {
+    if (chatStore.activeSession) chatStore.activeSession.workspace = path || null
+    message.success(t('chat.workspaceSet'))
+  } else {
+    message.error(t('chat.workspaceSetFailed'))
+  }
+}
+
+onMounted(loadWorkspacePresets)
 
 // --- Context info ---
 
@@ -420,22 +503,12 @@ onBeforeUnmount(() => {
       </template>
     </div>
 
-    <!-- Top bar: attach + context info -->
-    <div class="input-top-bar">
-      <NTooltip trigger="hover">
-        <template #trigger>
-          <NButton quaternary size="tiny" @click="handleAttachClick" circle>
-            <template #icon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            </template>
-          </NButton>
-        </template>
-        {{ t('chat.attachFiles') }}
-      </NTooltip>
-      <span v-if="contextTokens > 0" class="context-info" :class="{ 'context-warning': usagePercent > 80 }">
+    <!-- Context info (above input) -->
+    <div v-if="contextTokens > 0" class="context-row">
+      <span class="context-info" :class="{ 'context-warning': usagePercent > 80 }">
         {{ formatTokens(contextTokens) }} / {{ formatTokens(effectiveContextLength) }} · {{ t('chat.contextRemaining') }} {{ formatTokens(remainingTokens) }}
       </span>
-      <div v-if="contextTokens > 0" class="context-bar">
+      <div class="context-bar">
         <div
           class="context-bar-fill"
           :class="{
@@ -498,29 +571,64 @@ onBeforeUnmount(() => {
         @input="handleInput"
         @paste="handlePaste"
       ></textarea>
-      <div class="input-actions">
-        <NButton
-          v-if="chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt'"
-          circle
-          type="error"
-          @click="chatStore.stopStreaming()"
-          class="stop-btn"
-        >
-          <template #icon>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
-          </template>
-        </NButton>
-        <NButton
-          circle
-          type="primary"
-          :disabled="!canSend || (chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt')"
-          @click="handleSend"
-          class="send-btn"
-        >
-          <template #icon>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </template>
-        </NButton>
+      <div class="input-bottom-bar">
+        <div class="input-toolbar">
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <button class="toolbar-btn" @click="handleAttachClick">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+            </template>
+            {{ t('chat.attachFiles') }}
+          </NTooltip>
+          <NSelect
+            :value="headerModelValue"
+            :options="modelOptions"
+            size="tiny"
+            filterable
+            :virtual-scroll="false"
+            class="toolbar-select model-select"
+            :placeholder="t('models.title')"
+            @update:value="handleModelChange"
+            :show-tooltip="true"
+          />
+          <NSelect
+            :value="selectedWorkspace"
+            :options="workspaceOptions"
+            size="tiny"
+            filterable
+            clearable
+            :virtual-scroll="false"
+            class="toolbar-select workspace-select"
+            :placeholder="t('chat.workspace')"
+            @update:value="handleWorkspaceChange"
+            :show-tooltip="true"
+          />
+        </div>
+        <div class="input-actions">
+          <NButton
+            v-if="chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt'"
+            circle
+            type="error"
+            @click="chatStore.stopStreaming()"
+            class="stop-btn"
+          >
+            <template #icon>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+            </template>
+          </NButton>
+          <NButton
+            circle
+            type="primary"
+            :disabled="!canSend || (chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt')"
+            @click="handleSend"
+            class="send-btn"
+          >
+            <template #icon>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </template>
+          </NButton>
+        </div>
       </div>
     </div>
   </div>
@@ -536,11 +644,11 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.input-top-bar {
+.context-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 0 6px;
+  padding: 0 2px 6px;
 }
 
 .context-info {
@@ -654,12 +762,12 @@ onBeforeUnmount(() => {
 
 .input-wrapper {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 0;
   background-color: $bg-input;
   border: 1.5px solid $border-color;
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 12px 14px 6px;
   transition: border-color $transition-fast, background-color $transition-fast, box-shadow $transition-fast;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
@@ -727,6 +835,82 @@ onBeforeUnmount(() => {
 .stop-btn {
   width: 40px !important;
   height: 40px !important;
+}
+
+.input-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: $text-muted;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all $transition-fast;
+  position: relative;
+
+  &:hover {
+    color: $accent-primary;
+    background: rgba(var(--accent-primary-rgb), 0.08);
+  }
+
+  .dark & {
+    &:hover {
+      color: var(--accent-primary);
+      background: rgba(var(--accent-primary-rgb), 0.12);
+    }
+  }
+}
+
+.workspace-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $accent-primary;
+}
+
+.toolbar-select {
+  width: 120px;
+
+  :deep(.n-base-selection) {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: 30px;
+  }
+
+  :deep(.n-base-selection__border),
+  :deep(.n-base-selection__state-border) {
+    display: none !important;
+  }
+
+  :deep(.n-base-selection-label) {
+    font-size: 12px;
+    padding: 0 4px;
+    height: 30px;
+  }
+
+  :deep(.n-base-selection__action) {
+    display: none;
+  }
 }
 
 // Drag-over state

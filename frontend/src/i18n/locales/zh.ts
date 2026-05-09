@@ -90,6 +90,7 @@ export default {
   chat: {
     contextRemaining: '剩余',
     emptyState: '开始与 {name} 对话',
+    emptyHint: '在下方输入消息，或使用 / 命令快速操作。',
     inputPlaceholder: '输入消息... (Enter 发送，Shift+Enter 换行)',
     attachFiles: '添加附件',
     stop: '停止',

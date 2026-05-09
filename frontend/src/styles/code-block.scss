@@ -5,18 +5,19 @@
 // stays styled even though the HTML is not compiled as Vue template content.
 
 .hljs-code-block {
-  margin: 8px 0;
-  border-radius: $radius-sm;
+  margin: 10px 0;
+  border-radius: $radius-md;
   overflow: hidden;
   background: $code-bg;
   border: 1px solid $border-color;
+  border-left: 3px solid rgba(var(--accent-primary-rgb), 0.5);
 
   .code-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.03);
+    background: rgba(var(--accent-primary-rgb), 0.04);
     border-bottom: 1px solid $border-color;
 
     .code-lang {

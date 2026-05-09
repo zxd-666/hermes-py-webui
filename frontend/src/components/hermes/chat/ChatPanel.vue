@@ -627,35 +627,7 @@ function handleWorkspaceSelect(val: string) {
           <span v-else class="header-session-title" @dblclick="startEditTitle">{{ chatStore.isStreaming ? t('chat.typing') : headerTitle }}</span>
           <span v-if="activeSessionSource && !chatStore.isStreaming" class="source-badge">{{ getSourceLabel(activeSessionSource) }}</span>
         </div>
-        <div class="header-actions">
-          <template v-if="currentMode === 'chat'">
-            <div class="header-select-group">
-              <NSelect
-                :value="headerModelValue"
-                :options="modelOptions"
-                size="small"
-                filterable
-                :virtual-scroll="false"
-                class="header-model-select"
-                :placeholder="t('models.title')"
-                @update:value="handleModelChange"
-                :show-tooltip="true"
-              />
-              <NSelect
-                :key="chatStore.activeSessionId ?? ''"
-                :value="chatStore.activeSession?.workspace || undefined"
-                :options="headerWorkspaceOptions"
-                size="small"
-                filterable
-                clearable
-                class="header-workspace-select"
-                :placeholder="t('chat.workspace')"
-                @update:value="handleHeaderWorkspaceChange"
-                :show-tooltip="true"
-              />
-            </div>
-          </template>
-        </div>
+        <div class="header-actions" />
       </header>
 
       <template v-if="currentMode === 'chat'">
