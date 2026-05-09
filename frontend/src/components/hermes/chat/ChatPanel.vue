@@ -1083,11 +1083,11 @@ function handleWorkspaceSelect(val: string) {
   --n-color-hover: transparent !important;
   --n-arrow-color: transparent !important;
   --n-padding-single: 0 !important;
-  --n-placeholder-color: #262626 !important;
-  --n-text-color: #262626 !important;
+  --n-placeholder-color: var(--text-secondary) !important;
+  --n-text-color: var(--text-primary) !important;
   font-size: 16px !important;
   font-weight: 600 !important;
-  color: #262626 !important;
+  color: var(--text-primary) !important;
 }
 
 .source-filter-select .n-base-selection__arrow {
@@ -1095,8 +1095,8 @@ function handleWorkspaceSelect(val: string) {
 }
 
 html.dark .source-filter-select .n-base-selection {
-  --n-placeholder-color: #f0f0f0 !important;
-  --n-text-color: #f0f0f0 !important;
-  color: #f0f0f0 !important;
+  --n-placeholder-color: var(--text-secondary) !important;
+  --n-text-color: var(--text-primary) !important;
+  color: var(--text-primary) !important;
 }
 </style>

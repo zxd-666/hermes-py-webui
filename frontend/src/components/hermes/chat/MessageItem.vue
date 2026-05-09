@@ -983,28 +983,28 @@ const renderedToolResult = computed(() => {
   }
 
   .dark & {
-    color: #999999;
+    color: var(--text-muted);
 
     &:hover {
-      color: #cccccc;
+      color: var(--text-secondary);
       background: rgba(255, 255, 255, 0.08);
     }
   }
 }
 
 .copy-bubble-btn.fav-active {
-  color: #f5a623;
+  color: var(--accent-primary);
 
   .dark & {
-    color: #f5a623;
+    color: var(--accent-primary);
 
     &:hover {
-      color: #ffc94d;
+      color: var(--accent-hover);
     }
   }
 
   &:hover {
-    color: #ffc94d;
+    color: var(--accent-hover);
   }
 }
 
@@ -1014,7 +1014,7 @@ const renderedToolResult = computed(() => {
   user-select: none;
 
   .dark & {
-    color: #999999;
+    color: var(--text-muted);
   }
 }
 

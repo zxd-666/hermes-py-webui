@@ -335,7 +335,7 @@ async function handleSaved() {
 
 .section-hint {
   font-size: 12px;
-  color: var(--n-warning-color, #e0a020);
+  color: var(--n-warning-color, var(--warning));
   margin: -8px 0 12px;
 }
 

@@ -102,14 +102,10 @@ function formatTokens(n: number): string {
 
 .source-bar {
   height: 100%;
-  background: linear-gradient(90deg, #7c9ef5, #a78bfa);
+  background: linear-gradient(90deg, var(--chart-source), var(--chart-source-end));
   border-radius: 3px;
   min-width: 2px;
   transition: width 0.3s ease;
-
-  .dark & {
-    background: linear-gradient(90deg, #7c9ef5, #a78bfa);
-  }
 }
 
 .source-tokens {

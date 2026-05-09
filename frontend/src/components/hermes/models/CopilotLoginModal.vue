@@ -202,14 +202,14 @@ startLogin()
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
-  border: 1px solid var(--n-border-color, #e0e0e6);
+  border: 1px solid var(--n-border-color, var(--border-color));
   border-radius: 8px;
   cursor: pointer;
   transition: border-color 0.2s;
-  background: var(--n-color, #fafafa);
+  background: var(--n-color, var(--bg-card));
 
   &:hover {
-    border-color: var(--n-primary-color, #18a058);
+    border-color: var(--n-primary-color, var(--accent-primary));
   }
 }
 
@@ -218,19 +218,19 @@ startLogin()
   font-weight: 700;
   font-family: monospace;
   letter-spacing: 4px;
-  color: var(--n-text-color, inherit);
+  color: var(--n-text-color, var(--text-primary));
 }
 
 .copilot-login__state--success {
-  color: #18a058;
+  color: var(--success, #6246ea);
 
   svg {
-    stroke: #18a058;
+    stroke: var(--success, #6246ea);
   }
 }
 
 .copilot-login__error {
-  color: #d03050;
+  color: var(--error, #e45858);
   text-align: center;
   font-size: 13px;
 }

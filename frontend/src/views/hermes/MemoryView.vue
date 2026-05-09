@@ -314,13 +314,13 @@ const userUsage = computed(() => ({
   color: $text-secondary;
 
   &.usage-warn {
-    background: rgba(250, 173, 20, 0.15);
-    color: #e8a317;
+    background: rgba(var(--warning-rgb), 0.15);
+    color: var(--warning);
   }
 
   &.usage-full {
-    background: rgba(208, 48, 80, 0.15);
-    color: #d03050;
+    background: rgba(var(--error-rgb), 0.15);
+    color: var(--error);
   }
 }
 

@@ -142,7 +142,7 @@ const mentionNames = computed(() => props.agents.map(a => a.name).filter(Boolean
     overflow-wrap: break-word;
 
     :deep(.mention-highlight) {
-        color: #409eff;
+        color: var(--accent-primary);
         font-weight: 600;
         cursor: default;
     }

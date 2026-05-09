@@ -124,14 +124,10 @@ import { computed } from 'vue'
 
 .bar-fill {
   width: 100%;
-  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  background: linear-gradient(180deg, var(--chart-daily), var(--chart-daily-end));
   border-radius: 2px 2px 0 0;
   min-height: 0;
   transition: height 0.3s ease;
-
-  .dark & {
-    background: linear-gradient(180deg, #fbbf24, #f59e0b);
-  }
 }
 
 .bar-col {
@@ -147,6 +143,10 @@ import { computed } from 'vue'
   background: $text-primary;
   color: var(--text-on-accent);
   padding: 6px 10px;
+
+  .dark & {
+    color: #16161a;
+  }
   border-radius: $radius-sm;
   font-size: 11px;
   white-space: nowrap;

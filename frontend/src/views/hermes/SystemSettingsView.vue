@@ -461,7 +461,7 @@ onMounted(loadStatus)
 .confirm-url {
   font-size: 15px;
   font-weight: 500;
-  color: #1677ff;
+  color: var(--accent-primary);
   cursor: pointer;
   word-break: break-all;
   margin: 0 0 12px;
@@ -516,11 +516,11 @@ onMounted(loadStatus)
   }
 
   &-confirm {
-    background: #1677ff;
-    color: #fff;
+    background: var(--accent-primary);
+    color: var(--text-on-accent);
 
     &:hover {
-      background: #4096ff;
+      background: var(--accent-hover);
     }
 
     &:disabled {
@@ -530,11 +530,11 @@ onMounted(loadStatus)
   }
 
   &-danger {
-    background: #e5484d;
-    color: #fff;
+    background: var(--error);
+    color: var(--text-on-accent);
 
     &:hover {
-      background: #f27274;
+      opacity: 0.85;
     }
   }
 }
@@ -552,7 +552,7 @@ onMounted(loadStatus)
 
   &:hover {
     background: $accent-primary;
-    color: #fff;
+    color: var(--text-on-accent);
   }
 }
 

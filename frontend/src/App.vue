@@ -115,9 +115,9 @@ useKeyboard()
   padding: 4px 16px;
   font-size: 12px;
   font-weight: 500;
-  color: #b45309;
-  background-color: #fef3c7;
-  border-bottom: 1px solid #fde68a;
+  color: var(--warning);
+  background-color: rgba(var(--warning-rgb), 0.1);
+  border-bottom: 1px solid rgba(var(--warning-rgb), 0.2);
   text-align: center;
   line-height: 1.4;
 }

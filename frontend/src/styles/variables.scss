@@ -1,111 +1,130 @@
-// 黑白水墨 — Pure Ink
-// 纯黑白灰，无彩色
-// 支持 light / dark 双主题
+// Happy Hues — Palette 6 (Light) + Palette 4 (Dark)
+// 严格对齐色板，仅对 UI 特有场景做少量派生
 
 // ─── CSS Custom Properties ─────────────────────────────────────
 
 :root {
   // Backgrounds
-  --bg-primary: #fafafa;
-  --bg-secondary: #f0f0f0;
-  --bg-sidebar: #f5f5f5;
-  --bg-card: #ffffff;
-  --bg-card-hover: #fafafa;
+  --bg-primary: #ffffff;       // Background
+  --bg-secondary: #d1d1e9;     // Secondary / Card background
+  --bg-sidebar: #f4f4fb;       // 极淡紫白（bg-primary 与 secondary 之间）
+  --bg-card: #ffffff;          // Card on primary bg
+  --bg-card-hover: #e6e6f0;    // 略深的 secondary
   --bg-input: #ffffff;
 
   // Borders
-  --border-color: #e0e0e0;
-  --border-light: #ebebeb;
+  --border-color: #d1d1e9;     // Secondary
+  --border-light: #e8e8f2;     // 更浅的 secondary
 
   // Accent
-  --accent-primary: #333333;
-  --accent-hover: #1a1a1a;
-  --accent-muted: #888888;
+  --accent-primary: #6246ea;   // Button / Highlight
+  --accent-hover: #5038cc;     // 略深的 accent
+  --accent-muted: #9b8fd6;     // 淡紫
 
   // Text
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --text-muted: #999999;
+  --text-primary: #2b2c34;     // Headline
+  --text-secondary: #2b2c34;   // Paragraph（色板中与 Headline 同色）
+  --text-muted: #6e6f80;       // 派生：headline 降对比度
 
-  // Status
-  --success: #2e7d32;
-  --error: #c62828;
-  --warning: #f57f17;
+  // Status（严格从色板选色）
+  --success: #6246ea;          // Highlight/Button（色板唯一正向色）
+  --error: #e45858;            // Tertiary 红
+  --warning: #9b8fd6;          // Accent-muted 淡紫警示
 
   // Message bubbles
-  --msg-user-bg: #f5f5f5;
-  --msg-assistant-bg: #f5f5f5;
-  --msg-system-border: #bdbdbd;
+  --msg-user-bg: #d1d1e9;      // Secondary（用户消息用 secondary 底色）
+  --msg-assistant-bg: #ffffff; // 白底
+  --msg-system-border: #d1d1e9;
 
   // Code
-  --code-bg: #f4f4f4;
+  --code-bg: #f4f4fa;
 
   // Utility
-  --text-on-accent: #ffffff;
+  --text-on-accent: #ffffff;   // Button text
   --text-on-overlay: #ffffff;
-  --accent-info: #4a90d9;
+  --accent-info: #6246ea;
+
+  // Charts（图表专用，不受色板限制，追求辨识度）
+  --chart-daily: #6246ea;
+  --chart-daily-end: #8b7ff7;
+  --chart-hourly: #f472b6;
+  --chart-hourly-end: #fb923c;
+  --chart-source: #38bdf8;
+  --chart-source-end: #818cf8;
+  --chart-model: #a78bfa;
+  --chart-model-end: #f472b6;
 
   // RGB components (for rgba() usage)
-  --accent-primary-rgb: 51, 51, 51;
-  --accent-hover-rgb: 26, 26, 26;
-  --text-primary-rgb: 26, 26, 26;
-  --text-muted-rgb: 153, 153, 153;
-  --success-rgb: 46, 125, 50;
-  --error-rgb: 198, 40, 40;
-  --warning-rgb: 245, 127, 23;
-  --accent-info-rgb: 74, 144, 217;
+  --accent-primary-rgb: 98, 70, 234;
+  --accent-hover-rgb: 80, 56, 204;
+  --text-primary-rgb: 43, 44, 52;
+  --text-muted-rgb: 110, 111, 128;
+  --success-rgb: 98, 70, 234;
+  --error-rgb: 228, 88, 88;
+  --warning-rgb: 155, 143, 214;
+  --accent-info-rgb: 98, 70, 234;
 }
 
 .dark {
   // Backgrounds
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #252525;
-  --bg-sidebar: #202020;
-  --bg-card: #333333;
-  --bg-card-hover: #333333;
-  --bg-input: #2a2a2a;
+  --bg-primary: #16161a;       // Background
+  --bg-secondary: #242629;     // Card background
+  --bg-sidebar: #1a1a1f;       // bg-primary 与 card bg 之间
+  --bg-card: #242629;          // Card background
+  --bg-card-hover: #2e2e35;    // 略浅
+  --bg-input: #242629;
 
   // Borders
-  --border-color: #3a3a3a;
-  --border-light: #333333;
+  --border-color: #72757e;     // Secondary（色板原色）
+  --border-light: #3a3a44;
 
   // Accent
-  --accent-primary: #e0e0e0;
-  --accent-hover: #f5f5f5;
-  --accent-muted: #888888;
+  --accent-primary: #7f5af0;   // Button / Highlight
+  --accent-hover: #9b7af7;
+  --accent-muted: #5a4099;
 
   // Text
-  --text-primary: #f0f0f0;
-  --text-secondary: #c0c0c0;
-  --text-muted: #888888;
+  --text-primary: #fffffe;     // Headline
+  --text-secondary: #94a1b2;   // Paragraph（色板原色）
+  --text-muted: #72757e;       // Secondary（色板原色）
 
   // Status
-  --success: #66bb6a;
-  --error: #ef5350;
-  --warning: #ffb74d;
+  --success: #7f5af0;          // Button 紫（统一为紫色）
+  --error: #e45858;
+  --warning: #72757e;          // Secondary 灰（色板原色）
 
   // Message bubbles
-  --msg-user-bg: #252525;
-  --msg-assistant-bg: #252525;
-  --msg-system-border: #555555;
+  --msg-user-bg: #2e2e3a;      // 派生：card bg 偏暖
+  --msg-assistant-bg: #242629; // Card background
+  --msg-system-border: #72757e;
 
   // Code
-  --code-bg: #1e1e1e;
+  --code-bg: #1e1e24;
 
   // Utility
-  --text-on-accent: #1a1a1a;
+  --text-on-accent: #fffffe;   // Button text
   --text-on-overlay: #ffffff;
-  --accent-info: #6ba3d6;
+  --accent-info: #7f5af0;
+
+  // Charts（暗色稍亮）
+  --chart-daily: #818cf8;
+  --chart-daily-end: #a78bfa;
+  --chart-hourly: #fb7185;
+  --chart-hourly-end: #fbbf24;
+  --chart-source: #38bdf8;
+  --chart-source-end: #a78bfa;
+  --chart-model: #c084fc;
+  --chart-model-end: #fb7185;
 
   // RGB components
-  --accent-primary-rgb: 240, 240, 240;
-  --accent-hover-rgb: 245, 245, 245;
-  --text-primary-rgb: 240, 240, 240;
-  --text-muted-rgb: 136, 136, 136;
-  --success-rgb: 102, 187, 106;
-  --error-rgb: 239, 83, 80;
-  --warning-rgb: 255, 183, 77;
-  --accent-info-rgb: 107, 163, 214;
+  --accent-primary-rgb: 127, 90, 240;
+  --accent-hover-rgb: 155, 122, 247;
+  --text-primary-rgb: 255, 255, 254;
+  --text-muted-rgb: 114, 117, 126;
+  --success-rgb: 127, 90, 240;
+  --error-rgb: 228, 88, 88;
+  --warning-rgb: 114, 117, 126;
+  --accent-info-rgb: 127, 90, 240;
 }
 
 // ─── SCSS Variables (delegate to CSS custom properties) ────────

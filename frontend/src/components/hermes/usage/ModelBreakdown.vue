@@ -83,14 +83,10 @@ function formatTokens(n: number): string {
 
 .model-bar {
   height: 100%;
-  background: linear-gradient(90deg, #6ee7b7, #34d399);
+  background: linear-gradient(90deg, var(--chart-model), var(--chart-model-end));
   border-radius: 3px;
   min-width: 2px;
   transition: width 0.3s ease;
-
-  .dark & {
-    background: linear-gradient(90deg, #6ee7b7, #34d399);
-  }
 }
 
 .model-tokens {

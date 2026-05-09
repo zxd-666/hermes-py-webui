@@ -283,7 +283,7 @@ function handleCompositionEnd() {
     }
 
     .dark & {
-        background-color: #333333;
+        background-color: var(--bg-card);
     }
 }
 

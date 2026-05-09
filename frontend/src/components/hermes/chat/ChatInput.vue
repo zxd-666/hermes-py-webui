@@ -545,30 +545,30 @@ onBeforeUnmount(() => {
   color: $text-muted;
 
   &.context-warning {
-    color: #e8a735;
+    color: var(--warning);
   }
 }
 
 .context-bar {
   width: 60px;
   height: 4px;
-  background: rgba(128, 128, 128, 0.2);
+  background: rgba(var(--text-muted-rgb), 0.2);
   border-radius: 2px;
   overflow: hidden;
 }
 
 .context-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(128, 128, 128, 0.3), rgba(128, 128, 128, 0.6));
+  background: linear-gradient(90deg, rgba(var(--text-muted-rgb), 0.3), rgba(var(--text-muted-rgb), 0.6));
   border-radius: 2px;
   transition: width 0.3s ease;
 
   &.context-bar-warn {
-    background: linear-gradient(90deg, #c98a1a, #e8a735);
+    background: linear-gradient(90deg, rgba(var(--warning-rgb), 0.6), rgba(var(--warning-rgb), 1));
   }
 
   &.context-bar-danger {
-    background: linear-gradient(90deg, #c43a2a, #e85d4a);
+    background: linear-gradient(90deg, rgba(var(--error-rgb), 0.6), rgba(var(--error-rgb), 1));
   }
 }
 
@@ -664,7 +664,7 @@ onBeforeUnmount(() => {
   }
 
   .dark & {
-    background-color: #333333;
+    background-color: var(--bg-card);
   }
 }
 
@@ -722,7 +722,7 @@ onBeforeUnmount(() => {
   padding: 4px 0;
 
   .dark & {
-    background-color: #2a2a2a;
+    background-color: var(--bg-primary);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
   }
 }

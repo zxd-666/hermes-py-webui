@@ -75,7 +75,7 @@ onMounted(() => {
   --n-padding-single: 0 8px !important;
   font-size: 22px !important;
   font-weight: 700 !important;
-  color: #0F1419 !important;
+  color: var(--text-primary) !important;
 
   .n-base-selection__border,
   .n-base-selection__state-border {

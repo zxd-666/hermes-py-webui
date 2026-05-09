@@ -416,7 +416,7 @@ watch(currentToolCalls, () => {
   }
 
   .dark & {
-    background-color: #333333;
+    background-color: var(--bg-card-hover);
   }
 }
 
@@ -624,7 +624,7 @@ watch(currentToolCalls, () => {
 }
 
 .tool-call-error-icon {
-  color: #ff4d4f;
+  color: var(--error);
   flex-shrink: 0;
   margin-left: 6px;
   display: flex;
@@ -641,7 +641,7 @@ watch(currentToolCalls, () => {
 }
 
 .tool-call-success-icon {
-  color: #52c41a;
+  color: var(--success);
   flex-shrink: 0;
   margin-left: 6px;
   display: flex;

@@ -253,7 +253,7 @@ watch(() => store.sortedMessages.length, async () => {
                             </div>
                         </template>
                         <div class="agent-popover">
-                            <div class="agent-popover-item" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--n-border-color, #efeff5);">
+                            <div class="agent-popover-item" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--n-border-color, var(--border-color));">
                                 <span class="agent-avatar" v-html="agentAvatarUrl(store.userName || store.userId)" />
                                 <div class="agent-popover-info">
                                     <span class="agent-popover-name">{{ store.userName || 'You' }}</span>

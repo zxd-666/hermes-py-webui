@@ -88,7 +88,7 @@ const maxSessions = computed(() => {
 
 .bar-fill {
   width: 100%;
-  background: linear-gradient(180deg, #60a5fa, #3b82f6);
+  background: linear-gradient(180deg, var(--chart-hourly), var(--chart-hourly-end));
   border-radius: 2px 2px 0 0;
   min-height: 0;
   transition: height 0.3s ease;
@@ -109,6 +109,10 @@ const maxSessions = computed(() => {
   background: $text-primary;
   color: var(--text-on-accent);
   padding: 6px 10px;
+
+  .dark & {
+    color: #16161a;
+  }
   border-radius: $radius-sm;
   font-size: 11px;
   white-space: nowrap;
