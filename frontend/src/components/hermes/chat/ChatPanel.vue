@@ -152,6 +152,10 @@ watch(
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0]
     if (recentSession && !chatStore.activeSessionId) {
       chatStore.switchSession(recentSession.id)
+    } else if (chatStore.activeSessionId && !chatStore.activeSession) {
+      // Page refresh: activeSessionId restored from localStorage but session
+      // data not loaded yet — trigger switchSession to fetch messages.
+      chatStore.switchSession(chatStore.activeSessionId)
     }
   },
   { once: true },

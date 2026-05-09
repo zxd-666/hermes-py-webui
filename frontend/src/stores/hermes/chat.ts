@@ -242,6 +242,7 @@ function storageKey(): string { return STORAGE_KEY_PREFIX + getProfileName() }
 function legacyStorageKey(): string | null { return getProfileName() === 'default' ? LEGACY_STORAGE_KEY : null }
 function inFlightKey(sid: string): string { return `hermes_in_flight_v1_${getProfileName()}_${sid}` }
 function legacyInFlightKey(sid: string): string | null { return getProfileName() === 'default' ? `hermes_in_flight_v1_${sid}` : null }
+function pendingMsgsKey(sid: string): string { return `hermes_pending_msgs_v1_${getProfileName()}_${sid}` }
 
 interface InFlightRun {
   runId: string
@@ -268,10 +269,12 @@ function recoverStorageQuota() {
     const prefixes = [
       `hermes_session_msgs_v1_${getProfileName()}_`,
       `hermes_in_flight_v1_${getProfileName()}_`,
+      `hermes_pending_msgs_v1_${getProfileName()}_`,
     ]
     if (getProfileName() === 'default') {
       prefixes.push('hermes_session_msgs_v1_')
       prefixes.push('hermes_in_flight_v1_')
+      prefixes.push('hermes_pending_msgs_v1_')
     }
     const keysToRemove: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
@@ -402,10 +405,24 @@ export const useChatStore = defineStore('chat', () => {
 
   function markInFlight(sid: string, runId: string) {
     saveJsonWithLegacy(inFlightKey(sid), { runId, startedAt: Date.now() } as InFlightRun, legacyInFlightKey(sid))
+    // Snapshot current messages so a page refresh can recover them
+    const s = sessions.value.find(s => s.id === sid)
+    if (s && s.messages.length) {
+      try { localStorage.setItem(pendingMsgsKey(sid), JSON.stringify(s.messages)) } catch {}
+    }
   }
 
   function clearInFlight(sid: string) {
     removeItemWithLegacy(inFlightKey(sid), legacyInFlightKey(sid))
+    // Messages are now persisted in DB — remove local cache
+    try { localStorage.removeItem(pendingMsgsKey(sid)) } catch {}
+  }
+
+  function readPendingMsgs(sid: string): Message[] {
+    try {
+      const raw = localStorage.getItem(pendingMsgsKey(sid))
+      return raw ? JSON.parse(raw) as Message[] : []
+    } catch { return [] }
   }
 
   function readInFlight(sid: string): InFlightRun | null {
@@ -657,6 +674,13 @@ export const useChatStore = defineStore('chat', () => {
       if (data.messages?.length) {
         const dbMsgs = mapHermesMessages(data.messages as any[])
         activeSession.value!.messages = mergeMessagesPreservingStreaming(dbMsgs, activeSession.value!.messages)
+      } else if (readInFlight(sessionId)) {
+        // Backend has no messages yet (run still starting up), recover from
+        // the localStorage snapshot taken by markInFlight().
+        const cached = readPendingMsgs(sessionId)
+        if (cached.length) {
+          activeSession.value!.messages = cached
+        }
       }
       if (!activeSession.value!.title) {
         const firstUser = activeSession.value!.messages.find(m => m.role === 'user')

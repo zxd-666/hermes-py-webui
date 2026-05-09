@@ -1,1 +1,0 @@
-import{n as e}from"./warn-MV9BENh8.js";import{M as t,oi as n}from"./index-BiinPVMt.js";function r(){let r=n(t,null);return r===null&&e(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};
