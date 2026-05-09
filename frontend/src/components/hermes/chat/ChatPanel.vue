@@ -833,20 +833,24 @@ function handleWorkspaceSelect(val: string) {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 7px 10px;
-  border: none;
-  background: none;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  background: $bg-card;
   border-radius: $radius-sm;
   cursor: pointer;
   text-align: left;
   color: $text-secondary;
   font-family: inherit;
-  transition: background $transition-fast, color $transition-fast;
-  margin-bottom: 1px;
+  transition: all $transition-fast;
+  margin-bottom: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 
   &:hover {
-    background: rgba(0, 0, 0, 0.03);
+    background: $bg-card-hover;
+    border-color: $border-light;
     color: var(--text-primary);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
 
     .session-item-delete {
       opacity: 1;
@@ -854,12 +858,26 @@ function handleWorkspaceSelect(val: string) {
   }
 
   &.active {
-    background: rgba(var(--accent-primary-rgb), 0.12);
+    background: rgba(var(--accent-primary-rgb), 0.08);
+    border-color: rgba(var(--accent-primary-rgb), 0.25);
     color: $text-primary;
+    box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.1);
   }
 
   &.active .session-item-title {
-    font-weight: 500;
+    font-weight: 600;
+  }
+
+  .dark & {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    &.active {
+      box-shadow: 0 2px 10px rgba(var(--accent-primary-rgb), 0.15);
+    }
   }
 }
 

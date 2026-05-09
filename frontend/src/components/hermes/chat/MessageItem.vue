@@ -710,14 +710,18 @@ const renderedToolResult = computed(() => {
 
     .message-bubble {
       background-color: $msg-user-bg;
-      border-radius: 10px;
+      border-radius: $radius-md $radius-md 4px $radius-md;
+
+      .dark & {
+        background-color: rgba(var(--accent-primary-rgb), 0.15);
+      }
     }
   }
 
   &.assistant {
     flex-direction: row;
     align-items: flex-start;
-    gap: 8px;
+    gap: 10px;
 
     .msg-body {
       max-width: 80%;
@@ -738,7 +742,12 @@ const renderedToolResult = computed(() => {
 
     .message-bubble {
       background-color: $msg-assistant-bg;
-      border-radius: 10px;
+      border-radius: $radius-md $radius-md $radius-md 4px;
+    }
+
+    .dark & .message-bubble {
+      background-color: transparent;
+      padding: 4px 0;
     }
   }
 
@@ -778,11 +787,11 @@ const renderedToolResult = computed(() => {
 }
 
 .message-bubble {
-  padding: 10px 14px;
-  font-size: 14px;
-  line-height: 1.65;
+  padding: 12px 16px;
+  font-size: 16px;
+  line-height: 1.7;
   word-break: break-word;
-  border-radius: 10px;
+  border-radius: $radius-md;
   max-width: 100%;
 }
 
@@ -945,14 +954,18 @@ const renderedToolResult = computed(() => {
 .message-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  padding: 0 4px;
+  gap: 4px;
+  margin-top: 2px;
+  padding-left: 16px;
   opacity: 0;
   transition: opacity 0.15s ease;
 
   .message:hover & {
     opacity: 1;
+  }
+
+  .dark .message.assistant & {
+    padding-left: 0;
   }
 }
 

@@ -501,22 +501,25 @@ onBeforeUnmount(() => {
       <div class="input-actions">
         <NButton
           v-if="chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt'"
-          size="small"
+          circle
           type="error"
           @click="chatStore.stopStreaming()"
+          class="stop-btn"
         >
-          {{ t('chat.stop') }}
+          <template #icon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+          </template>
         </NButton>
         <NButton
-          size="small"
+          circle
           type="primary"
           :disabled="!canSend || (chatStore.isStreaming && settingsStore.display.busy_input_mode !== 'interrupt')"
           @click="handleSend"
+          class="send-btn"
         >
           <template #icon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </template>
-          {{ t('chat.send') }}
         </NButton>
       </div>
     </div>
@@ -528,7 +531,7 @@ onBeforeUnmount(() => {
 
 .chat-input-area {
   position: relative;
-  padding: 12px 20px 16px;
+  padding: 16px 24px 20px;
   border-top: 1px solid $border-color;
   flex-shrink: 0;
 }
@@ -654,17 +657,24 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   background-color: $bg-input;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  padding: 10px 12px;
-  transition: border-color $transition-fast, background-color $transition-fast;
+  border: 1.5px solid $border-color;
+  border-radius: 14px;
+  padding: 12px 14px;
+  transition: border-color $transition-fast, background-color $transition-fast, box-shadow $transition-fast;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
   &:focus-within {
     border-color: $accent-primary;
+    box-shadow: 0 2px 12px rgba(var(--accent-primary-rgb), 0.12);
   }
 
   .dark & {
     background-color: var(--bg-card);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+    &:focus-within {
+      box-shadow: 0 2px 16px rgba(var(--accent-primary-rgb), 0.15);
+    }
   }
 }
 
@@ -676,10 +686,10 @@ onBeforeUnmount(() => {
   color: $text-primary;
   font-family: $font-ui;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   resize: none;
-  max-height: 100px;
-  min-height: 20px;
+  max-height: 160px;
+  min-height: 24px;
   overflow-y: auto;
 
   &::placeholder {
@@ -692,9 +702,31 @@ onBeforeUnmount(() => {
 
 .input-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
   align-items: center;
+  padding-top: 2px;
+}
+
+// Send button
+.send-btn {
+  width: 40px !important;
+  height: 40px !important;
+  transition: transform $transition-fast, box-shadow $transition-fast;
+
+  &:not(:disabled):hover {
+    transform: scale(1.1);
+    box-shadow: 0 3px 14px rgba(var(--accent-primary-rgb), 0.35);
+  }
+
+  &:not(:disabled):active {
+    transform: scale(0.92);
+  }
+}
+
+.stop-btn {
+  width: 40px !important;
+  height: 40px !important;
 }
 
 // Drag-over state

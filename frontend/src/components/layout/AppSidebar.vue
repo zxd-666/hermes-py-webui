@@ -276,7 +276,7 @@ function handleLogout() {
   border-right: 1px solid $border-color;
   display: flex;
   flex-direction: column;
-  padding: 0 12px 20px;
+  padding: 0 14px 20px;
   flex-shrink: 0;
   transition: width $transition-normal;
 }
@@ -297,15 +297,15 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 16px 2px;
+  padding: 18px 2px;
 }
 
 .sidebar-nav {
   flex: 1;
   display: flex;
-  padding-top: 12px;
+  padding-top: 16px;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   overflow-y: auto;
   min-height: 0;
   scrollbar-width: none;
@@ -318,7 +318,7 @@ function handleLogout() {
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 
   &.nav-group-bottom {
     margin-top: auto;
@@ -364,7 +364,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px;
+  padding: 10px 12px;
   border: none;
   background: none;
   color: $text-secondary;

@@ -125,23 +125,25 @@ watch(
   flex-direction: column;
   align-items: flex-start;
   width: 100%;
-  padding: 4px 8px;
-  border: none;
-  background: none;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  background: var(--bg-card);
+  border-radius: 6px;
   cursor: pointer;
   text-align: left;
   color: var(--text-secondary);
-  margin-bottom: 1px;
-  transition: background 0.12s ease, color 0.12s ease;
+  margin-bottom: 2px;
+  transition: all 0.15s ease;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.03);
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
     color: var(--text-primary);
   }
 
   &.active {
-    background: rgba(var(--accent-primary-rgb), 0.1);
+    background: rgba(var(--accent-primary-rgb), 0.08);
+    border-color: rgba(var(--accent-primary-rgb), 0.25);
     color: var(--text-primary);
   }
 }

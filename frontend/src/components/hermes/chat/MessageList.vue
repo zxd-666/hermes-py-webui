@@ -394,16 +394,16 @@ watch(currentToolCalls, () => {
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   background-color: $bg-card;
   transition: gap 0.2s ease, padding 0.2s ease;
 
   &.compact {
-    gap: 6px;
-    padding: 12px 20px;
+    gap: 8px;
+    padding: 14px 20px;
   }
 
   // Non-streaming: hide streaming content, show loading dots only

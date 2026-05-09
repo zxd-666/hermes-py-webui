@@ -273,17 +273,24 @@ function handleCompositionEnd() {
     align-items: center;
     gap: 10px;
     background-color: $bg-input;
-    border: 1px solid $border-color;
-    border-radius: $radius-md;
-    padding: 10px 12px;
-    transition: border-color $transition-fast, background-color $transition-fast;
+    border: 1.5px solid $border-color;
+    border-radius: 14px;
+    padding: 12px 14px;
+    transition: border-color $transition-fast, background-color $transition-fast, box-shadow $transition-fast;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
     &:focus-within {
         border-color: $accent-primary;
+        box-shadow: 0 2px 12px rgba(var(--accent-primary-rgb), 0.12);
     }
 
     .dark & {
         background-color: var(--bg-card);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+        &:focus-within {
+            box-shadow: 0 2px 16px rgba(var(--accent-primary-rgb), 0.15);
+        }
     }
 }
 
@@ -295,10 +302,10 @@ function handleCompositionEnd() {
     color: $text-primary;
     font-family: $font-ui;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     resize: none;
-    max-height: 100px;
-    min-height: 20px;
+    max-height: 160px;
+    min-height: 24px;
     overflow-y: auto;
 
     &::placeholder {
