@@ -13,8 +13,8 @@
   --bg-input: #ffffff;
 
   // Borders
-  --border-color: #d1d1e9;     // Secondary
-  --border-light: #e8e8f2;     // 更浅的 secondary
+  --border-color: #e8e8f2;     // 低调分割（原 #d1d1e9 紫调偏重）
+  --border-light: #f0f0f7;     // 更浅的 secondary
 
   // Accent
   --accent-primary: #6246ea;   // Button / Highlight
@@ -75,8 +75,8 @@
   --bg-input: #242629;
 
   // Borders
-  --border-color: #72757e;     // Secondary（色板原色）
-  --border-light: #3a3a44;
+  --border-color: #2e2e3a;     // 低调分割（原色板 #72757e 太突出）
+  --border-light: #242629;
 
   // Accent
   --accent-primary: #7f5af0;   // Button / Highlight

@@ -21,8 +21,8 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
     textColor1: '#2b2c34',
     textColor2: '#2b2c34',
     textColor3: '#6e6f80',
-    dividerColor: '#d1d1e9',
-    borderColor: '#d1d1e9',
+    dividerColor: '#e8e8f2',
+    borderColor: '#e8e8f2',
     hoverColor: 'rgba(98, 70, 234, 0.06)',
     warningColor: '#9b8fd6',
     warningColorHover: '#8a7ec8',
@@ -84,7 +84,7 @@ export const lightThemeOverrides: GlobalThemeOverrides = {
   },
   Card: {
     color: '#ffffff',
-    borderColor: '#d1d1e9',
+    borderColor: '#e8e8f2',
   },
   Modal: {
     color: '#ffffff',
@@ -152,8 +152,8 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
     textColor1: '#fffffe',
     textColor2: '#94a1b2',
     textColor3: '#72757e',
-    dividerColor: '#72757e',
-    borderColor: '#72757e',
+    dividerColor: '#2e2e3a',
+    borderColor: '#2e2e3a',
     hoverColor: 'rgba(127, 90, 240, 0.08)',
     warningColor: '#72757e',
     warningColorHover: '#888b94',
@@ -207,7 +207,7 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
   Input: {
     color: '#242629',
     colorFocus: '#242629',
-    border: '1px solid #72757e',
+    border: '1px solid #2e2e3a',
     borderHover: '1px solid #9b7af7',
     borderFocus: '1px solid #7f5af0',
     placeholderColor: '#72757e',
@@ -215,7 +215,7 @@ export const darkThemeOverrides: GlobalThemeOverrides = {
   },
   Card: {
     color: '#242629',
-    borderColor: '#72757e',
+    borderColor: '#2e2e3a',
   },
   Modal: {
     color: '#242629',

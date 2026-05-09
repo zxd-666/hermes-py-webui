@@ -46,7 +46,7 @@ async function handleLogin() {
     setApiKey(sessionToken);
     router.replace("/hermes/chat");
   } catch (err: any) {
-    errorMsg.value = err.message || t("login.invalidPassword");
+    errorMsg.value = t("login.invalidPassword");
   } finally {
     loading.value = false;
   }
@@ -120,6 +120,10 @@ async function handleLogin() {
   color: $text-muted;
   margin: 0 0 32px;
   line-height: 1.6;
+
+  .dark & {
+    color: #94a1b2; // --text-secondary, better contrast on dark card
+  }
 }
 
 .login-form {
@@ -161,20 +165,26 @@ async function handleLogin() {
   padding: 14px;
   border: none;
   border-radius: $radius-sm;
-  background: $text-primary;
+  background: $accent-primary;
   color: var(--text-on-accent);
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity $transition-fast;
+  transition: opacity $transition-fast, box-shadow $transition-fast;
 
   &:hover {
-    opacity: 0.85;
+    opacity: 0.9;
+    box-shadow: 0 4px 16px rgba(var(--accent-primary-rgb), 0.35);
+  }
+
+  &:active {
+    opacity: 0.95;
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    box-shadow: none;
   }
 }
 </style>

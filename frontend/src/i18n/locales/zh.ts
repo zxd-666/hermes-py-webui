@@ -2,7 +2,7 @@ export default {
   // 登录
   login: {
     title: 'Hermes',
-    description: '输入访问密码以继续。',
+    description: '请输入密码以继续',
     placeholder: '访问密码',
     submit: '登录',
     passwordRequired: '请输入密码',
