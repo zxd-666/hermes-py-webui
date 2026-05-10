@@ -110,7 +110,7 @@ function selectMention(name: string) {
             el.setSelectionRange(newPos, newPos)
             el.focus()
             el.style.height = 'auto'
-            el.style.height = Math.min(el.scrollHeight, 100) + 'px'
+            el.style.height = Math.min(el.scrollHeight, 160) + 'px'
         }
     })
 }
@@ -295,7 +295,8 @@ function handleCompositionEnd() {
 }
 
 .input-textarea {
-    flex: 1;
+    flex: none;
+    width: 100%;
     background: none;
     border: none;
     outline: none;

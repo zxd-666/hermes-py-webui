@@ -32,7 +32,7 @@
   --warning: #9b8fd6;          // Accent-muted 淡紫警示
 
   // Message bubbles
-  --msg-user-bg: #d1d1e9;      // Secondary（用户消息用 secondary 底色）
+  --msg-user-bg: #e8e8f2;      // 淡紫（用户消息底色）
   --msg-assistant-bg: #ffffff; // 白底
   --msg-system-border: #d1d1e9;
 
@@ -170,7 +170,7 @@ $font-ui: 'Inter', system-ui, -apple-system, sans-serif;
 $font-code: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 
 // Layout
-$sidebar-width: 160px;
+$sidebar-width: 166px;
 $header-height: 60px;
 $breakpoint-mobile: 768px;
 

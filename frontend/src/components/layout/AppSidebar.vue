@@ -276,7 +276,7 @@ function handleLogout() {
   border-right: 1px solid $border-color;
   display: flex;
   flex-direction: column;
-  padding: 0 14px 20px;
+  padding: 0 14px 24px;
   flex-shrink: 0;
   transition: width $transition-normal;
 }
@@ -303,9 +303,9 @@ function handleLogout() {
 .sidebar-nav {
   flex: 1;
   display: flex;
-  padding-top: 16px;
+  padding-top: 20px;
   flex-direction: column;
-  gap: 8px;
+  gap: 20px;
   overflow-y: auto;
   min-height: 0;
   scrollbar-width: none;
@@ -318,7 +318,7 @@ function handleLogout() {
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 
   &.nav-group-bottom {
     margin-top: auto;
@@ -328,12 +328,12 @@ function handleLogout() {
 }
 
 .nav-group-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-muted;
 
-  letter-spacing: 0.8px;
-  padding: 8px 12px 4px;
+  letter-spacing: 1px;
+  padding: 12px 12px 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -364,7 +364,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border: none;
   background: none;
   color: $text-secondary;
@@ -393,8 +393,8 @@ function handleLogout() {
 }
 
 .sidebar-footer {
-  padding-top: 8px;
-  border-top: 1px solid $border-color;
+  padding-top: 16px;
+  margin-top: 4px;
 }
 
 .footer-actions {
@@ -446,7 +446,7 @@ function handleLogout() {
       transform: translateX(0);
     }
 
-    // Override global utility — sidebar is always 240px wide
+    // Override global utility — sidebar is always 166px wide
     .input-sm {
       width: 112px;
     }

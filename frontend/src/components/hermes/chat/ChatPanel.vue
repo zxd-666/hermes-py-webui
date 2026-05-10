@@ -951,7 +951,8 @@ function handleWorkspaceSelect(val: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 21px 20px;
+  height: 48px;
+  padding: 0 20px;
   border-bottom: 1px solid $border-color;
   flex-shrink: 0;
 }
@@ -1033,7 +1034,8 @@ function handleWorkspaceSelect(val: string) {
 
 @media (max-width: $breakpoint-mobile) {
   .chat-header {
-    padding: 16px 12px 16px 52px;
+    height: 48px;
+    padding: 0 12px 0 52px;
   }
 }
 

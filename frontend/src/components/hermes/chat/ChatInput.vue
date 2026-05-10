@@ -231,6 +231,7 @@ function handleSend() {
   if (textareaRef.value) {
     textareaRef.value.style.height = 'auto'
   }
+  nextTick(adjustHeight)
 }
 
 function handleCompositionStart() {
@@ -286,10 +287,19 @@ function handleKeydown(e: KeyboardEvent) {
   handleSend()
 }
 
-function handleInput(e: Event) {
-  const el = e.target as HTMLTextAreaElement
+function adjustHeight() {
+  const el = textareaRef.value
+  if (!el) return
   el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 100) + 'px'
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+}
+
+watch(inputText, () => {
+  nextTick(adjustHeight)
+})
+
+function handleInput(e: Event) {
+  adjustHeight()
 }
 
 function removeAttachment(id: string) {
@@ -787,7 +797,8 @@ onBeforeUnmount(() => {
 }
 
 .input-textarea {
-  flex: 1;
+  flex: none;
+  width: 100%;
   background: none;
   border: none;
   outline: none;

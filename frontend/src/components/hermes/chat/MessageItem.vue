@@ -725,7 +725,7 @@ const renderedToolResult = computed(() => {
       border-radius: $radius-md $radius-md 4px $radius-md;
 
       .dark & {
-        background-color: rgba(var(--accent-primary-rgb), 0.15);
+        background-color: rgba(var(--accent-primary-rgb), 0.08);
       }
     }
   }
@@ -753,13 +753,13 @@ const renderedToolResult = computed(() => {
     }
 
     .message-bubble {
-      background-color: $msg-assistant-bg;
+      background-color: transparent;
       border-radius: $radius-md $radius-md $radius-md 4px;
+      padding: 4px 0 2px;
     }
 
     .dark & .message-bubble {
       background-color: transparent;
-      padding: 4px 0 2px;
     }
   }
 
@@ -967,17 +967,13 @@ const renderedToolResult = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 1px;
-  padding-left: 8px;
+  margin-top: 2px;
+  padding-left: 0;
   opacity: 0;
   transition: opacity 0.15s ease;
 
   .message:hover & {
     opacity: 1;
-  }
-
-  .dark .message.assistant & {
-    padding-left: 0;
   }
 }
 

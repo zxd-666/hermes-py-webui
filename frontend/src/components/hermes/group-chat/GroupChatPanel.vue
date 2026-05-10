@@ -648,7 +648,8 @@ export default defineComponent({ components: { CreateRoomForm } })
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 21px 20px;
+    height: 48px;
+    padding: 0 20px;
     border-bottom: 1px solid $border-color;
 
     .room-title-text {
