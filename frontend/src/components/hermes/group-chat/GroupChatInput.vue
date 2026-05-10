@@ -241,7 +241,7 @@ function handleCompositionEnd() {
 
 .chat-input-area {
     padding: 20px 20px 16px;
-    border-top: 1px solid $border-color;
+    border-top: none;
     flex-shrink: 0;
 }
 

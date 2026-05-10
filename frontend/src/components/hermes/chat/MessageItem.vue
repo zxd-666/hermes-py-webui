@@ -26,6 +26,12 @@ const { t } = useI18n();
 const toast = useMessage();
 const dialog = useDialog();
 
+function copyMessage() {
+  if (!props.message.content) return;
+  copyToClipboard(props.message.content);
+  toast.success(t('common.copied'));
+}
+
 const chatStore = useChatStore();
 const favStore = useFavoritesStore();
 const isSystem = computed(() => props.message.role === "system");
@@ -499,6 +505,7 @@ const renderedToolResult = computed(() => {
               alt="Hermes"
               class="msg-avatar"
               :class="{ 'fav-active': isFav }"
+              @dblclick="copyMessage"
             />
           </template>
           <div class="fav-popover" @click="toggleFavorite">
@@ -511,6 +518,7 @@ const renderedToolResult = computed(() => {
           :src="assistantAvatar"
           alt="Hermes"
           class="msg-avatar"
+          @dblclick="copyMessage"
         />
         <div class="msg-content" :class="message.role">
           <div class="message-bubble" :class="{ system: isSystem, 'is-streaming': message.isStreaming }">
@@ -744,7 +752,7 @@ const renderedToolResult = computed(() => {
       height: 40px;
       flex-shrink: 0;
       margin-top: 2px;
-      cursor: default;
+      cursor: pointer;
       transition: filter 0.2s;
 
       &.fav-active {

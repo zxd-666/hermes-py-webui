@@ -650,7 +650,7 @@ onBeforeUnmount(() => {
 .chat-input-area {
   position: relative;
   padding: 16px 24px 20px;
-  border-top: 1px solid $border-color;
+  border-top: none;
   flex-shrink: 0;
 }
 
