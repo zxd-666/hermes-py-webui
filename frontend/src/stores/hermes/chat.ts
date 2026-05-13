@@ -1418,6 +1418,17 @@ export const useChatStore = defineStore('chat', () => {
         streamStates.value.set(sid, { abort: () => { controller.abort(); closed = true }, disconnect: () => { controller.abort(); closed = true } })
         serverWorking.value.add(sid)
 
+        // Mark the last assistant message as streaming so that resumed
+        // deltas (reasoning / content) append to it instead of creating
+        // a brand-new message. Without this, _flushPendingDeltas sees
+        // isStreaming=false on the DB-loaded message and creates a
+        // duplicate assistant bubble.
+        const msgs = getSessionMsgs(sid)
+        const lastAsst = [...msgs].reverse().find(m => m.role === 'assistant')
+        if (lastAsst && !lastAsst.isStreaming) {
+          updateMessage(sid, lastAsst.id, { isStreaming: true })
+        }
+
         const reader = res.body!.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
