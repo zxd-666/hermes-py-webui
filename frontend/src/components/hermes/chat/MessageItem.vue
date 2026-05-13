@@ -183,8 +183,9 @@ const parsedThinking = computed(() =>
   parseThinking(props.message.content || "", { streaming: !!props.message.isStreaming }),
 );
 
-// 优先使用来自 reasoning 字段/事件的思考文本；否则回退到从 content 解析的 <think> 标签。
-// 若两者共存，则拼接展示（罕见，但保持信息不丢）。
+// 优先使用来自 reasoning 字段/事件的思考文本；否则回退到从 content 解析的  Thought 标签。
+// 当 reasoning 字段存在时，跳过 content 中解析出的 segments——hermes-agent 会把
+// 相同的 thinking 内容同时放在 reasoning 字段和 content 的  Thought 标签里，拼接会重复。
 const hasReasoningField = computed(() => !!(props.message.reasoning && props.message.reasoning.length > 0));
 
 const hasThinking = computed(() => hasReasoningField.value || parsedThinking.value.hasThinking);
@@ -192,15 +193,22 @@ const hasThinking = computed(() => hasReasoningField.value || parsedThinking.val
 const thinkingFullText = computed(() => {
   const parts: string[] = [];
   if (props.message.reasoning) parts.push(props.message.reasoning);
-  parts.push(...parsedThinking.value.segments);
+  // Only parse content segments when reasoning field is absent — avoids duplication
+  if (!hasReasoningField.value) parts.push(...parsedThinking.value.segments);
+  // Pending (open tag in streaming) is always included — it's content the reasoning
+  // field hasn't captured yet during mid-stream scenarios
   if (parsedThinking.value.pending) parts.push(parsedThinking.value.pending);
   return parts.join("\n\n");
 });
 
 const thinkingCharCount = computed(() => {
-  let count = countThinkingChars(parsedThinking.value);
-  if (props.message.reasoning) count += props.message.reasoning.length;
-  return count;
+  // Match thinkingFullText logic: reasoning field takes priority
+  if (hasReasoningField.value) {
+    let count = [...(props.message.reasoning || '')].length;
+    if (parsedThinking.value.pending) count += [...(parsedThinking.value.pending || '')].length;
+    return count;
+  }
+  return countThinkingChars(parsedThinking.value);
 });
 
 // 流式思考态：仍有未闭合 <think> 标签，或 reasoning 有内容但正文尚未开始。

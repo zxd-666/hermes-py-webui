@@ -143,28 +143,28 @@ async def reconnect_stream(stream_id: str, req: Request):
             content={"error": "stream not found"},
         )
 
-    # Drain accumulated events. Skip delta events (reasoning.delta,
-    # thinking.delta, message.delta) — the front-end already has those
-    # from its localStorage snapshot. Replay only tool lifecycle and
-    # terminal events; final content comes from refreshActiveSession.
-    buffered = []
+    # Drain accumulated events to check if the run has already finished.
+    # Discard everything — the front-end already has these messages from its
+    # localStorage snapshot (saved by markInFlight). Replaying buffered events
+    # would cause duplicate messages. Only forward the terminal event so the
+    # front-end knows to refresh from DB.
     terminal_hit = False
+    terminal_evt = None
     while True:
         try:
             event_type, data = q.get_nowait()
-            if event_type in ("reasoning.delta", "thinking.delta", "message.delta"):
-                continue  # front-end already has these from its snapshot
-            buffered.append((event_type, data))
             if event_type in ("run.completed", "run.failed", "cancel"):
                 terminal_hit = True
+                terminal_evt = (event_type, data)
                 break
+            # Discard all other buffered events — front-end already has them
         except Exception:
             break
 
-    # If run already finished, replay terminal event and clean up
+    # If run already finished, forward only the terminal event
     if terminal_hit:
         cleanup_stream(stream_id)
-        event_type, data = buffered[-1]
+        event_type, data = terminal_evt
         return StreamingResponse(
             iter([f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"]),
             media_type="text/event-stream",
@@ -173,16 +173,9 @@ async def reconnect_stream(stream_id: str, req: Request):
 
     async def event_generator():
         try:
-            # Replay buffered events (each yield lets the server flush)
-            for event_type, data in buffered:
-                payload = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-                yield payload
-                if event_type in ("run.completed", "run.failed", "cancel"):
-                    cleanup_stream(stream_id)
-                    return
-
-            # Continue streaming new events — use run_in_executor to avoid
-            # blocking the async event loop with synchronous q.get().
+            # No buffered events to replay — go straight to live stream.
+            # New events produced after reconnect are not in the front-end's
+            # snapshot and will be appended correctly.
             loop = asyncio.get_event_loop()
             while True:
                 if await req.is_disconnected():
