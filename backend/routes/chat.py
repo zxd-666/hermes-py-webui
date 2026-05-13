@@ -143,15 +143,17 @@ async def reconnect_stream(stream_id: str, req: Request):
             content={"error": "stream not found"},
         )
 
-    # Drain accumulated events in small batches so the front-end can
-    # process them without blocking the main thread on a huge burst.
-    # We still replay them all — just with yield-based pacing so that
-    # the ASGI server flushes in between rather than dumping one giant blob.
+    # Drain accumulated events. Skip delta events (reasoning.delta,
+    # thinking.delta, message.delta) — the front-end already has those
+    # from its localStorage snapshot. Replay only tool lifecycle and
+    # terminal events; final content comes from refreshActiveSession.
     buffered = []
     terminal_hit = False
     while True:
         try:
             event_type, data = q.get_nowait()
+            if event_type in ("reasoning.delta", "thinking.delta", "message.delta"):
+                continue  # front-end already has these from its snapshot
             buffered.append((event_type, data))
             if event_type in ("run.completed", "run.failed", "cancel"):
                 terminal_hit = True
