@@ -808,7 +808,7 @@ const renderedToolResult = computed(() => {
 
 .message-bubble {
   padding: 10px 16px 8px;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.7;
   word-break: break-word;
   border-radius: $radius-md;

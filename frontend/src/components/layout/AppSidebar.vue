@@ -276,7 +276,7 @@ function handleLogout() {
   border-right: 1px solid $border-color;
   display: flex;
   flex-direction: column;
-  padding: 0 14px 24px;
+  padding: 0 14px 8px;
   flex-shrink: 0;
   transition: width $transition-normal;
 }
@@ -305,7 +305,7 @@ function handleLogout() {
   display: flex;
   padding-top: 20px;
   flex-direction: column;
-  gap: 20px;
+  gap: 0;
   overflow-y: auto;
   min-height: 0;
   scrollbar-width: none;
@@ -322,7 +322,6 @@ function handleLogout() {
 
   &.nav-group-bottom {
     margin-top: auto;
-    padding-top: 8px;
     border-top: 1px solid $border-color;
   }
 }

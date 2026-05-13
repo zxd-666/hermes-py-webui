@@ -674,12 +674,19 @@ export const useChatStore = defineStore('chat', () => {
       if (data.messages?.length) {
         const dbMsgs = mapHermesMessages(data.messages as any[])
         activeSession.value!.messages = mergeMessagesPreservingStreaming(dbMsgs, activeSession.value!.messages)
-      } else if (readInFlight(sessionId)) {
-        // Backend has no messages yet (run still starting up), recover from
-        // the localStorage snapshot taken by markInFlight().
+      }
+      // If an in-flight run is active, the localStorage snapshot (saved by
+      // markInFlight at send time) may contain messages that haven't been
+      // persisted to DB yet (e.g. the user's latest message, partial assistant
+      // reply). Append any messages from the snapshot that DB doesn't have.
+      if (readInFlight(sessionId)) {
         const cached = readPendingMsgs(sessionId)
         if (cached.length) {
-          activeSession.value!.messages = cached
+          const dbMsgIds = new Set((data.messages || []).map((m: any) => m.id))
+          const extra = cached.filter(m => !dbMsgIds.has(m.id))
+          if (extra.length) {
+            activeSession.value!.messages = [...activeSession.value!.messages, ...extra]
+          }
         }
       }
       if (!activeSession.value!.title) {
@@ -715,6 +722,15 @@ export const useChatStore = defineStore('chat', () => {
       }
     } catch (err) {
       console.error('Failed to load session messages via resume:', err)
+      // resumeSession failed (e.g. 404 — session not yet persisted by the
+      // agent thread). Fall back to the localStorage snapshot saved by
+      // markInFlight() so we don't lose messages on page refresh.
+      if (readInFlight(sessionId)) {
+        const cached = readPendingMsgs(sessionId)
+        if (cached.length) {
+          activeSession.value!.messages = cached
+        }
+      }
     } finally {
       isLoadingMessages.value = false
     }
@@ -1430,16 +1446,8 @@ export const useChatStore = defineStore('chat', () => {
             } else if (trimmed === '' && currentEvent && currentData) {
               try {
                 const data = JSON.parse(currentData)
-                // If the run already completed, skip all delta processing and
-                // just reload from DB — avoids duplicating content that was
-                // already persisted by the backend during run.completed.
-                if (currentEvent === 'run.completed' || currentEvent === 'run.failed') {
-                  closed = true
-                  clearInFlight(sid)
-                  void refreshActiveSession()
-                  return
-                }
-                // Delegate to a minimal event handler
+                // Delegate to a minimal event handler (flushes deltas on
+                // non-delta events, handles tool/run lifecycle).
                 handleResumedEvent(sid, currentEvent, data, {
                   get runProducedAssistantText() { return runProducedAssistantText },
                   set runProducedAssistantText(v: boolean) { runProducedAssistantText = v },
@@ -1469,6 +1477,7 @@ export const useChatStore = defineStore('chat', () => {
 
                   closed = true
                   clearInFlight(sid)
+                  void refreshActiveSession()
                   return
                 }
               } catch (e) {
