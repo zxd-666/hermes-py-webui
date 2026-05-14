@@ -357,6 +357,8 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  max-height: calc(28px * 2 + 4px);
+  overflow-y: auto;
 }
 
 .file-item {

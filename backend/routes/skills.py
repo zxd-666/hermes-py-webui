@@ -140,7 +140,10 @@ async def list_skills(request: Request):
 async def get_skill_files(category: str, skill: str, request: Request):
     """List files in a skill directory recursively."""
     home = profile_home(profile_from_request(request))
-    skill_dir = home / "skills" / category / skill
+    # Normalize: handle bare "." for skills whose SKILL.md lives directly in category dir
+    if skill == ".":
+        skill = ""
+    skill_dir = home / "skills" / category / skill if skill else home / "skills" / category
     if not skill_dir.is_dir():
         return JSONResponse(status_code=404, content={"error": "skill directory not found"})
     files = []
@@ -166,6 +169,16 @@ async def get_skill_content(skill_path: str, request: Request):
     """Read a file within a skill directory (SKILL.md or any attached file)."""
     home = profile_home(profile_from_request(request))
     base = home / "skills"
+
+    # Normalize "." segments (e.g. "aihot/./SKILL.md" → "aihot/SKILL.md")
+    skill_path = "/".join(p for p in skill_path.split("/") if p != ".")
+
+    # If path ends with /files, this is likely a miscaptured files request
+    # (happens for bare-category skills like "aihot" where path is just ".")
+    if skill_path.endswith("/files"):
+        possible_cat = "/".join(skill_path.split("/")[:-1])
+        if possible_cat and (base / possible_cat / "SKILL.md").exists():
+            return await get_skill_files(possible_cat, ".", request)
 
     # Try exact path first (for attached files like references/api.md)
     target = (base / skill_path).resolve()
