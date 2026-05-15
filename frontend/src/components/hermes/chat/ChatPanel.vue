@@ -10,6 +10,7 @@ import { fetchSourceCounts } from '@/api/hermes/sessions'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NButton, NDropdown, NInput, NModal, NSelect, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { getSourceLabel } from '@/shared/session-display'
 import { copyToClipboard } from '@/utils/clipboard'
 import ChatInput from './ChatInput.vue'
@@ -23,6 +24,7 @@ const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
+const router = useRouter()
 
 const currentMode = ref<'chat' | 'live'>('chat')
 
@@ -175,7 +177,13 @@ const activeSessionSource = computed(() =>
 
 watch(
   () => chatStore.isStreaming ? t('chat.typing') : activeSessionTitle.value,
-  (title) => { document.title = `${title} - Hermes` },
+  (title) => {
+    // Only override title when chat page is active
+    const routeName = router.currentRoute.value.name
+    if (routeName === 'hermes.chat' || routeName === 'hermes.favorites') {
+      document.title = `${title} - Hermes`
+    }
+  },
   { immediate: true },
 )
 

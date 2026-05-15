@@ -16,6 +16,7 @@ const routeTitleKeys: Record<string, string> = {
   'hermes.usage': 'sidebar.usage',
   'hermes.channels': 'sidebar.channels',
   'hermes.gateways': 'sidebar.gateways',
+  'hermes.settings': 'settings.title',
   'hermes.systemSettings': 'sidebar.systemSettings',
   'hermes.files': 'sidebar.files',
   'hermes.groupChat': 'sidebar.groupChat',
