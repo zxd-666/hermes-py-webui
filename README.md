@@ -61,9 +61,9 @@ Responsive design out of the box — access your full Hermes workspace from any 
 
 <table>
 <tr>
-<td><img src="docs/images/mobile/登录.jpg" width="240"></td>
-<td><img src="docs/images/mobile/页面导航.jpg" width="240"></td>
-<td><img src="docs/images/mobile/会话.jpg" width="240"></td>
+<td><img src="docs/images/mobile/登录.PNG" width="240"></td>
+<td><img src="docs/images/mobile/页面导航.PNG" width="240"></td>
+<td><img src="docs/images/mobile/会话.PNG" width="240"></td>
 </tr>
 <tr>
 <td align="center">🔐 Login</td>
@@ -71,9 +71,9 @@ Responsive design out of the box — access your full Hermes workspace from any 
 <td align="center">💬 Chat</td>
 </tr>
 <tr>
-<td><img src="docs/images/mobile/模型.jpg" width="240"></td>
-<td><img src="docs/images/mobile/定时任务.jpg" width="240"></td>
-<td><img src="docs/images/mobile/统计.jpg" width="240"></td>
+<td><img src="docs/images/mobile/模型.PNG" width="240"></td>
+<td><img src="docs/images/mobile/定时任务.PNG" width="240"></td>
+<td><img src="docs/images/mobile/统计.PNG" width="240"></td>
 </tr>
 <tr>
 <td align="center">🤖 Models</td>
@@ -81,7 +81,7 @@ Responsive design out of the box — access your full Hermes workspace from any 
 <td align="center">📊 Stats</td>
 </tr>
 <tr>
-<td colspan="3" align="center"><img src="docs/images/mobile/设置.jpg" width="360"></td>
+<td colspan="3" align="center"><img src="docs/images/mobile/设置.PNG" width="360"></td>
 </tr>
 <tr>
 <td colspan="3" align="center">⚙️ Settings</td>
