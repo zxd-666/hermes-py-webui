@@ -143,11 +143,12 @@ async def _windows_service_install():
     log_dir = Path.home() / ".hermes" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    # schtasks /create with TRIGGER=LOGON
+    # schtasks has no WorkingDirectory — wrap in cmd /c with cd /d
+    tr = f'cmd /c "cd /d {root} && \\"{python_bin}\\" -m uvicorn backend.main:app --host {host} --port 9898"'
     cmd = [
         "schtasks", "/Create",
         "/TN", SERVICE_NAME,
-        "/TR", f'"{python_bin}" -m uvicorn backend.main:app --host {host} --port 9898',
+        "/TR", tr,
         "/SC", "ONLOGON",
         "/RL", "HIGHEST",
         "/F",
@@ -218,10 +219,25 @@ async def set_lan_access_api(body: dict):
 def _update_service_config():
     """Regenerate service config with current settings (called when LAN access changes)."""
     if IS_WINDOWS:
-        # Recreate the scheduled task with new host setting
+        # schtasks needs to be recreated with new host — run synchronously via subprocess
         try:
-            asyncio.get_event_loop().run_until_complete(_windows_service_install())
-        except RuntimeError:
+            root = _project_root()
+            python_bin = root / ".venv" / "Scripts" / "python.exe"
+            if not python_bin.exists():
+                python_bin = Path(sys.executable)
+            host = "0.0.0.0" if get_lan_access() else "127.0.0.1"
+            # Delete and recreate (sync subprocess, no asyncio needed)
+            subprocess.run(
+                ["schtasks", "/Delete", "/TN", SERVICE_NAME, "/F"],
+                capture_output=True, timeout=5,
+            )
+            tr = f'cmd /c "cd /d {root} && \\"{python_bin}\\" -m uvicorn backend.main:app --host {host} --port 9898"'
+            subprocess.run(
+                ["schtasks", "/Create", "/TN", SERVICE_NAME,
+                 "/TR", tr, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"],
+                capture_output=True, timeout=10,
+            )
+        except Exception:
             pass
     else:
         import plistlib
