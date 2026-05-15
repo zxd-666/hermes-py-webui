@@ -46,8 +46,8 @@
 <td align="center">⚡ 技能查看</td>
 </tr>
 <tr>
-<td><img src="docs/images/usage.jpg" width="400"></td>
-<td><img src="docs/images/user-management.jpg" width="400"></td>
+<td><img src="docs/images/usage.png" width="400"></td>
+<td><img src="docs/images/user-management.png" width="400"></td>
 </tr>
 <tr>
 <td align="center">📊 用量统计</td>
@@ -111,11 +111,12 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 
 ### 📊 用量统计
 
-- 统计卡片：总会话数、总消息数、活跃天数
+- 统计卡片：总会话/近期会话数、消息数、活跃天数、缓存命中率、平均会话 Token 数
 - 来源分布：按平台（飞书、Telegram、Discord 等）统计会话数
-- 模型分布：按模型统计使用占比
-- 每日趋势：过去 30 天的会话活跃度折线图
-- 热门会话：消息数 Top 10 会话排行
+- 模型分布：按模型统计 Token 使用占比
+- 每日趋势：过去 30 天的 Token、缓存、会话、费用明细表
+- 活跃时段：24 小时活跃分布热力图
+- 热门会话：按输入 Token 数 Top 10 会话排行
 
 ### 🤖 模型与 Provider
 

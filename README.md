@@ -46,8 +46,8 @@ In short: this project trades the Gateway's decoupling for **direct access to AI
 <td align="center">⚡ Skill Viewer</td>
 </tr>
 <tr>
-<td><img src="docs/images/usage.jpg" width="400"></td>
-<td><img src="docs/images/user-management.jpg" width="400"></td>
+<td><img src="docs/images/usage.png" width="400"></td>
+<td><img src="docs/images/user-management.png" width="400"></td>
 </tr>
 <tr>
 <td align="center">📊 Usage Stats</td>
@@ -111,11 +111,12 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 
 ### 📊 Usage Stats
 
-- Summary cards: total sessions, messages, active days
+- Summary cards: total/recent sessions, messages, active days, cache hit rate, average tokens per session
 - Source breakdown: sessions by platform (Feishu, Telegram, Discord, etc.)
-- Model breakdown: usage share by model
-- Daily trend: 30-day session activity chart
-- Top sessions: Top 10 sessions by message count
+- Model breakdown: token usage share by model
+- Daily trend: 30-day token, cache, session, and cost table
+- Hourly distribution: 24h activity heatmap
+- Top sessions: Top 10 sessions by input token usage
 
 ### 🤖 Models & Providers
 
