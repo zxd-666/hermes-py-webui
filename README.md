@@ -211,6 +211,16 @@ Open http://127.0.0.1:9898
 
 > The frontend is pre-built (`backend/static/`). No Node.js needed unless you want to modify the UI source.
 
+### One-Line Install (via Hermes Agent)
+
+If you already have Hermes Agent running, just send this prompt to install and configure everything:
+
+```
+帮我安装 hermes-py-webui，项目地址：https://github.com/zxd-666/hermes-py-webui
+
+安装到 ~/.hermes/hermes-py-webui，创建虚拟环境，安装依赖，最后启动服务。启动成功后帮我配置开机自启。
+```
+
 ### macOS Auto-Start (launchd)
 
 ```bash

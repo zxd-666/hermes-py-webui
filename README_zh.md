@@ -209,7 +209,17 @@ python -m backend.main
 
 打开 http://127.0.0.1:9898
 
-> 前端已预构建（`backend/static/`），无需 Node.js。仅修改 UI 源码时才需要。
+> 前端已预构建（`backend/static/`），除非需要修改 UI 源码，否则无需 Node.js。
+
+### 一键安装（通过 Hermes Agent）
+
+如果你已经在运行 Hermes Agent，直接发送以下提示即可自动完成安装和配置：
+
+```
+帮我安装 hermes-py-webui，项目地址：https://github.com/zxd-666/hermes-py-webui
+
+安装到 ~/.hermes/hermes-py-webui，创建虚拟环境，安装依赖，最后启动服务。启动成功后帮我配置开机自启。
+```
 
 ### macOS 开机自启（launchd）
 
