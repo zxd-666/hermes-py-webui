@@ -136,7 +136,7 @@ Hermes Agent 的完整 Web 管理界面，运行在 `localhost:9898`：
 **系统级控制：**
 
 - **🔐 访问密码** — 为 Hermes 实例启用登录页，防止未授权访问
-- **🚀 开机自启** — 系统启动时自动运行 WebUI（macOS launchd / systemd）
+- **🚀 开机自启** — 系统启动时自动运行 WebUI（macOS launchd / Windows 任务计划程序）
 - **🏠 内网访问** — 允许同一局域网内的设备通过 IP 地址访问
 - **🌍 远程访问** — 内置 Tailscale 配置教程，无需端口转发即可安全地从任何网络访问
 
@@ -257,6 +257,15 @@ cat > ~/Library/LaunchAgents/com.hermes.py-webui.plist << 'EOF'
 </plist>
 EOF
 launchctl load ~/Library/LaunchAgents/com.hermes.py-webui.plist
+```
+
+### Windows 开机自启（任务计划程序）
+
+WebUI 可通过 **设置 → 开机自启** 自动配置。手动配置：
+
+```powershell
+# 将 C:\Users\YourName 替换为你的用户目录
+schtasks /Create /TN "HermesPyWebUI" /TR "\"C:\Users\YourName\.hermes\hermes-py-webui\.venv\Scripts\python.exe\" -m uvicorn backend.main:app --host 127.0.0.1 --port 9898" /SC ONLOGON /RL HIGHEST /F
 ```
 
 ### 开发模式

@@ -1,19 +1,16 @@
-"""System endpoints: health, status, update, launchd service."""
+"""System endpoints: health, status, update, platform service management."""
 import asyncio
 import os
-import plistlib
 import subprocess
 import sys
 from pathlib import Path
 from fastapi import APIRouter
 
-from backend.config import get_lan_access
+from backend.config import get_lan_access, IS_WINDOWS
 
 router = APIRouter(tags=["system"])
 
-LAUNCHD_LABEL = "com.hermes.py-webui"
-PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
-PLIST_PATH = PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
+SERVICE_NAME = "HermesPyWebUI"
 
 
 def _project_root() -> Path:
@@ -32,7 +29,7 @@ def _generate_plist() -> dict:
     log_dir.mkdir(parents=True, exist_ok=True)
     host = "0.0.0.0" if get_lan_access() else "127.0.0.1"
     return {
-        "Label": LAUNCHD_LABEL,
+        "Label": "com.hermes.py-webui",
         "ProgramArguments": [
             str(python_bin), "-m", "uvicorn",
             "backend.main:app", "--host", host, "--port", "9898",
@@ -45,41 +42,70 @@ def _generate_plist() -> dict:
     }
 
 
+# ── macOS (launchd) ──────────────────────────────────────────────
+
+_LAUNCHD_LABEL = "com.hermes.py-webui"
+_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
+_PLIST_PATH = _PLIST_DIR / f"{_LAUNCHD_LABEL}.plist"
+
+
 @router.get("/api/hermes/service")
 async def service_status():
-    """Check launchd auto-start status."""
+    """Check auto-start service status."""
+    if IS_WINDOWS:
+        return _windows_service_status()
+    return _macos_service_status()
+
+
+@router.post("/api/hermes/service/install")
+async def service_install():
+    """Install auto-start service."""
+    if IS_WINDOWS:
+        return await _windows_service_install()
+    return await _macos_service_install()
+
+
+@router.post("/api/hermes/service/uninstall")
+async def service_uninstall():
+    """Remove auto-start service."""
+    if IS_WINDOWS:
+        return await _windows_service_uninstall()
+    return _macos_service_uninstall()
+
+
+# ── macOS implementation ──────────────────────────────────────────
+
+def _macos_service_status():
     uid = os.getuid()
     loaded = False
     try:
         result = subprocess.run(
-            ["launchctl", "print", f"gui/{uid}/{LAUNCHD_LABEL}"],
+            ["launchctl", "print", f"gui/{uid}/{_LAUNCHD_LABEL}"],
             capture_output=True, text=True, timeout=5,
         )
         loaded = result.returncode == 0
     except Exception:
         pass
     return {
-        "enabled": PLIST_PATH.exists(),
+        "enabled": _PLIST_PATH.exists(),
         "loaded": loaded,
-        "plist_path": str(PLIST_PATH),
+        "plist_path": str(_PLIST_PATH),
     }
 
 
-@router.post("/api/hermes/service/install")
-async def service_install():
-    """Install launchd plist and load the service."""
+async def _macos_service_install():
     plist_dict = _generate_plist()
-    PLIST_DIR.mkdir(parents=True, exist_ok=True)
-    with open(PLIST_PATH, "wb") as f:
+    _PLIST_DIR.mkdir(parents=True, exist_ok=True)
+    with open(_PLIST_PATH, "wb") as f:
+        import plistlib
         plistlib.dump(plist_dict, f)
-    # Unload first if already loaded, then bootstrap
     uid = os.getuid()
     subprocess.run(
-        ["launchctl", "bootout", f"gui/{uid}/{LAUNCHD_LABEL}"],
+        ["launchctl", "bootout", f"gui/{uid}/{_LAUNCHD_LABEL}"],
         capture_output=True, timeout=5,
     )
     result = subprocess.run(
-        ["launchctl", "bootstrap", f"gui/{uid}", str(PLIST_PATH)],
+        ["launchctl", "bootstrap", f"gui/{uid}", str(_PLIST_PATH)],
         capture_output=True, text=True, timeout=5,
     )
     if result.returncode != 0:
@@ -87,19 +113,61 @@ async def service_install():
     return {"ok": True}
 
 
-@router.post("/api/hermes/service/uninstall")
-async def service_uninstall():
-    """Remove launchd plist without stopping the running service.
-
-    Only deletes the plist file so the service won't auto-start on next
-    login.  We intentionally do NOT call ``launchctl bootout`` here
-    because that would terminate the current process (self-kill).
-    The stale in-memory registration is harmless — it will not survive
-    a reboot since the plist no longer exists.
-    """
-    if PLIST_PATH.exists():
-        PLIST_PATH.unlink()
+def _macos_service_uninstall():
+    if _PLIST_PATH.exists():
+        _PLIST_PATH.unlink()
     return {"ok": True}
+
+
+# ── Windows implementation (Task Scheduler) ───────────────────────
+
+def _windows_service_status():
+    """Check if a scheduled task exists."""
+    try:
+        result = subprocess.run(
+            ["schtasks", "/Query", "/TN", SERVICE_NAME],
+            capture_output=True, text=True, timeout=5,
+        )
+        return {"enabled": result.returncode == 0}
+    except Exception:
+        return {"enabled": False}
+
+
+async def _windows_service_install():
+    """Create a scheduled task that runs at user logon."""
+    root = _project_root()
+    python_bin = root / ".venv" / "Scripts" / "python.exe"
+    if not python_bin.exists():
+        python_bin = Path(sys.executable)
+    host = "0.0.0.0" if get_lan_access() else "127.0.0.1"
+    log_dir = Path.home() / ".hermes" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    # schtasks /create with TRIGGER=LOGON
+    cmd = [
+        "schtasks", "/Create",
+        "/TN", SERVICE_NAME,
+        "/TR", f'"{python_bin}" -m uvicorn backend.main:app --host {host} --port 9898',
+        "/SC", "ONLOGON",
+        "/RL", "HIGHEST",
+        "/F",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    if result.returncode != 0:
+        return {"ok": False, "error": result.stderr.strip() or result.stdout.strip()}
+    return {"ok": True}
+
+
+async def _windows_service_uninstall():
+    """Delete the scheduled task."""
+    try:
+        result = subprocess.run(
+            ["schtasks", "/Delete", "/TN", SERVICE_NAME, "/F"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 @router.get("/health")
@@ -138,7 +206,7 @@ async def set_lan_access_api(body: dict):
         return {"ok": False, "error": "Failed to save setting"}
 
     # Update launchd plist so the setting survives reboot
-    _update_plist()
+    _update_service_config()
 
     # Schedule self-restart in a background thread so the response reaches the client
     import threading
@@ -147,16 +215,23 @@ async def set_lan_access_api(body: dict):
     return {"ok": True, "lan_access": enabled}
 
 
-def _update_plist():
-    """Regenerate and write the launchd plist with current settings."""
-    import plistlib
-    try:
-        plist_dict = _generate_plist()
-        PLIST_DIR.mkdir(parents=True, exist_ok=True)
-        with open(PLIST_PATH, "wb") as f:
-            plistlib.dump(plist_dict, f)
-    except Exception:
-        pass
+def _update_service_config():
+    """Regenerate service config with current settings (called when LAN access changes)."""
+    if IS_WINDOWS:
+        # Recreate the scheduled task with new host setting
+        try:
+            asyncio.get_event_loop().run_until_complete(_windows_service_install())
+        except RuntimeError:
+            pass
+    else:
+        import plistlib
+        try:
+            plist_dict = _generate_plist()
+            _PLIST_DIR.mkdir(parents=True, exist_ok=True)
+            with open(_PLIST_PATH, "wb") as f:
+                plistlib.dump(plist_dict, f)
+        except Exception:
+            pass
 
 
 def _delayed_restart(delay: float):

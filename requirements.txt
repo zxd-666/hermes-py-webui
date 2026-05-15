@@ -3,6 +3,7 @@ uvicorn>=0.30.0
 starlette>=1.0.0
 pydantic>=2.0.0
 pyyaml>=6.0
-ptyprocess>=0.7.0
+ptyprocess>=0.7.0; sys_platform != "win32"
+pywinpty>=2.0; sys_platform == "win32"
 bcrypt>=4.0.0
 python-multipart>=0.0.9

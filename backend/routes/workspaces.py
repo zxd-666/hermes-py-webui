@@ -97,7 +97,31 @@ async def delete_workspace(request: Request, ws_id: str):
 
 @router.get("/workspace/pick-folder")
 async def pick_folder():
-    """Open native macOS folder picker dialog and return selected path."""
+    """Open native folder picker dialog and return selected path."""
+    import sys as _sys
+    if _sys.platform == "win32":
+        # Windows: use PowerShell BrowseForFolder COM object
+        ps_script = (
+            '[System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null;'
+            '$fb = New-Object System.Windows.Forms.FolderBrowserDialog;'
+            '$fb.Description = "选择工作区文件夹";'
+            'if ($fb.ShowDialog() -eq "OK") { $fb.SelectedPath }'
+        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "powershell", "-NoProfile", "-Command", ps_script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            path = stdout.decode().strip()
+            if not path or not os.path.isdir(path):
+                return JSONResponse(status_code=400, content={"error": "cancelled"})
+            return {"path": path}
+        except asyncio.TimeoutError:
+            return JSONResponse(status_code=400, content={"error": "timeout"})
+
+    # macOS: use AppleScript
     script = 'POSIX path of (choose folder with prompt "选择工作区文件夹")'
     try:
         proc = await asyncio.create_subprocess_shell(

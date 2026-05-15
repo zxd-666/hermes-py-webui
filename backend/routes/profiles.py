@@ -159,11 +159,9 @@ def _discover_providers(config_path: Path) -> list[dict]:
 
 async def _run_hermes(args: list[str], timeout: int = 30) -> tuple[int, str, str]:
     """Run a hermes CLI command and return (exit_code, stdout, stderr)."""
-    import shutil
-    # Try PATH first, then fallback to ~/.hermes/hermes-agent/venv/bin/hermes
-    from ..config import HERMES_HOME
-    hermes_bin = (shutil.which("hermes")
-                  or str(HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes"))
+    # Try PATH first, then fallback to platform-specific venv path
+    from ..config import HERMES_HOME, _find_hermes_bin
+    hermes_bin = _find_hermes_bin()
     proc = await asyncio.create_subprocess_exec(
         hermes_bin, *args,
         stdout=asyncio.subprocess.PIPE,

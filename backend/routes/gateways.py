@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from ..config import HERMES_HOME
+from ..config import HERMES_HOME, _find_hermes_bin
 
 router = APIRouter(prefix="/api/hermes/gateways", tags=["gateways"])
 
@@ -100,7 +100,7 @@ async def list_gateways():
 @router.post("/{name}/start")
 async def start_gateway(name: str):
     """Start a gateway (via hermes CLI)."""
-    hermes_bin = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+    hermes_bin = _find_hermes_bin()
     home = PROFILES_DIR / name if name != "default" else HERMES_HOME
     env = {**os.environ}
     env["HERMES_HOME"] = str(home)
@@ -124,7 +124,7 @@ async def start_gateway(name: str):
 @router.post("/{name}/stop")
 async def stop_gateway(name: str):
     """Stop a gateway (via hermes CLI)."""
-    hermes_bin = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+    hermes_bin = _find_hermes_bin()
     home = PROFILES_DIR / name if name != "default" else HERMES_HOME
     env = {**os.environ}
     env["HERMES_HOME"] = str(home)

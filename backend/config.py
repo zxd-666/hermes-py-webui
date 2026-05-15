@@ -1,5 +1,7 @@
 """Shared constants and helpers."""
 import os
+import sys
+import shutil
 from pathlib import Path
 
 # Read HERMES_HOME the same way Hermes does — handles profile mode
@@ -72,6 +74,31 @@ else:
     HOST = "0.0.0.0" if get_lan_access() else "127.0.0.1"
 
 DEFAULT_WORKSPACE = Path.home()
+
+
+def _find_hermes_bin() -> str:
+    """Locate the hermes CLI binary across platforms.
+
+    Search order:
+      1. shutil.which("hermes") — works if installed in PATH
+      2. ~/.hermes/hermes-agent/venv/bin/hermes  (Unix)
+      3. ~/.hermes/hermes-agent/venv/Scripts/hermes.exe  (Windows)
+    """
+    found = shutil.which("hermes")
+    if found:
+        return found
+    agent_venv = HERMES_HOME / "hermes-agent" / "venv"
+    if sys.platform == "win32":
+        exe = agent_venv / "Scripts" / "hermes.exe"
+    else:
+        exe = agent_venv / "bin" / "hermes"
+    if exe.exists():
+        return str(exe)
+    # Last resort: return the expected path anyway (may fail at runtime)
+    return str(exe)
+
+
+IS_WINDOWS = sys.platform == "win32"
 
 
 def profile_from_request(request) -> str | None:

@@ -172,6 +172,7 @@ def _ensure_allow_all_users(profile: str | None = None):
 
 async def _restart_gateway_if_running(profile: str | None = None):
     """Background: restart Hermes gateway if it's currently running."""
+    from backend.config import _find_hermes_bin
     try:
         home = _profile_home(profile)
         pid_file = home / "gateway.pid"
@@ -186,7 +187,9 @@ async def _restart_gateway_if_running(profile: str | None = None):
     except Exception:
         return  # not running, nothing to do
 
-    hermes_bin = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
+    hermes_bin = _find_hermes_bin()
+    if not os.path.isfile(hermes_bin):
+        return  # hermes CLI not found, nothing to do
     env = {**os.environ}
     if profile and profile != "default":
         env["HERMES_HOME"] = str(_profile_home(profile))

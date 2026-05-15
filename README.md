@@ -136,7 +136,7 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 **System-level controls:**
 
 - **🔐 Access Password** — Protect your Hermes instance with a login screen. Prevents unauthorized access from any network
-- **🚀 Auto Start** — Automatically launch Hermes WebUI on system boot (macOS launchd / systemd)
+- **🚀 Auto Start** — Automatically launch Hermes WebUI on system boot (macOS launchd / Windows Task Scheduler)
 - **🏠 LAN Access** — Allow devices on the same local network to access via IP address
 - **🌍 Remote Access** — Built-in Tailscale setup guide — access Hermes from anywhere securely without port forwarding
 
@@ -257,6 +257,15 @@ cat > ~/Library/LaunchAgents/com.hermes.py-webui.plist << 'EOF'
 </plist>
 EOF
 launchctl load ~/Library/LaunchAgents/com.hermes.py-webui.plist
+```
+
+### Windows Auto-Start (Task Scheduler)
+
+The WebUI can configure this automatically via **Settings → Auto Start**. To do it manually:
+
+```powershell
+# Replace C:\Users\YourName with your home directory
+schtasks /Create /TN "HermesPyWebUI" /TR "\"C:\Users\YourName\.hermes\hermes-py-webui\.venv\Scripts\python.exe\" -m uvicorn backend.main:app --host 127.0.0.1 --port 9898" /SC ONLOGON /RL HIGHEST /F
 ```
 
 ### Development Mode
