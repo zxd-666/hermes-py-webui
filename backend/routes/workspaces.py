@@ -4,7 +4,7 @@ Workspaces are stored per-profile:
   default  →  ~/.hermes/webui_workspaces.json
   named    →  ~/.hermes/profiles/<name>/webui_workspaces.json
 """
-import json, os, uuid
+import asyncio, json, os, uuid
 from pathlib import Path
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
@@ -93,3 +93,24 @@ async def delete_workspace(request: Request, ws_id: str):
         return JSONResponse(status_code=404, content={"error": "workspace not found"})
     _save_workspaces(request, new_list)
     return {"ok": True}
+
+
+@router.get("/workspace/pick-folder")
+async def pick_folder():
+    """Open native macOS folder picker dialog and return selected path."""
+    script = 'POSIX path of (choose folder with prompt "选择工作区文件夹")'
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            f"osascript -e '{script}'",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+        if proc.returncode != 0:
+            return JSONResponse(status_code=400, content={"error": "cancelled"})
+        path = stdout.decode().strip().rstrip("/")
+        if not path or not os.path.isdir(path):
+            return JSONResponse(status_code=400, content={"error": "cancelled"})
+        return {"path": path}
+    except asyncio.TimeoutError:
+        return JSONResponse(status_code=400, content={"error": "timeout"})

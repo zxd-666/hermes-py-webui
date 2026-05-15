@@ -6,8 +6,9 @@ import { useAppStore } from '@/stores/hermes/app'
 import { useProfilesStore } from '@/stores/hermes/profiles'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import { fetchContextLength, setSessionWorkspace } from '@/api/hermes/sessions'
-import { fetchWorkspaces } from '@/api/hermes/workspaces'
-import { NButton, NTooltip, NSelect, useMessage } from 'naive-ui'
+import { fetchWorkspaces, createWorkspace } from '@/api/hermes/workspaces'
+import { request } from '@/api/client'
+import { NButton, NTooltip, NSelect, NModal, NInput, useMessage } from 'naive-ui'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -80,6 +81,7 @@ const workspaceOptions = computed(() => {
   if (currentWs && !workspacePresets.value.some(ws => ws.path === currentWs)) {
     opts.push({ label: currentWs, value: currentWs })
   }
+  opts.push({ label: t('chat.addWorkspace'), value: '__create_new__' })
   return opts
 })
 
@@ -92,6 +94,12 @@ async function loadWorkspacePresets() {
 }
 
 async function handleWorkspaceChange(path: string | null) {
+  if (path === '__create_new__') {
+    showCreateWorkspace.value = true
+    newWsName.value = ''
+    newWsPath.value = ''
+    return
+  }
   const sid = chatStore.activeSessionId
   if (!sid) return
   const ok = await setSessionWorkspace(sid, path || null)
@@ -100,6 +108,52 @@ async function handleWorkspaceChange(path: string | null) {
     message.success(t('chat.workspaceSet'))
   } else {
     message.error(t('chat.workspaceSetFailed'))
+  }
+}
+
+// Create workspace modal
+const showCreateWorkspace = ref(false)
+const newWsName = ref('')
+const newWsPath = ref('')
+const creatingWorkspace = ref(false)
+
+async function browseFolder() {
+  try {
+    const res = await request<{ path: string }>('/api/hermes/workspace/pick-folder')
+    newWsPath.value = res.path
+    // Auto-fill name from folder name if empty
+    if (!newWsName.value.trim()) {
+      newWsName.value = res.path.split('/').pop() || ''
+    }
+  } catch {
+    // User cancelled
+  }
+}
+
+async function handleCreateWorkspace() {
+  const name = newWsName.value.trim()
+  const path = newWsPath.value.trim()
+  if (!name || !path) {
+    message.warning(t('chat.addWorkspaceRequired'))
+    return
+  }
+  creatingWorkspace.value = true
+  try {
+    const ws = await createWorkspace(name, path)
+    await loadWorkspacePresets()
+    showCreateWorkspace.value = false
+    // Auto-select the newly created workspace
+    if (chatStore.activeSessionId) {
+      const ok = await setSessionWorkspace(chatStore.activeSessionId, ws.path)
+      if (ok) {
+        if (chatStore.activeSession) chatStore.activeSession.workspace = ws.path
+        message.success(t('chat.workspaceSet'))
+      }
+    }
+  } catch {
+    message.error(t('chat.addWorkspaceFailed'))
+  } finally {
+    creatingWorkspace.value = false
   }
 }
 
@@ -641,6 +695,36 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <!-- Create Workspace Modal -->
+    <NModal
+      v-model:show="showCreateWorkspace"
+      preset="dialog"
+      :title="t('chat.addWorkspace')"
+      :positive-text="t('common.confirm')"
+      :negative-text="t('common.cancel')"
+      :positive-button-props="{ disabled: !newWsName.trim() || !newWsPath.trim(), loading: creatingWorkspace }"
+      @positive-click="handleCreateWorkspace"
+    >
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <NInput
+          :value="newWsName"
+          :placeholder="t('chat.addWorkspaceNameHint')"
+          @update:value="v => newWsName = v"
+          @keydown.enter="handleCreateWorkspace"
+        />
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <NInput
+            :value="newWsPath"
+            :placeholder="t('chat.workspacePlaceholder')"
+            style="flex: 1"
+            @update:value="v => newWsPath = v"
+            @keydown.enter="handleCreateWorkspace"
+          />
+          <NButton size="small" @click="browseFolder">{{ t('chat.browse') }}</NButton>
+        </div>
+      </div>
+    </NModal>
   </div>
 </template>
 
