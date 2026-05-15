@@ -22,7 +22,7 @@
 
 <table>
 <tr>
-<td><img src="docs/images/chat.jpeg" width="400"></td>
+<td><img src="docs/images/chat.png" width="400"></td>
 <td><img src="docs/images/jobs.png" width="400"></td>
 </tr>
 <tr>
@@ -31,7 +31,7 @@
 </tr>
 <tr>
 <td><img src="docs/images/memory.png" width="400"></td>
-<td><img src="docs/images/models.jpg" width="400"></td>
+<td><img src="docs/images/models.png" width="400"></td>
 </tr>
 <tr>
 <td align="center">🧠 技能与记忆</td>
