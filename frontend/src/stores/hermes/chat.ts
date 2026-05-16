@@ -179,13 +179,23 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
         attachments = fileRefs.map(f => {
           const ext = f.name.includes('.') ? '.' + f.name.split('.').pop()!.toLowerCase() : ''
           const isImg = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico'].includes(ext)
-          return {
+          const att: Attachment = {
             id: uid(),
             name: f.name,
             type: isImg ? `image/${ext.slice(1)}` : 'application/octet-stream',
             size: 0,
             url: f.url,
           }
+          // Fetch actual file size via HEAD when restoring from history
+          if (f.url) {
+            fetch(f.url, { method: 'HEAD' })
+              .then(res => {
+                const len = res.headers.get('content-length');
+                if (len) att.size = parseInt(len, 10);
+              })
+              .catch(() => {})
+          }
+          return att
         })
         // Remove file markers from display content (trailing block with only File refs)
         content = content.replace(/\n*\[File:\s*[^\]]+\]\([^)]+\)/g, '').trimEnd()

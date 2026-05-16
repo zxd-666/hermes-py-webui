@@ -3,8 +3,10 @@ import asyncio
 import json
 import os
 import queue
+import re
 import sys
 import threading
+import tempfile
 import time
 import traceback
 from pathlib import Path
@@ -154,6 +156,96 @@ def put_event(stream_id: str, event: str, data: dict):
             q.put_nowait((event, data))
         except queue.Full:
             pass
+
+
+_FILE_LINK_RE = re.compile(r'\[File:\s*([^\]]+)\]\(([^)]+)\)')
+_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
+
+
+def _preprocess_image_attachments(msg_text: str) -> str:
+    """Download image attachments from download URLs and pre-analyze with vision.
+
+    Frontend sends images as ``[File: name](/api/hermes/download?path=...&token=...)``.
+    The agent only sees this as plain text and cannot view the image.  This function
+    downloads image files to a local temp directory, runs vision_analyze to generate
+    a text description, and replaces the [File:...] markers with the description +
+    a local path the agent can re-examine later.
+    """
+    import urllib.request
+    import urllib.parse
+    import asyncio
+
+    matches = _FILE_LINK_RE.findall(msg_text)
+    if not matches:
+        return msg_text
+
+    cleaned_parts = []
+    image_enriched = []
+    for name, url in matches:
+        ext = Path(name).suffix.lower()
+        if ext in _IMAGE_EXTENSIONS:
+            # Download to temp file
+            local_path = None
+            try:
+                # Ensure URL is absolute (it should start with /api/hermes/download...)
+                if url.startswith('/'):
+                    url = f'http://127.0.0.1:9898{url}'
+                local_path = Path(tempfile.mkdtemp(prefix='hermes_img_')) / name
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    data = resp.read()
+                local_path.write_bytes(data)
+                print(f'[9898] Downloaded image attachment: {name} ({len(data)//1024}KB) -> {local_path}', flush=True)
+
+                # Run vision_analyze to get a text description
+                try:
+                    from tools.vision_tools import vision_analyze_tool
+                    loop = asyncio.new_event_loop()
+                    try:
+                        result_json = loop.run_until_complete(
+                            vision_analyze_tool(image_url=str(local_path), user_prompt=(
+                                "Describe everything visible in this image in thorough detail. "
+                                "Include any text, code, data, objects, people, layout, colors, "
+                                "and any other notable visual information."
+                            ))
+                        )
+                        result = json.loads(result_json)
+                        if result.get("success"):
+                            desc = result.get("analysis", "")
+                            image_enriched.append(
+                                f"[The user attached an image. Here's what it contains:\n{desc}]\n"
+                                f"[If you need a closer look, use vision_analyze with image_url: {local_path}]"
+                            )
+                        else:
+                            image_enriched.append(
+                                f"[The user attached an image but vision analysis failed. "
+                                f"You can try examining it with vision_analyze using image_url: {local_path}]"
+                            )
+                    finally:
+                        loop.close()
+                except Exception as ve:
+                    print(f'[9898] Vision analysis failed for {name}: {ve}', flush=True)
+                    image_enriched.append(
+                        f"[The user attached an image but vision analysis failed ({ve}). "
+                        f"You can try examining it with vision_analyze using image_url: {local_path}]"
+                    )
+                # Remove the original [File:...] marker
+                continue
+            except Exception as de:
+                print(f'[9898] Failed to download image {name}: {de}', flush=True)
+                # Keep the original marker if download failed
+                cleaned_parts.append(f'[File: {name}]({url})')
+                continue
+        else:
+            # Non-image attachment — keep as-is
+            cleaned_parts.append(f'[File: {name}]({url})')
+
+    # Rebuild: original text (with image markers removed) + vision descriptions + non-image markers
+    stripped_text = _FILE_LINK_RE.sub('', msg_text).strip()
+    parts = [stripped_text] if stripped_text else []
+    parts.extend(image_enriched)
+    parts.extend(cleaned_parts)
+    return '\n\n'.join(parts)
 
 
 def run_agent_in_thread(
@@ -459,8 +551,13 @@ def run_agent_in_thread(
 
         # Run the agent — effective_session_id ensures new messages (and any
         # further compression continuations) land in the correct leaf session.
+
+        # Preprocess image attachments: download + vision analysis
+        # so the agent can "see" images sent from the WebUI.
+        enriched_text = _preprocess_image_attachments(msg_text)
+
         result = agent.run_conversation(
-            user_message=workspace_ctx + msg_text,
+            user_message=workspace_ctx + enriched_text,
             system_message=workspace_system_msg,
             conversation_history=safe_history,
             task_id=effective_session_id,

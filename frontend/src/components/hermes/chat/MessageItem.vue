@@ -323,12 +323,27 @@ function getFilePathFromContent(attName: string): string | null {
 }
 
 function handleAttachmentDownload(att: { name: string; url: string; type: string }) {
-  const filePath = getFilePathFromContent(att.name);
-  if (filePath) {
+  if (att.url && (att.url.startsWith("/api/") || att.url.startsWith("http"))) {
+    // att.url is already a download API URL — use it directly
     toast.info(t("download.downloading"));
-    downloadFile(filePath, att.name).catch((err: Error) => {
-      toast.error(err.message || t("download.downloadFailed"));
-    });
+    fetch(att.url)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = att.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      })
+      .catch((err: Error) => {
+        toast.error(err.message || t("download.downloadFailed"));
+      });
     return;
   }
   if (att.url && att.url.startsWith("blob:")) {
