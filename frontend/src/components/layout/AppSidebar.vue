@@ -297,7 +297,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 18px 2px;
+  padding: 13px 2px 8px;
 }
 
 .sidebar-nav {
