@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { Session } from '@/stores/hermes/chat'
 import { useChatStore } from '@/stores/hermes/chat'
 import { formatTimestampMs, getSourceLabel } from '@/shared/session-display'
+import type { WorkspacePreset } from '@/api/hermes/workspaces'
 
 const { t } = useI18n()
 
@@ -12,6 +13,7 @@ const props = defineProps<{
   active: boolean
   pinned: boolean
   streaming?: boolean
+  workspacePresets?: WorkspacePreset[]
 }>()
 
 const chatStore = useChatStore()
@@ -27,6 +29,15 @@ const ancestorsExpanded = ref(false)
 
 const ancestorCount = computed(() => Math.max(0, (props.session.lineageCount || 1) - 1))
 const hasAncestors = computed(() => ancestorCount.value > 0)
+
+const displayName = computed(() => {
+  const ws = props.session.workspace
+  if (ws && ws !== '~' && ws.trim() && props.workspacePresets?.length) {
+    const match = props.workspacePresets.find(p => p.path === ws)
+    if (match) return match.name
+  }
+  return props.session.title || 'New Chat'
+})
 
 // Auto-expand children list when requested (e.g. from favorites/search jump,
 // or page refresh where the watch registers after the value is already set)
@@ -60,7 +71,7 @@ watch(
         </span>
         <span class="session-item-title">
           <svg v-if="streaming" class="session-item-streaming" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-          {{ session.title || 'New Chat' }}
+          {{ displayName }}
         </span>
       </span>
       <span class="session-item-meta">
