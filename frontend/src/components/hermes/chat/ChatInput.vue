@@ -177,9 +177,11 @@ onMounted(loadContextLength)
 watch(() => useProfilesStore().activeProfileName, loadContextLength)
 watch(() => useAppStore().selectedModel, loadContextLength)
 
-const showContextInfo = computed(() => !!chatStore.activeSession?.contextLength)
+const hasMessages = computed(() => (chatStore.activeSession?.messageCount ?? 0) > 0)
+const hasContextData = computed(() => !!chatStore.activeSession?.contextLength)
 
-const contextTokens = computed(() => showContextInfo.value ? (chatStore.activeSession?.inputTokens ?? 0) : 0)
+const contextTokens = computed(() => hasContextData.value ? (chatStore.activeSession?.inputTokens ?? 0) : 0)
+const showContextBar = computed(() => hasMessages.value && hasContextData.value)
 
 const effectiveContextLength = computed(() =>
   chatStore.activeSession?.contextLength || contextLength.value,
@@ -568,7 +570,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Context info (above input) -->
-    <div v-if="contextTokens > 0" class="context-row">
+    <div v-if="showContextBar" class="context-row">
       <span class="context-info" :class="{ 'context-warning': usagePercent > 80 }">
         {{ formatTokens(contextTokens) }} / {{ formatTokens(effectiveContextLength) }} · {{ t('chat.contextRemaining') }} {{ formatTokens(remainingTokens) }}
       </span>
