@@ -353,9 +353,13 @@ async function handleSaved() {
 }
 
 .auxiliary-card {
-  background: $bg-secondary;
+  background: #f0f0f3;
   border-radius: $radius-sm;
   overflow: hidden;
+
+  .dark & {
+    background: #1e1e24;
+  }
 
   &.expanded {
     .auxiliary-card-header {
