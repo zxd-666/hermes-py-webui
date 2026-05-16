@@ -186,15 +186,6 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
             size: 0,
             url: f.url,
           }
-          // Fetch actual file size via HEAD when restoring from history
-          if (f.url) {
-            fetch(f.url, { method: 'HEAD' })
-              .then(res => {
-                const len = res.headers.get('content-length');
-                if (len) att.size = parseInt(len, 10);
-              })
-              .catch(() => {})
-          }
           return att
         })
         // Remove file markers from display content (trailing block with only File refs)
@@ -214,6 +205,24 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
     })
   }
   return result
+}
+
+/** Fetch Content-Length for user message attachments via HEAD and update the reactive store. */
+function fetchAttachmentSizes(messages: Message[]): void {
+  for (const msg of messages) {
+    if (msg.role !== 'user' || !msg.attachments?.length) continue
+    for (const att of msg.attachments) {
+      if (!att.url || att.size > 0) continue
+      fetch(att.url, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            const len = res.headers.get('content-length')
+            if (len) att.size = parseInt(len, 10)
+          }
+        })
+        .catch(() => {})
+    }
+  }
 }
 
 function mapHermesSession(s: SessionSummary): Session {
@@ -635,6 +644,7 @@ export const useChatStore = defineStore('chat', () => {
       if (!target) return false
       const mapped = mapHermesMessages(detail.messages || [])
       target.messages = mapped
+      fetchAttachmentSizes(target.messages)
       if (detail.title) target.title = detail.title
       return true
     } catch (err) {
@@ -730,6 +740,7 @@ export const useChatStore = defineStore('chat', () => {
       if (data.messages?.length) {
         const dbMsgs = mapHermesMessages(data.messages as any[])
         activeSession.value!.messages = mergeMessagesPreservingStreaming(dbMsgs, activeSession.value!.messages)
+        fetchAttachmentSizes(activeSession.value!.messages)
       }
       // If an in-flight run is active, the localStorage snapshot (saved by
       // markInFlight at send time) may contain messages that haven't been
@@ -863,6 +874,7 @@ export const useChatStore = defineStore('chat', () => {
 
         uniqueParentMsgs.forEach(m => { m.segment = segmentIdx })
         session.messages = [...uniqueParentMsgs, ...session.messages]
+        fetchAttachmentSizes(session.messages)
       }
       if (!session.loadedParentIds) session.loadedParentIds = []
       session.loadedParentIds.push(parentId)
@@ -1774,6 +1786,7 @@ export const useChatStore = defineStore('chat', () => {
             if (data.messages?.length && activeSession.value) {
               const dbMsgs = mapHermesMessages(data.messages as any[])
               activeSession.value.messages = mergeMessagesPreservingStreaming(dbMsgs, activeSession.value.messages)
+              fetchAttachmentSizes(activeSession.value.messages)
             }
           } catch (_e) { /* non-critical */ }
           resumeInFlightRun(sid)

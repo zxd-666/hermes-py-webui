@@ -229,9 +229,13 @@ async def upload_files(
     request: Request,
     path: str = Query("", description="Target directory"),
 ):
-    """Upload files via multipart form."""
+    """Upload files via multipart form.
+
+    Default target: {profile_root}/uploads/files/
+    If 'path' is explicitly provided, files go there instead.
+    """
     root = _get_root(request)
-    target_dir = _resolve_path(path, root) if path else root
+    target_dir = _resolve_path(path, root) if path else root / "uploads" / "files"
     target_dir.mkdir(parents=True, exist_ok=True)
 
     form = await request.form()
@@ -242,9 +246,15 @@ async def upload_files(
         dest = target_dir / file_field.filename
         try:
             content = await file_field.read()
+            # Add timestamp to avoid overwriting
+            stem = Path(dest).stem
+            suffix = Path(dest).suffix
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = f"{stem}_{ts}{suffix}"
+            dest = target_dir / safe_name
             dest.write_bytes(content)
-            rel = str(dest.relative_to(root)) if str(dest.resolve()).startswith(str(root.resolve())) else file_field.filename
-            uploaded.append({"name": file_field.filename, "path": rel})
+            rel = str(dest.relative_to(root)) if str(dest.resolve()).startswith(str(root.resolve())) else safe_name
+            uploaded.append({"name": safe_name, "path": rel})
         except Exception as e:
             uploaded.append({"name": file_field.filename, "error": str(e)})
     return {"files": uploaded}

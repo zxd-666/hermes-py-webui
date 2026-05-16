@@ -45,6 +45,9 @@ const assistantAvatar = computed(() => profilesStore.activeAvatar || '/logo.png'
 
 const showCost = computed(() => !!settingsStore.display.show_cost);
 
+// Track images that failed to load (file deleted or missing)
+const brokenImages = ref(new Set<string>());
+
 // --- Favorites ---
 const isAssistant = computed(() => props.message.role === 'assistant');
 const isFav = computed(() => isAssistant.value && !props.message.isStreaming && favStore.isFavorited(props.message.id));
@@ -324,14 +327,21 @@ function getFilePathFromContent(attName: string): string | null {
 
 function handleAttachmentDownload(att: { name: string; url: string; type: string }) {
   if (att.url && (att.url.startsWith("/api/") || att.url.startsWith("http"))) {
-    // att.url is already a download API URL — use it directly
-    toast.info(t("download.downloading"));
+    const loading = toast.loading(t("download.downloading"), { duration: 0 });
+    const loadStart = Date.now();
     fetch(att.url)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      .then(async res => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || body.code === "FILE_NOT_FOUND" ? t("download.fileNotFound") : `HTTP ${res.status}`);
+        }
         return res.blob();
       })
       .then(blob => {
+        const elapsed = Date.now() - loadStart;
+        const minShow = 500;
+        const delay = Math.max(0, minShow - elapsed);
+        setTimeout(() => loading.destroy(), delay);
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = blobUrl;
@@ -342,6 +352,7 @@ function handleAttachmentDownload(att: { name: string; url: string; type: string
         URL.revokeObjectURL(blobUrl);
       })
       .catch((err: Error) => {
+        loading.destroy();
         toast.error(err.message || t("download.downloadFailed"));
       });
     return;
@@ -554,11 +565,22 @@ const renderedToolResult = computed(() => {
               >
                 <template v-if="isImage(att.type) && att.url">
                   <img
+                    v-if="!brokenImages.has(att.id)"
                     :src="att.url"
                     :alt="att.name"
                     class="msg-attachment-thumb"
                     @click="previewUrl = att.url"
+                    @error="brokenImages.add(att.id)"
                   />
+                  <div v-else class="msg-attachment-broken" :title="t('download.fileNotFound')">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                      <line x1="2" y1="2" x2="22" y2="22" />
+                    </svg>
+                    <span class="broken-label">{{ t('download.fileNotFound') }}</span>
+                  </div>
                 </template>
                 <template v-else>
                   <div class="msg-attachment-file" @click="handleAttachmentDownload(att)" style="cursor: pointer;" :title="t('download.downloadFile')">
@@ -862,6 +884,22 @@ const renderedToolResult = computed(() => {
   max-height: 160px;
   object-fit: contain;
   cursor: pointer;
+}
+
+.msg-attachment-broken {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed rgba(var(--text-secondary-rgb, 150, 150, 150), 0.4);
+  border-radius: 8px;
+  background: rgba(var(--text-secondary-rgb, 150, 150, 150), 0.05);
+  max-width: 240px;
+
+  .broken-label {
+    font-size: 12px;
+    color: $text-muted;
+  }
 }
 
 .msg-attachment-file {

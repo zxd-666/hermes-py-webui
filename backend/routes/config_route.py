@@ -843,7 +843,7 @@ async def get_provider_presets():
     return sorted(presets, key=lambda p: p["name"])
 
 
-@router.get("/download")
+@router.api_route("/download", methods=["GET", "HEAD"])
 async def download_file(request: Request, path: str, name: str = ""):
     """Download a file from the filesystem."""
     from fastapi.responses import FileResponse, JSONResponse
@@ -865,6 +865,9 @@ async def download_file(request: Request, path: str, name: str = ""):
     target = target.expanduser()
 
     if not target.is_file():
-        return JSONResponse(status_code=404, content={"error": "file not found"})
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"File not found: {target.name}", "code": "FILE_NOT_FOUND"},
+        )
     filename = name or target.name
     return FileResponse(str(target), filename=filename)

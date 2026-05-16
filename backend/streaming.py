@@ -9,6 +9,7 @@ import threading
 import tempfile
 import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -179,12 +180,12 @@ _FILE_LINK_RE = re.compile(r'\[File:\s*([^\]]+)\]\(([^)]+)\)')
 _IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
 
 
-def _preprocess_image_attachments(msg_text: str) -> str:
+def _preprocess_image_attachments(msg_text: str, hermes_home: str | None = None) -> str:
     """Download image attachments from download URLs and pre-analyze with vision.
 
     Frontend sends images as ``[File: name](/api/hermes/download?path=...&token=...)``.
     The agent only sees this as plain text and cannot view the image.  This function
-    downloads image files to a local temp directory, runs vision_analyze to generate
+    downloads image files to ~/.hermes/uploads/images/, runs vision_analyze to generate
     a text description, and replaces the [File:...] markers with the description +
     a local path the agent can re-examine later.
     """
@@ -196,18 +197,27 @@ def _preprocess_image_attachments(msg_text: str) -> str:
     if not matches:
         return msg_text
 
+    # Resolve upload directory for images
+    _home = Path(hermes_home) if hermes_home else Path(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")))
+    images_dir = _home / "uploads" / "images"
+
     cleaned_parts = []
     image_enriched = []
     for name, url in matches:
         ext = Path(name).suffix.lower()
         if ext in _IMAGE_EXTENSIONS:
-            # Download to temp file
+            # Download to uploads/images/
             local_path = None
             try:
                 # Ensure URL is absolute (it should start with /api/hermes/download...)
                 if url.startswith('/'):
                     url = f'http://127.0.0.1:9898{url}'
-                local_path = Path(tempfile.mkdtemp(prefix='hermes_img_')) / name
+                images_dir.mkdir(parents=True, exist_ok=True)
+                stem = Path(name).stem
+                suffix = Path(name).suffix
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                safe_name = f"{stem}_{ts}{suffix}"
+                local_path = images_dir / safe_name
                 req = urllib.request.Request(url)
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     data = resp.read()
@@ -571,7 +581,7 @@ def run_agent_in_thread(
 
         # Preprocess image attachments: download + vision analysis
         # so the agent can "see" images sent from the WebUI.
-        enriched_text = _preprocess_image_attachments(msg_text)
+        enriched_text = _preprocess_image_attachments(msg_text, hermes_home=hermes_home)
 
         result = agent.run_conversation(
             user_message=workspace_ctx + enriched_text,

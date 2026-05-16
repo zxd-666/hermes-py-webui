@@ -22,6 +22,7 @@ export async function downloadFile(filePath: string, fileName?: string): Promise
   const res = await fetch(url)
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    if (body.code === 'FILE_NOT_FOUND') throw new Error(`文件不存在或已被删除: ${fileName || filePath.split('/').pop()}`)
     throw new Error(body.error || `Download failed: ${res.status}`)
   }
   const blob = await res.blob()

@@ -232,8 +232,11 @@ async function handleMarkdownClick(event: MouseEvent): Promise<void> {
     event.stopPropagation()
     const linkText = link.textContent || ''
     const fileName = linkText.startsWith('File: ') ? linkText.slice(6).trim() : linkText.trim()
-    message.info(t('download.downloading'))
-    downloadFile(href, fileName || undefined).catch((err: Error) => {
+    const loading = message.loading(t('download.downloading'), { duration: 0 })
+    downloadFile(href, fileName || undefined).then(() => {
+      loading.destroy()
+    }).catch((err: Error) => {
+      loading.destroy()
       message.error(err.message || t('download.downloadFailed'))
     })
   }
