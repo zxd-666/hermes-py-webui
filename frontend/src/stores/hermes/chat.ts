@@ -457,6 +457,23 @@ export const useChatStore = defineStore('chat', () => {
     try { localStorage.removeItem(pendingMsgsKey(sid)) } catch {}
   }
 
+  // Throttled localStorage snapshot during streaming — updated on tool.completed
+  // and periodically during long assistant text streams.
+  const _pendingSnapshotTimers: Record<string, number> = {}
+  function snapshotPendingMsgs(sid: string) {
+    if (!readInFlight(sid)) return // only snapshot if a run is in flight
+    const s = sessions.value.find(s => s.id === sid)
+    if (s && s.messages.length) {
+      try { localStorage.setItem(pendingMsgsKey(sid), JSON.stringify(s.messages)) } catch {}
+    }
+    // Also schedule a delayed snapshot to catch long delta streams
+    clearTimeout(_pendingSnapshotTimers[sid])
+    _pendingSnapshotTimers[sid] = window.setTimeout(() => {
+      delete _pendingSnapshotTimers[sid]
+      snapshotPendingMsgs(sid)
+    }, 2000) as unknown as number
+  }
+
   function readPendingMsgs(sid: string): Message[] {
     try {
       const raw = localStorage.getItem(pendingMsgsKey(sid))
@@ -1206,6 +1223,9 @@ export const useChatStore = defineStore('chat', () => {
                   toolDuration: duration,
                 })
               }
+
+              // Snapshot messages to localStorage so a page refresh can recover them
+              snapshotPendingMsgs(sid)
 
               break
             }

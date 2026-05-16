@@ -62,6 +62,9 @@ def prewarm_ai_agent():
 # In-memory stream queues: stream_id -> queue
 _streams: dict[str, queue.Queue] = {}
 _streams_lock = threading.Lock()
+# session_id -> stream_id mapping for resume isWorking detection
+_session_stream_map: dict[str, str] = {}
+
 _cancel_flags: dict[str, threading.Event] = {}
 _agent_instances: dict[str, object] = {}
 # Track run completion time for TTL cleanup
@@ -122,6 +125,9 @@ def cancel_stream(stream_id: str) -> bool:
 
 def cleanup_stream(stream_id: str):
     with _streams_lock:
+        expired = [k for k, v in _session_stream_map.items() if v == stream_id]
+        for k in expired:
+            del _session_stream_map[k]
         _streams.pop(stream_id, None)
         _cancel_flags.pop(stream_id, None)
         _agent_instances.pop(stream_id, None)
@@ -156,6 +162,17 @@ def put_event(stream_id: str, event: str, data: dict):
             q.put_nowait((event, data))
         except queue.Full:
             pass
+
+def register_session_stream(session_id: str, stream_id: str):
+    """Register a session_id → stream_id mapping so resume can detect active runs."""
+    with _streams_lock:
+        _session_stream_map[session_id] = stream_id
+
+
+def get_active_stream_id(session_id: str) -> str | None:
+    """Return the stream_id for a session with an in-flight run, or None."""
+    with _streams_lock:
+        return _session_stream_map.get(session_id)
 
 
 _FILE_LINK_RE = re.compile(r'\[File:\s*([^\]]+)\]\(([^)]+)\)')

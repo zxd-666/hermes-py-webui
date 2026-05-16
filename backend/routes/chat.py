@@ -3,12 +3,13 @@ import asyncio
 import json
 import threading
 import time
+import uuid
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from ..streaming import create_stream, get_stream, cleanup_stream, run_agent_in_thread, cancel_stream, detach_stream_consumer, is_stream_alive
+from ..streaming import create_stream, get_stream, cleanup_stream, run_agent_in_thread, cancel_stream, detach_stream_consumer, is_stream_alive, register_session_stream, get_active_stream_id
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -25,9 +26,9 @@ class StartRunRequest(BaseModel):
 @router.post("/start")
 async def start_run(req: Request, body: StartRunRequest):
     """Start a new agent run, return run_id for SSE subscription."""
-    import uuid
     session_id = body.session_id or f"s_{uuid.uuid4().hex[:12]}"
     stream_id = create_stream()
+    register_session_stream(session_id, stream_id)
 
     # Extract message text
     if isinstance(body.input, str):
@@ -227,10 +228,14 @@ async def resume_session(request: Request, session_id: str):
     input_tokens = s.get("input_tokens", 0) or 0
     output_tokens = s.get("output_tokens", 0) or 0
 
+    # Check if this session has an active in-flight stream
+    active_stream = get_active_stream_id(session_id)
+    is_working = active_stream is not None
+
     return {
         "session_id": session_id,
         "messages": messages,
-        "isWorking": False,  # SSE doesn't persist in-flight state across reconnects
+        "isWorking": is_working,
         "events": [],
         "inputTokens": input_tokens,
         "outputTokens": output_tokens,
