@@ -164,14 +164,43 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
     }
 
     // Normal user/assistant messages
+    let content = msg.content || ''
+    let attachments: Attachment[] | undefined
+
+    // Rebuild attachments from [File: name](url) markers in user messages
+    if (msg.role === 'user') {
+      const fileRegex = /\[File:\s*([^\]]+)\]\(([^)]+)\)/g
+      let match: RegExpExecArray | null
+      const fileRefs: Array<{ name: string; url: string }> = []
+      while ((match = fileRegex.exec(content)) !== null) {
+        fileRefs.push({ name: match[1].trim(), url: match[2] })
+      }
+      if (fileRefs.length > 0) {
+        attachments = fileRefs.map(f => {
+          const ext = f.name.includes('.') ? '.' + f.name.split('.').pop()!.toLowerCase() : ''
+          const isImg = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico'].includes(ext)
+          return {
+            id: uid(),
+            name: f.name,
+            type: isImg ? `image/${ext.slice(1)}` : 'application/octet-stream',
+            size: 0,
+            url: f.url,
+          }
+        })
+        // Remove file markers from display content (trailing block with only File refs)
+        content = content.replace(/\n*\[File:\s*[^\]]+\]\([^)]+\)/g, '').trimEnd()
+      }
+    }
+
     result.push({
       id: String(msg.id),
       role: msg.role,
-      content: msg.content || '',
+      content,
       timestamp: Math.round(msg.timestamp * 1000),
       sessionId: msg.session_id || undefined,
       reasoning: msg.reasoning ? msg.reasoning : undefined,
       model: (msg as any).model || undefined,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     })
   }
   return result

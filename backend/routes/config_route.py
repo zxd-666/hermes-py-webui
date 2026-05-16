@@ -844,11 +844,26 @@ async def get_provider_presets():
 
 
 @router.get("/download")
-async def download_file(path: str, name: str = ""):
+async def download_file(request: Request, path: str, name: str = ""):
     """Download a file from the filesystem."""
     from fastapi.responses import FileResponse, JSONResponse
     from pathlib import Path as P
-    target = P(path).expanduser()
+
+    target = P(path)
+
+    # If path is relative, resolve against profile home first
+    if not target.is_absolute():
+        profile = _profile_from_request(request)
+        root = _profile_home(profile)
+        resolved = (root / target).resolve()
+        if resolved.is_relative_to(root.resolve()) and resolved.is_file():
+            target = resolved
+
+    # Fallback: try expanduser for absolute or ~/ paths
+    if not target.is_absolute():
+        target = target.expanduser()
+    target = target.expanduser()
+
     if not target.is_file():
         return JSONResponse(status_code=404, content={"error": "file not found"})
     filename = name or target.name
