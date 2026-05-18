@@ -7,6 +7,7 @@ const SITE_TITLE = 'Hermes'
 const routeTitleKeys: Record<string, string> = {
   'hermes.chat': 'sidebar.chat',
   'hermes.favorites': 'sidebar.favorites',
+  'hermes.kanban': 'kanban.title',
   'hermes.jobs': 'sidebar.jobs',
   'hermes.models': 'sidebar.models',
   'hermes.profiles': 'sidebar.profiles',
@@ -111,6 +112,11 @@ const router = createRouter({
       path: '/hermes/favorites',
       name: 'hermes.favorites',
       component: () => import('@/views/hermes/FavoritesView.vue'),
+    },
+    {
+      path: '/hermes/kanban',
+      name: 'hermes.kanban',
+      component: () => import('@/views/hermes/KanbanView.vue'),
     },
   ],
 })
