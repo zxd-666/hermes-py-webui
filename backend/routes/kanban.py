@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..config import profile_home
 
@@ -560,7 +560,7 @@ async def link_task(request: Request, task_id: str):
         conn.commit()
         return {"ok": True}
     except ValueError as e:
-        return {"error": str(e)}, 400
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         return {"error": str(e)}, 404
     finally:
@@ -608,7 +608,7 @@ async def create_board(request: Request):
         )
         return {"ok": True, "board": board}
     except Exception as e:
-        return {"error": str(e)}, 400
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── DELETE /boards/{slug} ─────────────────────────────
@@ -620,20 +620,19 @@ def delete_board(slug: str):
 
     db = _get_db()
     if slug == "default":
-        return {"error": "Cannot delete default board"}, 400
-
-    current = db.get_current_board()
-    if slug == current:
-        return {"error": "Cannot delete the active board. Switch first."}, 400
+        raise HTTPException(status_code=400, detail="Cannot delete default board")
 
     try:
         board_path = db.board_dir(slug)
         if board_path.is_dir():
             shutil.rmtree(board_path)
         # If we were pointing at this board, revert
+        current = db.get_current_board()
+        if slug == current:
+            db.set_current_board("default")
         return {"ok": True}
     except Exception as e:
-        return {"error": str(e)}, 400
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── POST /tasks/{task_id}/archive ──────────────────────

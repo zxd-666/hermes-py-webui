@@ -465,24 +465,34 @@ async function handleSwitchBoard(slug: string) {
     message.error(t('kanban.loadFailed'))
   }
 }
-
 async function handleDeleteBoard(slug: string, e?: Event) {
   e?.stopPropagation()
   if (slug === 'default') {
     message.warning('不能删除默认看板')
     return
   }
-  try {
-    await deleteBoard(slug)
-    message.success('看板已删除')
-    if (currentBoardSlug.value === slug) {
-      await loadBoard()
-    } else {
-      boards.value = (await fetchBoards()).boards
-    }
-  } catch (err: any) {
-    message.error(err.message || '删除失败')
-  }
+  const board = boards.value.find((b: any) => b.slug === slug)
+  const name = board?.name || slug
+  dialog.warning({
+    title: '确认删除',
+    content: '确定要删除看板「' + name + '」吗？此操作不可恢复。',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await deleteBoard(slug)
+        message.success('看板已删除')
+        if (currentBoardSlug.value === slug) {
+          currentBoardSlug.value = 'default'
+          await loadBoard()
+        } else {
+          boards.value = (await fetchBoards()).boards
+        }
+      } catch (err: any) {
+        message.error(err.detail || err.message || '删除失败')
+      }
+    },
+  })
 }
 
 // ── Drag & Drop ─────────────────────────────────
