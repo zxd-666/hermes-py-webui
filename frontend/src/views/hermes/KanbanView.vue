@@ -203,14 +203,15 @@ const boardOptions = computed(() =>
   boards.value.map(b => ({ label: (b.name || b.slug) + ' · ' + (b.task_count ?? 0), value: b.slug }))
 )
 
-function renderBoardOption(option: { label: string; value: string }) {
+function renderBoardOption(info: { option: { label: string; value: string } }) {
+  const opt = info.option
   return h('div', { style: 'display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;' }, [
-    h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' }, option.label),
-    option.value !== 'default'
+    h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' }, opt.label),
+    opt.value !== 'default'
       ? h(NButton, {
           size: 'tiny', quaternary: true, circle: true,
           style: 'flex-shrink:0;',
-          onClick: (e: Event) => { e.stopPropagation(); handleDeleteBoard(option.value) },
+          onClick: (e: Event) => { e.stopPropagation(); handleDeleteBoard(opt.value) },
         }, {
           icon: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, [
             h('polyline', { points: '3 6 5 6 21 6' }),
