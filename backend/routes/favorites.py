@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from ..favorites_db import add, remove, is_favorited, list_all, count, get_favorited_ids
 from ..db import _conn as state_db_conn
+from ..config import profile_from_request
 
 router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 
@@ -57,6 +58,7 @@ def _get_preceding_user_message(session_id: str, message_id: str) -> str:
 @router.post("/")
 def toggle_favorite(body: FavoriteIn, request: Request):
     """Add or update a favorite. (Frontend handles unfavorite via DELETE.)"""
+    profile = profile_from_request(request)
     source = _get_session_source(body.session_id)
     row = add(
         message_id=body.message_id,
@@ -66,6 +68,7 @@ def toggle_favorite(body: FavoriteIn, request: Request):
         session_title=body.session_title,
         message_ts=body.message_ts,
         source=source,
+        profile=profile or "",
     )
     return {"ok": True, "data": row}
 
@@ -82,18 +85,20 @@ def check_favorite(message_id: str):
 
 
 @router.get("/ids")
-def favorite_ids():
-    return {"ids": list(get_favorited_ids())}
+def favorite_ids(request: Request):
+    profile = profile_from_request(request)
+    return {"ids": list(get_favorited_ids(profile=profile))}
 
 
 @router.get("/")
-def get_favorites(limit: int = 100, offset: int = 0):
-    items = list_all(limit=limit, offset=offset)
+def get_favorites(request: Request, limit: int = 100, offset: int = 0):
+    profile = profile_from_request(request)
+    items = list_all(limit=limit, offset=offset, profile=profile)
     # Backfill source for existing favorites that lack it
     for item in items:
         if not item.get("source") and item.get("session_id"):
             item["source"] = _get_session_source(item["session_id"])
-    total = count()
+    total = count(profile=profile)
     return {"items": items, "total": total}
 
 

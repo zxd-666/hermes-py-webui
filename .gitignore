@@ -32,3 +32,4 @@ Thumbs.db
 # Debug
 start_debug.sh
 test_profiles.py
+*.db

@@ -21,27 +21,31 @@ def _conn() -> sqlite3.Connection:
             session_title TEXT DEFAULT '',
             message_ts    TEXT DEFAULT '',
             source        TEXT DEFAULT '',
+            profile       TEXT DEFAULT '',
             favorited_at  TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
-    # Migrate: add source column if missing
+    # Migrate: add missing columns
     cols = {r[1] for r in conn.execute("PRAGMA table_info(favorites)").fetchall()}
     if "source" not in cols:
         conn.execute("ALTER TABLE favorites ADD COLUMN source TEXT DEFAULT ''")
-        conn.commit()
+    if "profile" not in cols:
+        conn.execute("ALTER TABLE favorites ADD COLUMN profile TEXT DEFAULT ''")
+    conn.commit()
     return conn
 
 
 def add(message_id: str, session_id: str, role: str, content: str,
-        session_title: str = "", message_ts: str = "", source: str = "") -> dict:
+        session_title: str = "", message_ts: str = "", source: str = "",
+        profile: str = "") -> dict:
     conn = _conn()
     try:
         # Upsert: remove old then insert
         conn.execute("DELETE FROM favorites WHERE message_id = ?", (message_id,))
         conn.execute(
-            """INSERT INTO favorites (message_id, session_id, role, content, session_title, message_ts, source)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (message_id, session_id, role, content, session_title, message_ts, source),
+            """INSERT INTO favorites (message_id, session_id, role, content, session_title, message_ts, source, profile)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (message_id, session_id, role, content, session_title, message_ts, source, profile),
         )
         conn.commit()
         row = conn.execute(
@@ -73,31 +77,43 @@ def is_favorited(message_id: str) -> bool:
         conn.close()
 
 
-def list_all(limit: int = 100, offset: int = 0) -> list[dict]:
+def list_all(limit: int = 100, offset: int = 0, profile: str | None = None) -> list[dict]:
     conn = _conn()
     try:
-        rows = conn.execute(
-            "SELECT * FROM favorites ORDER BY favorited_at DESC LIMIT ? OFFSET ?",
-            (limit, offset),
-        ).fetchall()
+        if profile:
+            rows = conn.execute(
+                "SELECT * FROM favorites WHERE profile = ? ORDER BY favorited_at DESC LIMIT ? OFFSET ?",
+                (profile, limit, offset),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM favorites WHERE (profile IS NULL OR profile = '') ORDER BY favorited_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
 
 
-def count() -> int:
+def count(profile: str | None = None) -> int:
     conn = _conn()
     try:
-        row = conn.execute("SELECT COUNT(*) FROM favorites").fetchone()
+        if profile:
+            row = conn.execute("SELECT COUNT(*) FROM favorites WHERE profile = ?", (profile,)).fetchone()
+        else:
+            row = conn.execute("SELECT COUNT(*) FROM favorites WHERE (profile IS NULL OR profile = '')").fetchone()
         return row[0]
     finally:
         conn.close()
 
 
-def get_favorited_ids() -> set[str]:
+def get_favorited_ids(profile: str | None = None) -> set[str]:
     conn = _conn()
     try:
-        rows = conn.execute("SELECT message_id FROM favorites").fetchall()
+        if profile:
+            rows = conn.execute("SELECT message_id FROM favorites WHERE profile = ?", (profile,)).fetchall()
+        else:
+            rows = conn.execute("SELECT message_id FROM favorites WHERE (profile IS NULL OR profile = '')").fetchall()
         return {r["message_id"] for r in rows}
     finally:
         conn.close()
