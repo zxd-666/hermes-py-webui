@@ -2,10 +2,11 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import {
   NButton, NSpin, NInput, NDrawer, NDrawerContent,
-  NSelect, NTag, NModal, NForm, NFormItem, NIcon, NTabs, NTabPane,
+  NSelect, NTag, NModal, NForm, NFormItem, NIcon,
   useMessage, useDialog,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { fetchProfiles, type HermesProfile } from '@/api/hermes/profiles'
 import MarkdownIt from 'markdown-it'
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true })
@@ -15,9 +16,44 @@ function renderMd(text: string): string {
   return md.render(text)
 }
 
-function setRefreshTimer(sec: number) {
+// Auto-refresh
+const autoRefresh = ref(false)
+const refreshInterval = ref(30) // seconds
+const refreshCountdown = ref(0)
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+watch(autoRefresh, (val) => {
   if (refreshTimer) clearInterval(refreshTimer)
-  refreshTimer = setInterval(() => loadBoard(), sec * 1000)
+  if (val) {
+    refreshCountdown.value = refreshInterval.value
+    refreshTimer = setInterval(() => {
+      refreshCountdown.value--
+      if (refreshCountdown.value <= 0) {
+        refreshCountdown.value = refreshInterval.value
+        loadBoard()
+      }
+    }, 1000)
+  } else {
+    refreshTimer = null
+    refreshCountdown.value = 0
+  }
+})
+
+function setRefreshTimer(sec: number) {
+  refreshInterval.value = sec
+  refreshCountdown.value = sec
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    if (autoRefresh.value) {
+      refreshTimer = setInterval(() => {
+        refreshCountdown.value--
+        if (refreshCountdown.value <= 0) {
+          refreshCountdown.value = refreshInterval.value
+          loadBoard()
+        }
+      }, 1000)
+    }
+  }
 }
 
 import {
@@ -43,6 +79,116 @@ const tenantFilter = ref<string | null>(null)
 const groupLanes = ref(false)
 const showArchived = ref(false)
 const assigneeFilter = ref<string | null>(null)
+
+// Profile list for assignee dropdown
+const profileList = ref<HermesProfile[]>([])
+const profileAssigneeOptions = computed(() =>
+  profileList.value.map(p => ({
+    label: p.alias || p.name,
+    value: p.name,
+  }))
+)
+
+async function loadProfiles() {
+  try {
+    profileList.value = await fetchProfiles()
+  } catch { /* silent */ }
+}
+
+// Context menu state
+const ctxMenu = ref<{ show: boolean; x: number; y: number; task: KanbanTask | null }>({
+  show: false, x: 0, y: 0, task: null,
+})
+
+function openCtxMenu(e: MouseEvent, task: KanbanTask) {
+  e.preventDefault()
+  ctxMenu.value = { show: true, x: e.clientX, y: e.clientY, task }
+}
+
+function closeCtxMenu() {
+  ctxMenu.value.show = false
+}
+
+async function ctxMoveTask(status: string) {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  if (task.status === status) return
+  try {
+    await updateTask(task.id, { status })
+    message.success(t('kanban.taskUpdated'))
+    await loadBoard()
+  } catch { /* handled by api layer */ }
+}
+
+async function ctxSetPriority(priority: string) {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  try {
+    await updateTask(task.id, { priority })
+    message.success(t('kanban.taskUpdated'))
+    await loadBoard()
+  } catch { /* handled by api layer */ }
+}
+
+async function ctxSetAssignee(assignee: string | null) {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  try {
+    await updateTask(task.id, { assignee })
+    message.success(t('kanban.taskUpdated'))
+    await loadBoard()
+  } catch { /* handled by api layer */ }
+}
+
+function ctxOpenDetail() {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  openDetail(task)
+}
+
+function ctxArchive() {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  handleArchive(task, true)
+}
+
+function ctxUnarchive() {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  handleArchive(task, false)
+}
+
+function ctxDelete() {
+  const task = ctxMenu.value.task
+  if (!task) return
+  closeCtxMenu()
+  handleDelete(task)
+}
+
+const ctxColumnOptions = computed(() =>
+  COLUMN_ORDER.map(c => ({ label: t(`kanban.columns.${c}`), value: c }))
+)
+
+const ctxPriorityOptions = computed(() => {
+  const opts = [
+    { label: t('kanban.priority.none'), value: 'none' },
+    { label: t('kanban.priority.3'), value: '3' },
+    { label: t('kanban.priority.2'), value: '2' },
+    { label: t('kanban.priority.1'), value: '1' },
+  ]
+  return opts
+})
+
+const ctxAssigneeOptions = computed(() => [
+  { label: t('kanban.noAssignee'), value: '__none__' },
+  ...profileAssigneeOptions.value,
+])
 
 // Active columns (with optional archived)
 const activeColumns = computed<string[]>(() =>
@@ -132,15 +278,42 @@ async function handleCreateBoard() {
 const drawerOpen = ref(false)
 const selectedTask = ref<KanbanTask | null>(null)
 const editingTask = ref<Partial<KanbanTask> | null>(null)
-const detailTab = ref('overview')
+const showAllRuns = ref(false)
+const showAllEvents = ref(false)
 const detailLoading = ref(false)
 const taskRuns = ref<KanbanRun[]>([])
 const taskEvents = ref<KanbanEvent[]>([])
 const taskComments = ref<KanbanComment[]>([])
 const taskLinks = ref<KanbanLinks>({ parent_ids: [], child_ids: [] })
 
+// Related sessions
+const relatedSessions = ref<any[]>([])
+const sessionsLoading = ref(false)
+const sessionsShown = ref(false)
+
+async function loadRelatedSessions(taskId: string) {
+  sessionsShown.value = true
+  sessionsLoading.value = true
+  try {
+    const res = await fetch(`/api/hermes/search/sessions?q=${encodeURIComponent(taskId)}&limit=10`)
+    const data = await res.json()
+    relatedSessions.value = data.results || []
+  } catch {
+    relatedSessions.value = []
+  } finally {
+    sessionsLoading.value = false
+  }
+}
+
+function openSession(sessionId: string) {
+  window.open(`/#/hermes/chat?session=${sessionId}`, '_blank')
+}
+
 // Comment form
 const newCommentBody = ref('')
+
+const visibleRuns = computed(() => showAllRuns.value ? taskRuns.value : taskRuns.value.slice(0, 3))
+const visibleEvents = computed(() => showAllEvents.value ? taskEvents.value : taskEvents.value.slice(0, 5))
 const newCommentAuthor = ref('')
 const submittingComment = ref(false)
 
@@ -150,6 +323,8 @@ const creating = ref(false)
 const newTitle = ref('')
 const newBody = ref('')
 const newStatus = ref('todo')
+const newPriority = ref('none')
+const newAssignee = ref('default')
 
 function openCreateForColumn(col: string) {
   newStatus.value = col
@@ -353,6 +528,8 @@ function openCreate() {
   newTitle.value = ''
   newBody.value = ''
   newStatus.value = 'todo'
+  newPriority.value = 'none'
+  newAssignee.value = 'default'
   showCreate.value = true
 }
 
@@ -361,7 +538,11 @@ async function handleCreate() {
   if (!title || creating.value) return
   creating.value = true
   try {
-    await createTask({ title, body: newBody.value.trim(), status: newStatus.value })
+    await createTask({
+      title, body: newBody.value.trim(), status: newStatus.value,
+      priority: newPriority.value !== 'none' ? newPriority.value : undefined,
+      assignee: newAssignee.value.trim() || undefined,
+    })
     message.success(t('kanban.taskCreated'))
     showCreate.value = false
     await loadBoard()
@@ -376,7 +557,8 @@ async function handleCreate() {
 async function openDetail(task: KanbanTask) {
   selectedTask.value = task
   editingTask.value = null
-  detailTab.value = 'overview'
+  sessionsShown.value = false
+  relatedSessions.value = []
   drawerOpen.value = true
   await loadTaskDetail(task.id)
 }
@@ -699,22 +881,11 @@ function selectAllVisible() {
   selectedIds.value = new Set(allIds)
 }
 
-// Auto-refresh
-const autoRefresh = ref(false)
-const refreshInterval = ref(30) // seconds
-let refreshTimer: ReturnType<typeof setInterval> | null = null
-
-watch(autoRefresh, (val) => {
-  if (val) {
-    refreshTimer = setInterval(() => loadBoard(), refreshInterval.value * 1000)
-  } else if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
-  }
-})
+// (Auto-refresh state declared at top of script)
 
 onMounted(() => {
   loadBoard()
+  loadProfiles()
 })
 
 onBeforeUnmount(() => {
@@ -723,7 +894,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="kanban-view">
+  <div class="kanban-view" @click="closeCtxMenu">
     <header class="page-header">
       <div class="header-title-row">
         <h2 class="header-title">{{ t('kanban.title') }}</h2>
@@ -736,18 +907,105 @@ onBeforeUnmount(() => {
           :consistent-menu-width="false"
           @update:value="handleSwitchBoard"
         />
-        <NButton size="tiny" quaternary circle @click="showCreateBoard = true">
-          <template #icon>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+      <NButton size="small" @click="showCreateBoard = true">
+        <template #icon>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </template>
+        新建看板
+      </NButton>
+    </header>
+
+    <div class="kanban-toolbar">
+      <!-- 左侧：筛选项 -->
+      <div class="toolbar-filters">
+        <NInput
+          v-model:value="searchQuery"
+          size="small"
+          :placeholder="t('kanban.searchPlaceholder')"
+          clearable
+          class="search-input"
+        >
+          <template #prefix>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </template>
+        </NInput>
+        <NSelect
+          v-if="tenantList.length > 1"
+          :value="tenantFilter ?? '__all__'"
+          :options="tenantOptions"
+          size="small"
+          style="width: 140px;"
+          @update:value="(v: string) => tenantFilter = v === '__all__' ? null : v"
+        />
+        <NSelect
+          v-if="assigneeList.length > 1"
+          :value="assigneeFilter ?? '__all__'"
+          :options="assigneeOptions"
+          size="small"
+          style="width: 140px;"
+          @update:value="(v: string) => assigneeFilter = v === '__all__' ? null : v"
+        />
+        <NButton
+          size="small"
+          :type="groupLanes ? 'primary' : 'default'"
+          quaternary
+          @click="groupLanes = !groupLanes"
+        >
+          <template #icon>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </template>
+          {{ t('kanban.lanes') }}
+        </NButton>
+        <NButton
+          size="small"
+          :type="showArchived ? 'primary' : 'default'"
+          quaternary
+          @click="showArchived = !showArchived"
+        >
+          {{ t('kanban.showArchived') }}
+        </NButton>
+        <NButton
+          v-if="searchQuery || tenantFilter || assigneeFilter || showArchived"
+          size="small"
+          quaternary
+          @click="clearFilters"
+        >
+          {{ t('kanban.clearFilters') }}
         </NButton>
       </div>
-      <div class="header-actions">
-        <span class="task-count">{{ stats.total || '...' }}</span>
-        <NButton size="small" quaternary @click="loadBoard">
+      <!-- 右侧：操作按钮 -->
+      <div class="toolbar-actions">
+        <NSelect
+          v-if="autoRefresh"
+          :value="refreshInterval"
+          :options="[
+            { label: '10s', value: 10 },
+            { label: '30s', value: 30 },
+            { label: '60s', value: 60 },
+          ]"
+          size="small"
+          style="width: 80px;"
+          @update:value="setRefreshTimer"
+        />
+        <NButton
+          size="small"
+          :type="autoRefresh ? 'primary' : 'default'"
+          quaternary
+          @click="autoRefresh = !autoRefresh"
+        >
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           </template>
+          <span v-if="autoRefresh" class="refresh-countdown">{{ refreshCountdown }}s</span>
+        </NButton>
+        <NButton
+          size="small"
+          type="primary"
+          :loading="dispatching"
+          @click="handleDispatch"
+        >
+          {{ t('kanban.dispatch') }}
         </NButton>
         <NButton type="primary" size="small" @click="openCreate">
           <template #icon>
@@ -756,97 +1014,11 @@ onBeforeUnmount(() => {
           {{ t('kanban.createTask') }}
         </NButton>
       </div>
-    </header>
-
-    <div class="kanban-toolbar">
-      <NInput
-        v-model:value="searchQuery"
-        size="small"
-        :placeholder="t('kanban.searchPlaceholder')"
-        clearable
-        class="search-input"
-      >
-        <template #prefix>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </template>
-      </NInput>
-      <NSelect
-        v-if="tenantList.length > 1"
-        :value="tenantFilter ?? '__all__'"
-        :options="tenantOptions"
-        size="small"
-        style="width: 140px;"
-        @update:value="(v: string) => tenantFilter = v === '__all__' ? null : v"
-      />
-      <NButton
-        size="small"
-        :type="groupLanes ? 'primary' : 'default'"
-        quaternary
-        @click="groupLanes = !groupLanes"
-      >
-        <template #icon>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        </template>
-        {{ t('kanban.lanes') }}
-      </NButton>
-      <NButton
-        size="small"
-        :type="showArchived ? 'primary' : 'default'"
-        quaternary
-        @click="showArchived = !showArchived"
-      >
-        {{ t('kanban.showArchived') }}
-      </NButton>
-      <NButton
-        size="small"
-        type="primary"
-        :loading="dispatching"
-        @click="handleDispatch"
-      >
-        {{ t('kanban.dispatch') }}
-      </NButton>
-      <NSelect
-        v-if="autoRefresh"
-        :value="refreshInterval"
-        :options="[
-          { label: '10s', value: 10 },
-          { label: '30s', value: 30 },
-          { label: '60s', value: 60 },
-        ]"
-        size="small"
-        style="width: 80px;"
-        @update:value="setRefreshTimer"
-      />
-      <NButton
-        size="small"
-        :type="autoRefresh ? 'primary' : 'default'"
-        quaternary
-        @click="autoRefresh = !autoRefresh"
-      >
-        <template #icon>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-        </template>
-      </NButton>
-      <NSelect
-        v-if="assigneeList.length > 1"
-        :value="assigneeFilter ?? '__all__'"
-        :options="assigneeOptions"
-        size="small"
-        style="width: 140px;"
-        @update:value="(v: string) => assigneeFilter = v === '__all__' ? null : v"
-      />
-      <NButton
-        v-if="searchQuery || tenantFilter || assigneeFilter || showArchived"
-        size="small"
-        quaternary
-        @click="clearFilters"
-      >
-        {{ t('kanban.clearFilters') }}
-      </NButton>
     </div>
 
     <NSpin :show="loading && Object.keys(board).length === 0">
-      <div class="kanban-board">
+      <div class="kanban-scroll-wrapper">
+        <div class="kanban-board">
         <div
           v-for="col in activeColumns"
           :key="col"
@@ -870,9 +1042,13 @@ onBeforeUnmount(() => {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               </template>
             </NButton>
-            <span class="column-count">{{ (filteredBoard[col] || []).length }}</span>
+            <NTooltip trigger="hover">
+              <template #trigger>
+                <span class="column-count">{{ (filteredBoard[col] || []).length }}</span>
+              </template>
+              {{ t('kanban.taskCount', { count: (filteredBoard[col] || []).length }) }}
+            </NTooltip>
           </div>
-          <p v-if="t(`kanban.columnHints.${col}`)" class="column-hint">{{ t(`kanban.columnHints.${col}`) }}</p>
           <div class="column-body">
             <!-- Running column: worker lanes mode -->
             <template v-if="col === 'running' && groupLanes">
@@ -888,6 +1064,7 @@ onBeforeUnmount(() => {
                       :class="{ dragging: dragTaskId === task.id, selected: selectedIds.has(task.id) }"
                       @dragstart="onDragStart($event, task)"
                       @dragend="onDragEnd"
+                      @contextmenu.prevent="openCtxMenu($event, task)"
                     >
                       <input
                         type="checkbox"
@@ -900,7 +1077,7 @@ onBeforeUnmount(() => {
                       <div class="card-meta">
                         <span v-if="task.current_run_id" class="card-running-dot" :title="t('kanban.columns.running')"></span>
                         <NTag v-if="task.priority && String(task.priority) !== 'none' && String(task.priority) !== '0'" size="tiny" :type="priorityColor(String(task.priority))" round>
-                          {{ t(`kanban.priority.${task.priority}`) }}
+                          {{ t(`kanban.priority.${task.priority}`, String(task.priority)) }}
                         </NTag>
                         <NTag v-if="task.tenant" size="tiny" type="info" round>{{ task.tenant }}</NTag>
                         <span v-if="task.assignee" class="card-assignee">@{{ task.assignee }}</span>
@@ -923,6 +1100,7 @@ onBeforeUnmount(() => {
                   :class="{ dragging: dragTaskId === task.id, selected: selectedIds.has(task.id) }"
                   @dragstart="onDragStart($event, task)"
                   @dragend="onDragEnd"
+                  @contextmenu.prevent="openCtxMenu($event, task)"
                 >
                   <input
                     type="checkbox"
@@ -967,7 +1145,8 @@ onBeforeUnmount(() => {
             </template>
           </div>
         </div>
-      </div>
+      </div><!-- /kanban-board -->
+      </div><!-- /kanban-scroll-wrapper -->
     </NSpin>
 
     <!-- Bulk action bar -->
@@ -1006,6 +1185,19 @@ onBeforeUnmount(() => {
             :rows="3"
           />
         </NFormItem>
+        <NFormItem :label="t('kanban.detail.priority')">
+          <NSelect v-model:value="newPriority" :options="priorityOptions" size="small" />
+        </NFormItem>
+        <NFormItem :label="t('kanban.detail.assignee')">
+          <NSelect
+            v-model:value="newAssignee"
+            :options="profileAssigneeOptions"
+            filterable
+            tag
+            clearable
+            :placeholder="t('kanban.taskAssigneePlaceholder')"
+          />
+        </NFormItem>
       </NForm>
       <template #footer>
         <div class="modal-actions">
@@ -1038,7 +1230,7 @@ onBeforeUnmount(() => {
     <!-- Decompose Modal -->
     <NModal v-model:show="showDecompose" preset="card" :title="t('kanban.triage.decomposeTitle')" style="max-width: 520px; width: 90vw;">
       <NFormItem :label="t('kanban.triage.childAssignee')">
-        <NInput v-model:value="decomposeRootAssignee" size="small" :placeholder="t('kanban.detail.assignee')" />
+        <NSelect v-model:value="decomposeRootAssignee" :options="profileAssigneeOptions" filterable tag clearable size="small" />
       </NFormItem>
       <div v-for="(child, idx) in decomposeChildren" :key="idx" style="display: flex; gap: 6px; align-items: flex-start; margin-bottom: 8px;">
         <NInput
@@ -1047,11 +1239,14 @@ onBeforeUnmount(() => {
           :placeholder="t('kanban.triage.childTitle')"
           style="flex: 1;"
         />
-        <NInput
+        <NSelect
           v-model:value="child.assignee!"
+          :options="profileAssigneeOptions"
+          filterable
+          tag
+          clearable
           size="small"
-          :placeholder="t('kanban.triage.childAssignee')"
-          style="width: 100px;"
+          style="width: 120px;"
         />
         <NButton size="small" quaternary type="error" :disabled="decomposeChildren.length <= 1" @click="removeDecomposeChild(idx)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1099,6 +1294,72 @@ onBeforeUnmount(() => {
       </template>
     </NModal>
 
+    <!-- Context Menu -->
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu.show && ctxMenu.task"
+        class="ctx-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @click.stop
+      >
+        <!-- Move to -->
+        <div class="ctx-group">
+          <div class="ctx-group-label">{{ t('kanban.ctx.moveTo') }}</div>
+          <div
+            v-for="col in ctxColumnOptions"
+            :key="col.value"
+            class="ctx-item"
+            :class="{ 'ctx-active': ctxMenu.task?.status === col.value }"
+            @click="ctxMoveTask(col.value)"
+          >
+            {{ col.label }}
+            <span v-if="ctxMenu.task?.status === col.value" class="ctx-check">✓</span>
+          </div>
+        </div>
+        <!-- Priority -->
+        <div class="ctx-group">
+          <div class="ctx-group-label">{{ t('kanban.ctx.priority') }}</div>
+          <div
+            v-for="opt in ctxPriorityOptions"
+            :key="opt.value"
+            class="ctx-item"
+            :class="{ 'ctx-active': String(ctxMenu.task?.priority || 'none') === opt.value }"
+            @click="ctxSetPriority(opt.value)"
+          >
+            {{ opt.label }}
+            <span v-if="String(ctxMenu.task?.priority || 'none') === opt.value" class="ctx-check">✓</span>
+          </div>
+        </div>
+        <!-- Assignee -->
+        <div class="ctx-group">
+          <div class="ctx-group-label">{{ t('kanban.detail.assignee') }}</div>
+          <div
+            v-for="opt in ctxAssigneeOptions"
+            :key="opt.value"
+            class="ctx-item"
+            :class="{ 'ctx-active': opt.value === '__none__' ? !ctxMenu.task?.assignee : ctxMenu.task?.assignee === opt.value }"
+            @click="ctxSetAssignee(opt.value === '__none__' ? null : opt.value)"
+          >
+            {{ opt.label }}
+            <span v-if="opt.value === '__none__' ? !ctxMenu.task?.assignee : ctxMenu.task?.assignee === opt.value" class="ctx-check">✓</span>
+          </div>
+        </div>
+        <div class="ctx-separator"></div>
+        <div class="ctx-item" @click="ctxOpenDetail">{{ t('kanban.ctx.detail') }}</div>
+        <div
+          v-if="ctxMenu.task?.status !== 'archived'"
+          class="ctx-item ctx-danger"
+          @click="ctxArchive"
+        >{{ t('kanban.archive') }}</div>
+        <div
+          v-else
+          class="ctx-item"
+          @click="ctxUnarchive"
+        >{{ t('kanban.unarchive') }}</div>
+        <div class="ctx-item ctx-danger" @click="ctxDelete">{{ t('kanban.delete') }}</div>
+      </div>
+    </Teleport>
+
     <!-- Detail Drawer -->
     <NDrawer v-model:show="drawerOpen" :width="480" placement="right">
       <NDrawerContent
@@ -1108,181 +1369,12 @@ onBeforeUnmount(() => {
         @close="drawerOpen = false"
       >
         <NSpin :show="detailLoading">
-          <!-- Unblock action for blocked tasks -->
-          <div v-if="selectedTask.status === 'blocked' && !editingTask" style="margin-bottom: 12px;">
-            <NButton type="warning" size="small" @click="handleUnblock">
-              {{ t('kanban.unblock') }}
-            </NButton>
-          </div>
-
-          <template v-if="!editingTask">
-            <NTabs v-model:value="detailTab" type="line" size="small">
-              <!-- Overview -->
-              <NTabPane name="overview" :tab="t('kanban.tabs.overview')">
-                <div class="detail-panel">
-                  <div class="detail-row">
-                    <span class="detail-label">{{ t('kanban.detail.status') }}</span>
-                    <NTag size="small" :color="{ color: columnColors[selectedTask.status] + '22', textColor: columnColors[selectedTask.status], borderColor: columnColors[selectedTask.status] + '44' }">
-                      {{ t(`kanban.columns.${selectedTask.status}`) }}
-                    </NTag>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">{{ t('kanban.detail.priority') }}</span>
-                    <NTag v-if="selectedTask.priority && selectedTask.priority !== 'none'" size="small" :type="priorityColor(String(selectedTask.priority))" round>
-                      {{ t(`kanban.priority.${selectedTask.priority}`) }}
-                    </NTag>
-                    <span v-else class="detail-value-muted">—</span>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">{{ t('kanban.detail.assignee') }}</span>
-                    <span class="detail-value">{{ selectedTask.assignee || '—' }}</span>
-                  </div>
-                  <div v-if="selectedTask.tenant" class="detail-row">
-                    <span class="detail-label">{{ t('kanban.detail.tenant') }}</span>
-                    <NTag size="small" round>{{ selectedTask.tenant }}</NTag>
-                  </div>
-                  <div v-if="selectedTask.created_by" class="detail-row">
-                    <span class="detail-label">{{ t('kanban.detail.createdBy') }}</span>
-                    <span class="detail-value">{{ selectedTask.created_by }}</span>
-                  </div>
-                  <div v-if="selectedTask.consecutive_failures > 0" class="detail-row">
-                    <span class="detail-label">{{ t('kanban.detail.failures') }}</span>
-                    <NTag size="small" type="error" round>{{ selectedTask.consecutive_failures }}</NTag>
-                  </div>
-                  <div class="detail-section">
-                    <span class="detail-label">{{ t('kanban.detail.description') }}</span>
-                    <div v-if="selectedTask.body" class="detail-body markdown-content" v-html="renderMd(selectedTask.body)"></div>
-                    <p v-else class="detail-muted">{{ t('kanban.detail.noDescription') }}</p>
-                  </div>
-                  <div v-if="selectedTask.summary" class="detail-section">
-                    <span class="detail-label">{{ t('kanban.detail.summary') }}</span>
-                    <p class="detail-body">{{ selectedTask.summary }}</p>
-                  </div>
-                  <div v-if="selectedTask.block_reason" class="detail-section">
-                    <span class="detail-label">{{ t('kanban.detail.blockReason') }}</span>
-                    <p class="detail-body">{{ selectedTask.block_reason }}</p>
-                  </div>
-                  <div v-if="selectedTask.result" class="detail-section">
-                    <span class="detail-label">{{ t('kanban.detail.result') }}</span>
-                    <p class="detail-body">{{ selectedTask.result }}</p>
-                  </div>
-                  <!-- Dependencies -->
-                  <div class="detail-section">
-                    <span class="detail-label">{{ t('kanban.parents') }}</span>
-                    <div v-if="taskLinks.parent_ids.length" class="detail-links">
-                      <NTag v-for="pid in taskLinks.parent_ids" :key="pid" size="small" closable @close="handleUnlink(pid, selectedTask.id)">
-                        {{ pid }}
-                      </NTag>
-                    </div>
-                    <p v-else class="detail-muted">—</p>
-                    <NButton size="tiny" quaternary @click="openLink(selectedTask, 'parent')">{{ t('kanban.linkParent') }}</NButton>
-                  </div>
-                  <div class="detail-section">
-                    <span class="detail-label">{{ t('kanban.children') }}</span>
-                    <div v-if="taskLinks.child_ids.length" class="detail-links">
-                      <NTag v-for="cid in taskLinks.child_ids" :key="cid" size="small" closable @close="handleUnlink(selectedTask.id, cid)">
-                        {{ cid }}
-                      </NTag>
-                    </div>
-                    <p v-else class="detail-muted">—</p>
-                    <NButton size="tiny" quaternary @click="openLink(selectedTask, 'child')">{{ t('kanban.linkChild') }}</NButton>
-                  </div>
-                  <div class="detail-row detail-ts">
-                    <span>{{ t('kanban.detail.createdAt') }}: {{ formatDate(selectedTask.created_at) }}</span>
-                    <span v-if="selectedTask.started_at">{{ t('kanban.runs.startedAt') }}: {{ formatDate(selectedTask.started_at) }}</span>
-                    <span v-if="selectedTask.completed_at">{{ t('kanban.runs.endedAt') }}: {{ formatDate(selectedTask.completed_at) }}</span>
-                  </div>
-                  <div class="detail-actions">
-                    <NButton size="small" @click="startEdit(selectedTask)">{{ t('common.edit') }}</NButton>
-                    <NButton v-if="selectedTask.status !== 'archived'" size="small" quaternary @click="handleArchive(selectedTask, true)">{{ t('kanban.archive') }}</NButton>
-                    <NButton v-if="selectedTask.status === 'archived'" size="small" quaternary @click="handleArchive(selectedTask, false)">{{ t('kanban.unarchive') }}</NButton>
-                    <NButton size="small" type="error" quaternary @click="handleDelete(selectedTask)">{{ t('common.delete') }}</NButton>
-                  </div>
-                </div>
-              </NTabPane>
-
-              <!-- Runs -->
-              <NTabPane name="runs" :tab="t('kanban.tabs.runs')">
-                <div v-if="taskRuns.length" class="detail-timeline">
-                  <div v-for="run in taskRuns" :key="run.id" class="timeline-item run-item">
-                    <div class="timeline-header">
-                      <NTag size="tiny" :type="runStatusColor(run.status)">{{ run.status }}</NTag>
-                      <NTag v-if="run.outcome" size="tiny" :type="runOutcomeColor(run.outcome)">{{ run.outcome }}</NTag>
-                      <span class="timeline-time">#{{ run.id }} · {{ formatDate(run.started_at) }}</span>
-                    </div>
-                    <p v-if="run.summary" class="timeline-summary">{{ run.summary }}</p>
-                    <p v-if="run.error" class="timeline-error">{{ run.error }}</p>
-                    <div v-if="run.worker_pid" class="timeline-meta">
-                      {{ t('kanban.runs.worker') }}: {{ run.worker_pid }}
-                      <span v-if="run.profile"> · {{ t('kanban.runs.profile') }}: {{ run.profile }}</span>
-                    </div>
-                  </div>
-                </div>
-                <p v-else class="detail-muted">{{ t('kanban.noRuns') }}</p>
-              </NTabPane>
-
-              <!-- Events -->
-              <NTabPane name="events" :tab="t('kanban.tabs.events')">
-                <div v-if="taskEvents.length" class="detail-timeline">
-                  <div v-for="ev in taskEvents" :key="ev.id" class="timeline-item event-item">
-                    <div class="timeline-header">
-                      <span class="event-kind">{{ eventKindLabel(ev.kind) }}</span>
-                      <span class="timeline-time">{{ formatDate(ev.created_at) }}</span>
-                    </div>
-                    <p v-if="ev.payload" class="timeline-payload">{{ JSON.stringify(ev.payload) }}</p>
-                  </div>
-                </div>
-                <p v-else class="detail-muted">{{ t('kanban.noEvents') }}</p>
-              </NTabPane>
-
-              <!-- Comments -->
-              <NTabPane name="comments" :tab="t('kanban.tabs.comments')">
-                <div v-if="taskComments.length" class="detail-timeline">
-                  <div v-for="c in taskComments" :key="c.id" class="timeline-item comment-item">
-                    <div class="timeline-header">
-                      <span class="comment-author">{{ c.author }}</span>
-                      <span class="timeline-time">{{ formatDate(c.created_at) }}</span>
-                    </div>
-                    <div class="timeline-body markdown-content" v-html="renderMd(c.body)"></div>
-                  </div>
-                </div>
-                <p v-else class="detail-muted">{{ t('kanban.noComments') }}</p>
-                <!-- Add comment -->
-                <div class="comment-form">
-                  <NInput
-                    v-model:value="newCommentAuthor"
-                    size="small"
-                    :placeholder="t('kanban.commentAuthor')"
-                    style="margin-bottom: 6px;"
-                  />
-                  <NInput
-                    v-model:value="newCommentBody"
-                    type="textarea"
-                    size="small"
-                    :placeholder="t('kanban.commentPlaceholder')"
-                    :rows="2"
-                    style="margin-bottom: 6px;"
-                  />
-                  <NButton
-                    type="primary"
-                    size="small"
-                    :disabled="!newCommentBody.trim()"
-                    :loading="submittingComment"
-                    @click="handleSubmitComment"
-                  >
-                    {{ t('kanban.addComment') }}
-                  </NButton>
-                </div>
-              </NTabPane>
-            </NTabs>
-          </template>
-
           <!-- Edit Mode -->
-          <template v-else>
+          <template v-if="editingTask">
             <div class="detail-panel">
               <div class="edit-field">
                 <label>{{ t('kanban.taskTitle') }}</label>
-                <NInput v-model:value="editingTask.title!" size="small" />
+                <NInput v-model:value="editingTask.title!" :placeholder="t('kanban.taskTitlePlaceholder')" size="small" />
               </div>
               <div class="edit-field">
                 <label>{{ t('kanban.detail.status') }}</label>
@@ -1294,20 +1386,227 @@ onBeforeUnmount(() => {
               </div>
               <div class="edit-field">
                 <label>{{ t('kanban.detail.assignee') }}</label>
-                <NInput v-model:value="editingTask.assignee!" size="small" />
+                <NSelect v-model:value="editingTask.assignee!" :options="profileAssigneeOptions" filterable tag clearable size="small" />
               </div>
               <div class="edit-field">
                 <label>{{ t('kanban.taskBody') }}</label>
-                <NInput v-model:value="editingTask.body!" type="textarea" :rows="5" size="small" />
+                <NInput v-model:value="editingTask.body!" type="textarea" :rows="5" :placeholder="t('kanban.taskBodyPlaceholder')" size="small" />
               </div>
               <div class="edit-field">
                 <label>{{ t('kanban.detail.result') }}</label>
-                <NInput v-model:value="editingTask.result!" type="textarea" :rows="2" size="small" />
+                <NInput v-model:value="editingTask.result!" type="textarea" :rows="2" :placeholder="t('kanban.taskResultPlaceholder')" size="small" />
               </div>
               <div class="modal-actions">
                 <NButton size="small" @click="cancelEdit">{{ t('common.cancel') }}</NButton>
                 <NButton type="primary" size="small" @click="handleSaveEdit">{{ t('common.confirm') }}</NButton>
               </div>
+            </div>
+          </template>
+
+          <!-- View Mode -->
+          <template v-else>
+            <div class="detail-scroll">
+              <!-- Metadata -->
+              <div class="detail-meta">
+                <div class="detail-row">
+                  <span class="detail-label">{{ t('kanban.detail.status') }}</span>
+                  <NTag size="small" :color="{ color: columnColors[selectedTask.status] + '22', textColor: columnColors[selectedTask.status], borderColor: columnColors[selectedTask.status] + '44' }">
+                    {{ t(`kanban.columns.${selectedTask.status}`) }}
+                  </NTag>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">{{ t('kanban.detail.priority') }}</span>
+                  <NTag v-if="selectedTask.priority && selectedTask.priority !== 'none'" size="small" :type="priorityColor(String(selectedTask.priority))" round>
+                    {{ t(`kanban.priority.${selectedTask.priority}`, String(selectedTask.priority || 'none')) }}
+                  </NTag>
+                  <span v-else class="detail-value-muted">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">{{ t('kanban.detail.assignee') }}</span>
+                  <span class="detail-value">{{ selectedTask.assignee || '—' }}</span>
+                </div>
+                <div v-if="selectedTask.tenant" class="detail-row">
+                  <span class="detail-label">{{ t('kanban.detail.tenant') }}</span>
+                  <NTag size="small" round>{{ selectedTask.tenant }}</NTag>
+                </div>
+                <div v-if="selectedTask.created_by" class="detail-row">
+                  <span class="detail-label">{{ t('kanban.detail.createdBy') }}</span>
+                  <span class="detail-value">{{ selectedTask.created_by }}</span>
+                </div>
+                <div v-if="selectedTask.consecutive_failures > 0" class="detail-row">
+                  <span class="detail-label">{{ t('kanban.detail.failures') }}</span>
+                  <NTag size="small" type="error" round>{{ selectedTask.consecutive_failures }}</NTag>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="detail-actions">
+                <NButton v-if="selectedTask.status === 'blocked'" type="warning" size="small" @click="handleUnblock">{{ t('kanban.unblock') }}</NButton>
+                <NButton size="small" @click="startEdit(selectedTask)">{{ t('common.edit') }}</NButton>
+                <NButton v-if="selectedTask.status !== 'archived'" size="small" quaternary @click="handleArchive(selectedTask, true)">{{ t('kanban.archive') }}</NButton>
+                <NButton v-if="selectedTask.status === 'archived'" size="small" quaternary @click="handleArchive(selectedTask, false)">{{ t('kanban.unarchive') }}</NButton>
+                <NButton size="small" type="error" quaternary @click="handleDelete(selectedTask)">{{ t('common.delete') }}</NButton>
+              </div>
+
+              <!-- Description -->
+              <div v-if="selectedTask.body" class="detail-section">
+                <div class="section-title">{{ t('kanban.detail.description') }}</div>
+                <div class="detail-body markdown-content" v-html="renderMd(selectedTask.body)"></div>
+              </div>
+
+              <!-- Summary -->
+              <div v-if="selectedTask.summary" class="detail-section">
+                <div class="section-title">{{ t('kanban.detail.summary') }}</div>
+                <p class="detail-body">{{ selectedTask.summary }}</p>
+              </div>
+
+              <!-- Block Reason -->
+              <div v-if="selectedTask.block_reason" class="detail-section">
+                <div class="section-title">{{ t('kanban.detail.blockReason') }}</div>
+                <p class="detail-body">{{ selectedTask.block_reason }}</p>
+              </div>
+
+              <!-- Result -->
+              <div v-if="selectedTask.result" class="detail-section">
+                <div class="section-title">{{ t('kanban.detail.result') }}</div>
+                <p class="detail-body">{{ selectedTask.result }}</p>
+              </div>
+
+              <!-- Dependencies -->
+              <div class="detail-section">
+                <div class="section-title">
+                  {{ t('kanban.parents') }}
+                  <button class="section-add-btn" @click="openLink(selectedTask, 'parent')">+</button>
+                </div>
+                <div v-if="taskLinks.parent_ids.length" class="detail-links">
+                  <NTag v-for="pid in taskLinks.parent_ids" :key="pid" size="small" closable @close="handleUnlink(pid, selectedTask.id)">
+                    {{ pid }}
+                  </NTag>
+                </div>
+                <p v-else class="detail-muted">—</p>
+              </div>
+              <div class="detail-section">
+                <div class="section-title">
+                  {{ t('kanban.children') }}
+                  <button class="section-add-btn" @click="openLink(selectedTask, 'child')">+</button>
+                </div>
+                <div v-if="taskLinks.child_ids.length" class="detail-links">
+                  <NTag v-for="cid in taskLinks.child_ids" :key="cid" size="small" closable @close="handleUnlink(selectedTask.id, cid)">
+                    {{ cid }}
+                  </NTag>
+                </div>
+                <p v-else class="detail-muted">—</p>
+              </div>
+
+              <!-- Related Sessions -->
+              <div v-if="taskRuns.length" class="detail-section">
+                <div class="section-title" style="cursor: pointer" @click="loadRelatedSessions(selectedTask.id)">
+                  {{ t('kanban.relatedSessions') }}
+                  <NSpin v-if="sessionsLoading" :size="12" style="margin-left: 6px;" />
+                </div>
+                <template v-if="sessionsShown">
+                  <div v-if="relatedSessions.length" class="session-list">
+                    <div v-for="s in relatedSessions" :key="s.id" class="session-item" @click="openSession(s.id)">
+                      <div class="session-item-title">{{ s.title || s.id }}</div>
+                      <div class="session-item-meta">
+                        <span v-if="s.source">{{ s.source }}</span>
+                        <span v-if="s.model">{{ s.model }}</span>
+                        <span v-if="s.started_at">{{ formatDate(s.started_at) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p v-else-if="!sessionsLoading" class="detail-muted">{{ t('kanban.noSessions') }}</p>
+                </template>
+              </div>
+
+              <!-- Runs -->
+              <div v-if="taskRuns.length" class="detail-section">
+                <div class="section-title">{{ t('kanban.tabs.runs') }} ({{ taskRuns.length }})</div>
+                <div class="detail-timeline">
+                  <div v-for="run in visibleRuns" :key="run.id" class="timeline-item run-item">
+                    <div class="timeline-header">
+                      <NTag size="tiny" :type="runStatusColor(run.status)">{{ t('kanban.runs.' + run.status) || run.status }}</NTag>
+                      <NTag v-if="run.outcome" size="tiny" :type="runOutcomeColor(run.outcome)">{{ t('kanban.runs.' + run.outcome) || run.outcome }}</NTag>
+                      <span class="timeline-time">#{{ run.id }} · {{ formatDate(run.started_at) }}</span>
+                    </div>
+                    <p v-if="run.summary" class="timeline-summary">{{ run.summary }}</p>
+                    <p v-if="run.error" class="timeline-error">{{ run.error }}</p>
+                    <div v-if="run.worker_pid" class="timeline-meta">
+                      {{ t('kanban.runs.worker') }}: {{ run.worker_pid }}
+                      <span v-if="run.profile"> · {{ t('kanban.runs.profile') }}: {{ run.profile }}</span>
+                    </div>
+                  </div>
+                </div>
+                <button v-if="taskRuns.length > 3 && !showAllRuns" class="section-toggle" @click="showAllRuns = true">
+                  {{ t('kanban.showAll', { n: taskRuns.length }) }}
+                </button>
+                <button v-else-if="showAllRuns" class="section-toggle" @click="showAllRuns = false">
+                  {{ t('kanban.collapse') }}
+                </button>
+              </div>
+
+              <!-- Events -->
+              <div v-if="taskEvents.length" class="detail-section">
+                <div class="section-title">{{ t('kanban.tabs.events') }} ({{ taskEvents.length }})</div>
+                <div class="section-scroll-area">
+                  <div class="detail-timeline">
+                    <div v-for="ev in taskEvents" :key="ev.id" class="timeline-item event-item">
+                      <div class="timeline-header">
+                        <span class="event-kind">{{ eventKindLabel(ev.kind) }}</span>
+                        <span class="timeline-time">{{ formatDate(ev.created_at) }}</span>
+                      </div>
+                      <pre v-if="ev.payload" class="timeline-payload">{{ JSON.stringify(ev.payload, null, 2) }}</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Timestamps -->
+              <div class="detail-ts">
+                <span>{{ t('kanban.detail.createdAt') }}: {{ formatDate(selectedTask.created_at) }}</span>
+                <span v-if="selectedTask.started_at">{{ t('kanban.runs.startedAt') }}: {{ formatDate(selectedTask.started_at) }}</span>
+                <span v-if="selectedTask.completed_at">{{ t('kanban.runs.endedAt') }}: {{ formatDate(selectedTask.completed_at) }}</span>
+              </div>
+
+              <!-- Comments List -->
+              <div v-if="taskComments.length" class="detail-section">
+                <div class="section-title">{{ t('kanban.tabs.comments') }} ({{ taskComments.length }})</div>
+                <div class="detail-timeline">
+                  <div v-for="c in taskComments" :key="c.id" class="timeline-item comment-item">
+                    <div class="timeline-header">
+                      <span class="comment-author">{{ c.author }}</span>
+                      <span class="timeline-time">{{ formatDate(c.created_at) }}</span>
+                    </div>
+                    <div class="timeline-body markdown-content" v-html="renderMd(c.body)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Comment Input Bar -->
+            <div class="drawer-comment-bar">
+              <NInput
+                v-model:value="newCommentAuthor"
+                size="small"
+                :placeholder="t('kanban.commentAuthor')"
+                style="width: 90px;"
+              />
+              <NInput
+                v-model:value="newCommentBody"
+                size="small"
+                :placeholder="t('kanban.commentPlaceholder')"
+                @keydown.enter="handleSubmitComment"
+                style="flex: 1;"
+              />
+              <NButton
+                type="primary"
+                size="small"
+                :disabled="!newCommentBody.trim()"
+                :loading="submittingComment"
+                @click="handleSubmitComment"
+              >
+                {{ t('kanban.addComment') }}
+              </NButton>
             </div>
           </template>
         </NSpin>
@@ -1323,19 +1622,21 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
-}
-
-.task-count {
-  font-size: 12px;
-  opacity: 0.5;
-  margin-right: 4px;
 }
 
 .header-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .board-select {
@@ -1347,11 +1648,45 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+}
+
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .search-input {
   max-width: 320px;
+}
+
+/* Board scroll wrapper — constrains height, allows horizontal scroll */
+.kanban-scroll-wrapper {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* NSpin n-spin-container and n-spin-content break flex chain — fix them */
+.kanban-view :deep(.n-spin-container),
+.kanban-view :deep(.n-spin-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Board layout */
@@ -1359,10 +1694,9 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 12px;
   padding: 8px 20px 20px;
-  overflow-x: auto;
-  flex: 1 1 0;
+  overflow: hidden;
+  height: 100%;
   align-items: stretch;
-  min-height: 0;
 }
 
 /* Column */
@@ -1376,6 +1710,7 @@ onBeforeUnmount(() => {
   border-radius: $radius-md;
   transition: border-color $transition-fast;
   min-height: 0;
+  overflow: hidden;
 }
 
 .kanban-column.drag-over {
@@ -1435,6 +1770,7 @@ onBeforeUnmount(() => {
   border: 1px solid $border-color;
   border-radius: $radius-sm;
   cursor: grab;
+  position: relative;
   transition: border-color $transition-fast, box-shadow $transition-fast, transform 0.15s;
   flex-shrink: 0;
 
@@ -1460,6 +1796,7 @@ onBeforeUnmount(() => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  padding-right: 22px;
 }
 
 .card-body-preview {
@@ -1490,15 +1827,6 @@ onBeforeUnmount(() => {
   font-size: 10px;
   color: $text-muted;
   margin-left: auto;
-}
-
-.column-hint {
-  font-size: 11px;
-  color: $text-muted;
-  line-height: 1.3;
-  padding: 0 4px;
-  margin: 0 0 4px;
-  opacity: 0.7;
 }
 
 .card-meta {
@@ -1563,6 +1891,371 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+/* ─── Detail drawer ───────── */
+.detail-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  padding-bottom: 8px;
+  overscroll-behavior: contain;
+}
+
+/* Overview metadata */
+.detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid $border-light;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: $text-muted;
+  min-width: 56px;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+.detail-value-muted {
+  font-size: 13px;
+  color: $text-muted;
+}
+
+/* Section — each block in the drawer */
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.detail-section .detail-label {
+  min-width: auto;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.section-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid $border-light;
+  background: transparent;
+  color: $text-muted;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+  padding: 0;
+
+  &:hover {
+    border-color: $accent-primary;
+    color: $accent-primary;
+    background: rgba($accent-primary, 0.06);
+  }
+}
+
+.section-toggle {
+  font-size: 12px;
+  color: $text-muted;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color $transition-fast;
+
+  &:hover { color: $text-secondary; }
+}
+
+/* Action buttons */
+.detail-actions {
+  display: flex;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid $border-light;
+}
+
+/* Body text */
+.detail-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: $text-secondary;
+}
+
+.detail-muted {
+  margin: 0;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+/* Timestamps */
+.detail-ts {
+  font-size: 11px;
+  color: $text-muted;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 0;
+  border-top: 1px solid $border-light;
+}
+
+/* Links (parent/child) */
+.detail-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ─── Timeline ───────── */
+.detail-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeline-item {
+  padding: 10px 12px;
+  border-radius: $radius-sm;
+  border: 1px solid $border-light;
+}
+
+/* Runs — subtle card */
+.run-item {
+  background: $bg-card-hover;
+}
+
+/* Events — minimal row, no card background */
+.event-item {
+  background: transparent;
+  border-color: transparent;
+  padding: 6px 0;
+  border-bottom: 1px dashed $border-light;
+
+  &:last-child { border-bottom-color: transparent; }
+}
+
+/* Scrollable area inside a section */
+.section-scroll-area {
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -2px;
+  padding: 0 2px;
+
+  /* thin scrollbar */
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb {
+    background: $border-color;
+    border-radius: 2px;
+  }
+  &::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* Context Menu */
+.ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  background: $bg-card;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  padding: 4px 0;
+  min-width: 180px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.ctx-group-label {
+  padding: 6px 14px 2px;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.82);
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover { background: $bg-card-hover; }
+}
+
+.ctx-item.ctx-active {
+  color: #18a058;
+  font-weight: 500;
+}
+
+.ctx-check {
+  font-size: 11px;
+  margin-left: 12px;
+}
+
+.ctx-separator {
+  height: 1px;
+  background: $border-color;
+  margin: 4px 8px;
+}
+
+.ctx-item.ctx-danger {
+  color: #d03050;
+
+  &:hover { background: rgba(208, 48, 80, 0.08); }
+}
+
+/* Comments */
+.comment-item {
+  background: $bg-card-hover;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.timeline-time {
+  font-size: 12px;
+  line-height: 1.5;
+  color: $text-muted;
+}
+
+.timeline-summary {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: $text-secondary;
+}
+
+.timeline-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $error;
+  word-break: break-word;
+}
+
+.timeline-payload {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: $text-muted;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: $font-code;
+  opacity: 0.7;
+}
+
+.timeline-meta {
+  font-size: 11px;
+  color: $text-muted;
+  margin-top: 6px;
+}
+
+.timeline-body {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: break-word;
+  color: $text-secondary;
+}
+
+.event-kind {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+}
+
+.comment-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+/* ─── Sessions ───────── */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-item {
+  padding: 8px 10px;
+  border-radius: $radius-sm;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: $bg-card-hover;
+    border-color: $border-light;
+  }
+}
+
+.session-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: $text-primary;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: $text-muted;
+}
+
+/* ─── Comment bar (fixed at drawer bottom) ───────── */
+.drawer-comment-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 0;
+  border-top: 1px solid $border-light;
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+
 /* Markdown content */
 .markdown-content {
   font-size: 13px;
@@ -1613,71 +2306,6 @@ onBeforeUnmount(() => {
   }
 }
 
-.detail-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.detail-label {
-  font-size: 12px;
-  color: $text-muted;
-  min-width: 70px;
-  flex-shrink: 0;
-}
-
-.detail-value {
-  font-size: 13px;
-  color: $text-secondary;
-}
-
-.detail-value-muted {
-  font-size: 13px;
-  color: $text-muted;
-}
-
-.detail-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-section .detail-label {
-  min-width: auto;
-}
-
-.detail-body {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: $text-secondary;
-}
-
-.detail-muted {
-  margin: 0;
-  font-size: 12px;
-  color: $text-muted;
-}
-
-.detail-ts {
-  font-size: 11px;
-  color: $text-muted;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding-top: 8px;
-  border-top: 1px solid $border-light;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid $border-light;
-}
-
 /* Edit mode */
 .edit-field {
   display: flex;
@@ -1693,8 +2321,8 @@ onBeforeUnmount(() => {
 /* Checkbox */
 .card-checkbox {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 10px;
+  right: 10px;
   width: 14px;
   height: 14px;
   cursor: pointer;
@@ -1749,100 +2377,6 @@ onBeforeUnmount(() => {
   transform: translateX(-50%) translateY(10px);
 }
 
-/* Detail links */
-.detail-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-/* Timeline (runs, events, comments) */
-.detail-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 4px;
-}
-
-.timeline-item {
-  padding: 8px 10px;
-  border-radius: $radius-sm;
-  background: $bg-card-hover;
-  border: 1px solid $border-light;
-}
-
-.timeline-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.timeline-time {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: $text-secondary;
-}
-
-.timeline-summary {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: $text-secondary;
-}
-
-.timeline-error {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: $error;
-  word-break: break-word;
-}
-
-.timeline-payload {
-  margin: 4px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: $text-muted;
-  word-break: break-all;
-  font-family: $font-code;
-}
-
-.timeline-meta {
-  font-size: 11px;
-  color: $text-muted;
-  margin-top: 4px;
-}
-
-.timeline-body {
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
-  word-break: break-word;
-  color: $text-secondary;
-}
-
-.event-kind {
-  font-size: 12px;
-  font-weight: 600;
-  color: $text-secondary;
-}
-
-.comment-author {
-  font-size: 12px;
-  font-weight: 600;
-  color: $text-primary;
-}
-
-/* Comment form */
-.comment-form {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid $border-light;
-}
-
 /* Running indicator dot */
 .card-running-dot {
   display: inline-block;
@@ -1874,4 +2408,24 @@ onBeforeUnmount(() => {
   border-bottom: 1px dashed $border-light;
   margin-bottom: 2px;
 }
+
+.refresh-countdown {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* ─── NDrawerContent overrides ───────── */
+.kanban-view :deep(.n-drawer-content) {
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-view :deep(.n-drawer-content__body) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 </style>
