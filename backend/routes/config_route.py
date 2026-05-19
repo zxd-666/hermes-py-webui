@@ -28,6 +28,19 @@ def _profile_home(profile: str | None = None) -> _P:
     return _P.home() / ".hermes"
 
 
+def _normalize_model_section(cfg: dict) -> None:
+    """Ensure cfg['model'] is a dict.
+
+    YAML parses ``model: ''`` as a string, but every consumer expects
+    a dict (``{default: ..., provider: ...}``).  Mutates *cfg* in place.
+    """
+    raw = cfg.get("model")
+    if isinstance(raw, dict):
+        return
+    # string, None, or any other non-dict → build a proper dict
+    cfg["model"] = {"default": str(raw) if raw else ""}
+
+
 def _load_hermes_config(profile: str | None = None):
     """Load hermes config.yaml for the given profile."""
     try:
@@ -36,7 +49,7 @@ def _load_hermes_config(profile: str | None = None):
         try:
             os.environ["HERMES_HOME"] = str(_profile_home(profile))
             from hermes_cli.config import load_config
-            return load_config()
+            cfg = load_config()
         finally:
             if old:
                 os.environ["HERMES_HOME"] = old
@@ -45,10 +58,13 @@ def _load_hermes_config(profile: str | None = None):
     except Exception:
         import yaml
         config_path = _profile_home(profile) / "config.yaml"
+        cfg = None
         if config_path.exists():
             with open(config_path) as f:
-                return yaml.safe_load(f) or {}
-        return {}
+                cfg = yaml.safe_load(f) or {}
+    if cfg:
+        _normalize_model_section(cfg)
+    return cfg or {}
 
 
 def _save_hermes_config(cfg: dict, profile: str | None = None):
