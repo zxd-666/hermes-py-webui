@@ -320,6 +320,18 @@ def run_agent_in_thread(
         os.environ["HERMES_EXEC_ASK"] = "1"
         os.environ["HERMES_HOME"] = hermes_home
 
+        # Reload skill_manager_tool so that module-level HERMES_HOME / SKILLS_DIR
+        # reflect the current profile instead of the value captured at first import.
+        # Only reload if the target home differs from the module's cached value.
+        try:
+            import tools.skill_manager_tool as _smt
+            if hasattr(_smt, "HERMES_HOME") and str(_smt.HERMES_HOME) != hermes_home:
+                import importlib
+                importlib.reload(_smt)
+                print(f"[9898] Reloaded skill_manager_tool for profile: HERMES_HOME={hermes_home}", flush=True)
+        except Exception as e:
+            print(f"[9898] skill_manager_tool reload failed (non-fatal): {e}", flush=True)
+
         # MCP discovery
         try:
             from tools.mcp_tool import discover_mcp_tools

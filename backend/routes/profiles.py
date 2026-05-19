@@ -308,6 +308,70 @@ async def get_profile(name: str):
     }
 
 
+def _next_available_port(used: set[int], start: int = 8643) -> int:
+    """Find the next available port starting from `start`, skipping `used`."""
+    candidate = start
+    while candidate in used:
+        candidate += 1
+    return candidate
+
+
+def _collect_api_server_ports() -> set[int]:
+    """Collect all api_server ports across existing profiles."""
+    import yaml
+
+    ports: set[int] = set()
+    # Default profile
+    root_cfg = HERMES_HOME / "config.yaml"
+    if root_cfg.exists():
+        try:
+            with open(root_cfg) as f:
+                c = yaml.safe_load(f) or {}
+            port = (c.get("platforms") or {}).get("api_server") or {}
+            p = port.get("extra", {}).get("port")
+            if p is not None:
+                ports.add(int(p))
+        except Exception:
+            pass
+    # Named profiles
+    if PROFILES_DIR.is_dir():
+        for entry in PROFILES_DIR.iterdir():
+            if not entry.is_dir():
+                continue
+            cfg = entry / "config.yaml"
+            if not cfg.exists():
+                continue
+            try:
+                with open(cfg) as f:
+                    c = yaml.safe_load(f) or {}
+                port = (c.get("platforms") or {}).get("api_server") or {}
+                p = port.get("extra", {}).get("port")
+                if p is not None:
+                    ports.add(int(p))
+            except Exception:
+                pass
+    return ports
+
+
+def _assign_api_server_port(profile_dir: Path, port: int) -> None:
+    """Write api_server.extra.port into a profile's config.yaml."""
+    import yaml
+
+    cfg_path = profile_dir / "config.yaml"
+    config = {}
+    if cfg_path.exists():
+        with open(cfg_path) as f:
+            config = yaml.safe_load(f) or {}
+
+    platforms = config.setdefault("platforms", {})
+    api_server = platforms.setdefault("api_server", {})
+    extra = api_server.setdefault("extra", {})
+    extra["port"] = port
+
+    with open(cfg_path, "w") as f:
+        yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+
+
 @router.post("")
 async def create_profile(body: dict):
     """Create a new profile, optionally cloning from current."""
@@ -321,7 +385,20 @@ async def create_profile(body: dict):
         args.append("--clone")
 
     code, stdout, stderr = await _run_hermes(args)
-    return {"success": code == 0}
+    if code != 0:
+        return {"success": False, "error": stderr.strip()}
+
+    # Auto-assign a non-conflicting api_server port
+    try:
+        used_ports = _collect_api_server_ports()
+        new_port = _next_available_port(used_ports)
+        target_dir = PROFILES_DIR / name
+        _assign_api_server_port(target_dir, new_port)
+        print(f"[9898] Assigned api_server port {new_port} to profile '{name}'", flush=True)
+    except Exception as e:
+        print(f"[9898] Auto port assignment failed for '{name}': {e}", flush=True)
+
+    return {"success": True}
 
 
 @router.delete("/{name}")
