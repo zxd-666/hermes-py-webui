@@ -312,22 +312,13 @@ def get_task_runs(request: Request, task_id: str):
 @router.get("/tasks/{task_id}/log")
 def get_task_log(request: Request, task_id: str, tail: Optional[int] = Query(None, ge=1, le=2_000_000)):
     """Return the worker's stdout/stderr log for a task."""
-    log_path = _get_log_path(task_id)
+    db = _get_db()
+    log_path = db.worker_log_path(task_id)
     if not log_path.exists():
         return {"task_id": task_id, "exists": False, "size_bytes": 0, "content": ""}
     size = log_path.stat().st_size
-    if tail and size > tail:
-        content = log_path.read_bytes()[-tail:].decode(errors="replace")
-        truncated = True
-    else:
-        content = log_path.read_text(errors="replace")
-        truncated = False
-    return {"task_id": task_id, "path": str(log_path), "exists": True, "size_bytes": size, "content": content, "truncated": truncated}
-
-
-def _get_log_path(task_id: str) -> pathlib.Path:
-    """Resolve the worker log file path for a task."""
-    return profile_home() / "kanban" / "logs" / f"{task_id}.log"
+    content = db.read_worker_log(task_id, tail_bytes=tail)
+    return {"task_id": task_id, "path": str(log_path), "exists": True, "size_bytes": size, "content": content or "", "truncated": bool(tail and size > tail)}
 
 
 # ── GET /tasks/{task_id}/events ────────────────────────────

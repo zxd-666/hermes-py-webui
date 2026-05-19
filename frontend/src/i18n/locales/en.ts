@@ -1078,6 +1078,8 @@ export default {
     title: 'Kanban',
     searchPlaceholder: 'Search tasks...',
     noTasks: 'No tasks yet',
+      workerLog: 'Worker log',
+      noWorkerLog: "No worker log yet (task hasn't spawned or log was rotated away)",
     createTask: 'New Task',
     taskTitle: 'Task Title',
     taskTitlePlaceholder: 'Enter task title...',
