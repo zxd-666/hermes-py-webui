@@ -1702,6 +1702,7 @@ onBeforeUnmount(() => {
 /* Column */
 .kanban-column {
   flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: $bg-card;
@@ -1727,6 +1728,8 @@ onBeforeUnmount(() => {
   color: $text-primary;
   border-bottom: 1px solid $border-light;
   flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .column-dot {
@@ -1738,6 +1741,10 @@ onBeforeUnmount(() => {
 
 .column-name {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .column-count {
@@ -1888,6 +1895,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ─── Detail drawer ───────── */
@@ -1896,6 +1906,8 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
   padding-right: 4px;
   padding-bottom: 8px;
   overscroll-behavior: contain;
