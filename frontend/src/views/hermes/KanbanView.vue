@@ -1681,7 +1681,16 @@ onBeforeUnmount(() => {
 }
 
 .board-select {
-  width: 120px;
+  width: 160px;
+  :deep(.n-base-selection) {
+    border-color: var(--border-color);
+    border-radius: var(--radius-sm, 8px);
+    background: var(--bg-card);
+  }
+  :deep(.n-base-selection-label) {
+    font-size: 13px;
+    color: var(--text-primary);
+  }
 }
 
 .kanban-toolbar {
@@ -1710,7 +1719,13 @@ onBeforeUnmount(() => {
 }
 
 .search-input {
-  max-width: 160px;
+  max-width: 180px;
+  :deep(.n-input) {
+    border-color: var(--border-color);
+    border-radius: var(--radius-sm, 8px);
+    font-size: 13px;
+    background: var(--bg-card);
+  }
 }
 
 /* Board scroll wrapper — constrains height, allows horizontal scroll */
@@ -2500,30 +2515,38 @@ onBeforeUnmount(() => {
 }
 
 .board-dropdown-actions {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 4px 0 2px;
+  border-top: 1px solid var(--border-light);
+  padding: 6px 0 4px;
 }
 .board-action-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border: none;
   background: none;
   cursor: pointer;
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.65);
-  border-radius: 4px;
-  transition: background 0.2s;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  transition: all 0.15s ease;
 }
 .board-action-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
 }
 .board-action-btn.danger {
-  color: #d03050;
+  color: var(--error);
 }
 .board-action-btn.danger:hover {
-  background: rgba(208, 48, 80, 0.08);
+  background: rgba(228, 88, 88, 0.08);
+  color: var(--error);
+}
+
+/* NSelect dropdown panel */
+:global(.n-select-menu) {
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 </style>
