@@ -2433,9 +2433,28 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-.kanban-view :deep(.n-drawer-content__body) {
+/* Drawer is teleported to body — :deep() can't reach it. Use :global. */
+:global(.n-drawer-body) {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+:global(.n-drawer-body-content-wrapper) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Fix NSpin inside drawer — same flex chain break as board */
+:global(.n-drawer-body .n-spin-container),
+:global(.n-drawer-body .n-spin-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
   overflow: hidden;
 }
 
