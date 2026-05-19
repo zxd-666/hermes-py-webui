@@ -1701,7 +1701,6 @@ onBeforeUnmount(() => {
 
 /* Column */
 .kanban-column {
-  min-width: 240px;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
