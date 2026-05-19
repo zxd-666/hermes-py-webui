@@ -320,17 +320,32 @@ def run_agent_in_thread(
         os.environ["HERMES_EXEC_ASK"] = "1"
         os.environ["HERMES_HOME"] = hermes_home
 
-        # Reload skill_manager_tool so that module-level HERMES_HOME / SKILLS_DIR
-        # reflect the current profile instead of the value captured at first import.
-        # Only reload if the target home differs from the module's cached value.
+        # Reload modules that cache HERMES_HOME at import time (module-level
+        # constants).  py-webui runs all profiles in one process — when the
+        # active profile changes these constants must be recalculated so that
+        # tools write to / read from the correct profile directory.
         try:
-            import tools.skill_manager_tool as _smt
-            if hasattr(_smt, "HERMES_HOME") and str(_smt.HERMES_HOME) != hermes_home:
-                import importlib
-                importlib.reload(_smt)
-                print(f"[9898] Reloaded skill_manager_tool for profile: HERMES_HOME={hermes_home}", flush=True)
+            import importlib
+            _reload_targets = [
+                ("tools.skill_manager_tool", "HERMES_HOME"),   # skill_manage (create/edit/delete)
+                ("tools.skills_tool",        "HERMES_HOME"),   # skills_list, skill_view
+                ("tools.skills_hub",         "HERMES_HOME"),   # skills hub operations
+                ("tools.skills_sync",        "HERMES_HOME"),   # bundled skills sync
+                ("tools.cronjob_tools",      None),            # cron scripts dir (no cached HOME, but reload-safe)
+                ("cron.jobs",                "HERMES_DIR"),    # JOBS_FILE = HERMES_DIR / "jobs.json"
+                ("tools.checkpoint_manager", "CHECKPOINT_BASE"),# checkpoints dir
+            ]
+            _target_home_resolved = str(Path(hermes_home).resolve())
+            for mod_name, attr in _reload_targets:
+                try:
+                    mod = importlib.import_module(mod_name)
+                    if attr is None or str(getattr(mod, attr, None)).rstrip("/") != _target_home_resolved.rstrip("/"):
+                        importlib.reload(mod)
+                except ImportError:
+                    pass  # module not loaded yet — will get correct HOME on first import
+            print(f"[9898] Profile modules synced: HERMES_HOME={hermes_home}", flush=True)
         except Exception as e:
-            print(f"[9898] skill_manager_tool reload failed (non-fatal): {e}", flush=True)
+            print(f"[9898] Module reload failed (non-fatal): {e}", flush=True)
 
         # MCP discovery
         try:
