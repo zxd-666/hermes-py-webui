@@ -1566,8 +1566,7 @@ onBeforeUnmount(() => {
                 <div class="detail-timeline">
                   <div v-for="run in visibleRuns" :key="run.id" class="timeline-item run-item">
                     <div class="timeline-header">
-                      <NTag size="tiny" :type="runStatusColor(run.status)">{{ t('kanban.runs.' + run.status) || run.status }}</NTag>
-                      <NTag v-if="run.outcome" size="tiny" :type="runOutcomeColor(run.outcome)">{{ t('kanban.runs.' + run.outcome) || run.outcome }}</NTag>
+                      <NTag size="tiny" :type="run.status === 'running' ? runStatusColor(run.status) : (run.outcome ? runOutcomeColor(run.outcome) : runStatusColor(run.status))">{{ run.status === 'running' ? (t('kanban.runs.running') || 'running') : (run.outcome ? (t('kanban.runs.' + run.outcome) || run.outcome) : (t('kanban.runs.' + run.status) || run.status)) }}</NTag>
                       <span class="timeline-time">#{{ run.id }} · {{ formatDate(run.started_at) }}</span>
                     </div>
                     <p v-if="run.summary" class="timeline-summary">{{ run.summary }}</p>
