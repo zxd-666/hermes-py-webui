@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, h } from 'vue'
 import {
   NButton, NSpin, NInput, NDrawer, NDrawerContent,
   NSelect, NTag, NModal, NForm, NFormItem, NIcon,
@@ -202,6 +202,24 @@ const currentBoardSlug = ref('')
 const boardOptions = computed(() =>
   boards.value.map(b => ({ label: (b.name || b.slug) + ' · ' + (b.task_count ?? 0), value: b.slug }))
 )
+
+function renderBoardOption(option: { label: string; value: string }) {
+  return h('div', { style: 'display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;' }, [
+    h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' }, option.label),
+    option.value !== 'default'
+      ? h(NButton, {
+          size: 'tiny', quaternary: true, circle: true,
+          style: 'flex-shrink:0;',
+          onClick: (e: Event) => { e.stopPropagation(); handleDeleteBoard(option.value) },
+        }, {
+          icon: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, [
+            h('polyline', { points: '3 6 5 6 21 6' }),
+            h('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' }),
+          ]),
+        })
+      : null,
+  ])
+}
 
 // Triage operations
 const showSpecify = ref(false)
@@ -928,26 +946,9 @@ onBeforeUnmount(() => {
           class="board-select"
           :arrow="false"
           :consistent-menu-width="false"
+          :render-option="renderBoardOption"
           @update:value="handleSwitchBoard"
-        >
-          <template #option="{ option }">
-            <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;">
-              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ option.label }}</span>
-              <NButton
-                v-if="option.value !== 'default'"
-                size="tiny"
-                quaternary
-                circle
-                @click="handleDeleteBoard(option.value, $event)"
-                style="flex-shrink:0;"
-              >
-                <template #icon>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </template>
-              </NButton>
-            </div>
-          </template>
-        </NSelect>
+        />
       </div>
       <NButton size="small" @click="showCreateBoard = true">
         <template #icon>
