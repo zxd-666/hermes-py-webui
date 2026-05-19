@@ -930,7 +930,7 @@ onBeforeUnmount(() => {
           :consistent-menu-width="false"
           @update:value="handleSwitchBoard"
         >
-          <template #default="{ option }">
+          <template #option="{ option }">
             <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;">
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ option.label }}</span>
               <NButton
