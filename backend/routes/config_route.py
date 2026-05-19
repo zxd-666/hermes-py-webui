@@ -517,8 +517,19 @@ async def add_provider(req: Request, body: dict):
     # Use providerKey if given (for preset providers like zai, minimax-cn),
     # otherwise auto-generate from name
     if provider_key and provider_key not in ("custom", "custom:"):
-        # Builtin/preset provider — just set env var, don't add to custom_providers
-        env_name = _generate_env_var_name(name, _read_env_file(profile))
+        # Builtin/preset provider — look up the canonical env var name
+        # from PROVIDER_REGISTRY so that available-models can detect it.
+        env_name = None
+        try:
+            from hermes_cli.auth import PROVIDER_REGISTRY
+            reg = PROVIDER_REGISTRY.get(provider_key)
+            if reg and reg.api_key_env_vars:
+                env_name = reg.api_key_env_vars[0]
+        except ImportError:
+            pass
+        # Fallback: auto-generate a CUSTOM_* name
+        if not env_name:
+            env_name = _generate_env_var_name(name, _read_env_file(profile))
         _upsert_env_var(env_name, api_key, profile)
         return {"ok": True}
 
