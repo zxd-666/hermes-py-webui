@@ -1708,14 +1708,25 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.search-input {
-  max-width: 180px;
-  :deep(.n-input) {
+/* 统一搜索框和筛选下拉的样式 */
+.toolbar-filters {
+  :deep(.n-input),
+  :deep(.n-base-selection) {
     border-color: var(--border-color);
     border-radius: var(--radius-sm, 8px);
     font-size: 13px;
     background: var(--bg-card);
+    height: 28px;
+    .n-input__input-el,
+    .n-base-selection-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
   }
+}
+
+.search-input {
+  max-width: 180px;
 }
 
 /* Board scroll wrapper — constrains height, allows horizontal scroll */
