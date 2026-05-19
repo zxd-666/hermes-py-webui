@@ -611,8 +611,32 @@ async def create_board(request: Request):
         return {"error": str(e)}, 400
 
 
+# ── DELETE /boards/{slug} ─────────────────────────────
+@router.delete("/boards/{slug}")
+def delete_board(slug: str):
+    """Delete a kanban board (its directory + DB). Cannot delete 'default'."""
+    import shutil
+    from pathlib import Path
+
+    db = _get_db()
+    if slug == "default":
+        return {"error": "Cannot delete default board"}, 400
+
+    current = db.get_current_board()
+    if slug == current:
+        return {"error": "Cannot delete the active board. Switch first."}, 400
+
+    try:
+        board_path = db.board_dir(slug)
+        if board_path.is_dir():
+            shutil.rmtree(board_path)
+        # If we were pointing at this board, revert
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}, 400
+
+
 # ── POST /tasks/{task_id}/archive ──────────────────────
-@router.post("/tasks/{task_id}/archive")
 async def archive_task(request: Request, task_id: str):
     """Archive (or unarchive) a task."""
     db = _get_db()

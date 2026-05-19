@@ -112,6 +112,12 @@ export async function switchBoard(slug: string): Promise<{ ok: boolean; current:
   })
 }
 
+export async function deleteBoard(slug: string): Promise<{ ok: boolean }> {
+  return request('/api/hermes/kanban/boards/' + encodeURIComponent(slug), {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchBoard(includeArchived = false): Promise<KanbanBoard> {
   return request<KanbanBoard>(`/api/hermes/kanban/board${includeArchived ? '?archived=true' : ''}`)
 }

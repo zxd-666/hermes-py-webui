@@ -59,7 +59,7 @@ function setRefreshTimer(sec: number) {
 import {
   fetchBoard, fetchStats, createTask, updateTask, deleteTask,
   fetchTaskRuns, fetchTaskEvents, fetchTaskComments, addTaskComment, unblockTask,
-  fetchBoards, switchBoard, specifyTask, decomposeTask, dispatchTasks,
+  fetchBoards, switchBoard, deleteBoard, specifyTask, decomposeTask, dispatchTasks,
   linkTask, unlinkTask, createBoard, archiveTask, fetchTaskLinks,
   COLUMN_ORDER, type KanbanTask, type KanbanBoard, type KanbanRun, type KanbanEvent, type KanbanComment,
   type KanbanBoardMeta, type DecomposeChild, type KanbanLinks,
@@ -198,6 +198,10 @@ const activeColumns = computed<string[]>(() =>
 // Board switching
 const boards = ref<KanbanBoardMeta[]>([])
 const currentBoardSlug = ref('')
+
+const boardOptions = computed(() =>
+  boards.value.map(b => ({ label: (b.name || b.slug) + ' · ' + (b.task_count ?? 0), value: b.slug }))
+)
 
 // Triage operations
 const showSpecify = ref(false)
@@ -458,6 +462,25 @@ async function handleSwitchBoard(slug: string) {
     await loadBoard()
   } catch {
     message.error(t('kanban.loadFailed'))
+  }
+}
+
+async function handleDeleteBoard(slug: string, e?: Event) {
+  e?.stopPropagation()
+  if (slug === 'default') {
+    message.warning('不能删除默认看板')
+    return
+  }
+  try {
+    await deleteBoard(slug)
+    message.success('看板已删除')
+    if (currentBoardSlug.value === slug) {
+      await loadBoard()
+    } else {
+      boards.value = (await fetchBoards()).boards
+    }
+  } catch (err: any) {
+    message.error(err.message || '删除失败')
   }
 }
 
@@ -900,13 +923,31 @@ onBeforeUnmount(() => {
         <h2 class="header-title">{{ t('kanban.title') }}</h2>
         <NSelect
           :value="currentBoardSlug"
-          :options="boards.map(b => ({ label: `${b.name || b.slug} · ${b.task_count ?? 0}`, value: b.slug }))"
+          :options="boardOptions"
           size="tiny"
           class="board-select"
           :arrow="false"
           :consistent-menu-width="false"
           @update:value="handleSwitchBoard"
-        />
+        >
+          <template #default="{ option }">
+            <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;">
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ option.label }}</span>
+              <NButton
+                v-if="option.value !== 'default'"
+                size="tiny"
+                quaternary
+                circle
+                @click="handleDeleteBoard(option.value, $event)"
+                style="flex-shrink:0;"
+              >
+                <template #icon>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </template>
+              </NButton>
+            </div>
+          </template>
+        </NSelect>
       </div>
       <NButton size="small" @click="showCreateBoard = true">
         <template #icon>
