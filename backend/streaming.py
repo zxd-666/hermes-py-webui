@@ -334,6 +334,7 @@ def run_agent_in_thread(
                 ("tools.cronjob_tools",      None),            # cron scripts dir (no cached HOME, but reload-safe)
                 ("cron.jobs",                "HERMES_DIR"),    # JOBS_FILE = HERMES_DIR / "jobs.json"
                 ("tools.checkpoint_manager", "CHECKPOINT_BASE"),# checkpoints dir
+                ("tools.process_registry",   "CHECKPOINT_PATH"),# processes.json
             ]
             _target_home_resolved = str(Path(hermes_home).resolve())
             for mod_name, attr in _reload_targets:
