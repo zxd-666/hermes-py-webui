@@ -291,27 +291,24 @@ const taskEvents = ref<KanbanEvent[]>([])
 const taskComments = ref<KanbanComment[]>([])
 const taskLinks = ref<KanbanLinks>({ parent_ids: [], child_ids: [] })
 
-// Related sessions
-const relatedSessions = ref<any[]>([])
-const sessionsLoading = ref(false)
-const sessionsShown = ref(false)
+// Worker log
+const workerLog = ref<string>('')
+const workerLogSize = ref(0)
+const workerLogLoading = ref(false)
 
-async function loadRelatedSessions(taskId: string) {
-  sessionsShown.value = true
-  sessionsLoading.value = true
+async function loadWorkerLog(taskId: string) {
+  workerLogLoading.value = true
   try {
-    const res = await fetch(`/api/hermes/search/sessions?q=${encodeURIComponent(taskId)}&limit=10`)
+    const res = await fetch(`/api/hermes/kanban/tasks/${taskId}/log`)
     const data = await res.json()
-    relatedSessions.value = data.results || []
+    workerLog.value = data.content || ''
+    workerLogSize.value = data.size_bytes || 0
   } catch {
-    relatedSessions.value = []
+    workerLog.value = ''
+    workerLogSize.value = 0
   } finally {
-    sessionsLoading.value = false
+    workerLogLoading.value = false
   }
-}
-
-function openSession(sessionId: string) {
-  window.open(`/#/hermes/chat?session=${sessionId}`, '_blank')
 }
 
 // Comment form
@@ -591,8 +588,8 @@ async function handleCreate() {
 async function openDetail(task: KanbanTask) {
   selectedTask.value = task
   editingTask.value = null
-  sessionsShown.value = false
-  relatedSessions.value = []
+  workerLog.value = ''
+  workerLogSize.value = 0
   drawerOpen.value = true
   await loadTaskDetail(task.id)
 }
@@ -610,6 +607,7 @@ async function loadTaskDetail(taskId: string) {
     taskEvents.value = events
     taskComments.value = comments
     taskLinks.value = links
+    loadWorkerLog(taskId)
   } catch {
     // silently fail — detail is supplementary
   } finally {
@@ -1539,25 +1537,18 @@ onBeforeUnmount(() => {
                 <p v-else class="detail-muted">—</p>
               </div>
 
-              <!-- Related Sessions -->
-              <div v-if="taskRuns.length" class="detail-section">
-                <div class="section-title" style="cursor: pointer" @click="loadRelatedSessions(selectedTask.id)">
-                  {{ t('kanban.relatedSessions') }}
-                  <NSpin v-if="sessionsLoading" :size="12" style="margin-left: 6px;" />
+              <!-- Worker Log -->
+              <div class="detail-section">
+                <div class="section-title">
+                  {{ t('kanban.workerLog') }}
+                  <span v-if="workerLogSize">({{ workerLogSize }} B)</span>
+                  <button v-if="selectedTask.id" class="section-toggle" style="margin-left: 8px" @click="loadWorkerLog(selectedTask.id)">
+                    refresh
+                  </button>
+                  <NSpin v-if="workerLogLoading" :size="12" style="margin-left: 6px;" />
                 </div>
-                <template v-if="sessionsShown">
-                  <div v-if="relatedSessions.length" class="session-list">
-                    <div v-for="s in relatedSessions" :key="s.id" class="session-item" @click="openSession(s.id)">
-                      <div class="session-item-title">{{ s.title || s.id }}</div>
-                      <div class="session-item-meta">
-                        <span v-if="s.source">{{ s.source }}</span>
-                        <span v-if="s.model">{{ s.model }}</span>
-                        <span v-if="s.started_at">{{ formatDate(s.started_at) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p v-else-if="!sessionsLoading" class="detail-muted">{{ t('kanban.noSessions') }}</p>
-                </template>
+                <pre v-if="workerLog" class="worker-log-content">{{ workerLog }}</pre>
+                <p v-else-if="!workerLogLoading" class="detail-muted">{{ t('kanban.noWorkerLog') }}</p>
               </div>
 
               <!-- Runs -->
@@ -2548,4 +2539,19 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm, 8px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
+
+.worker-log-content {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border-color, rgba(0,0,0,0.06));
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-1, rgba(0,0,0,0.82));
+}
+
 </style>

@@ -308,6 +308,28 @@ def get_task_runs(request: Request, task_id: str):
         conn.close()
 
 
+# ── GET /tasks/{task_id}/log ─────────────────────────────
+@router.get("/tasks/{task_id}/log")
+def get_task_log(request: Request, task_id: str, tail: Optional[int] = Query(None, ge=1, le=2_000_000)):
+    """Return the worker's stdout/stderr log for a task."""
+    log_path = _get_log_path(task_id)
+    if not log_path.exists():
+        return {"task_id": task_id, "exists": False, "size_bytes": 0, "content": ""}
+    size = log_path.stat().st_size
+    if tail and size > tail:
+        content = log_path.read_bytes()[-tail:].decode(errors="replace")
+        truncated = True
+    else:
+        content = log_path.read_text(errors="replace")
+        truncated = False
+    return {"task_id": task_id, "path": str(log_path), "exists": True, "size_bytes": size, "content": content, "truncated": truncated}
+
+
+def _get_log_path(task_id: str) -> pathlib.Path:
+    """Resolve the worker log file path for a task."""
+    return profile_home() / "kanban" / "logs" / f"{task_id}.log"
+
+
 # ── GET /tasks/{task_id}/events ────────────────────────────
 @router.get("/tasks/{task_id}/events")
 def get_task_events(request: Request, task_id: str):

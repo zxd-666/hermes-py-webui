@@ -102,6 +102,8 @@ export default {
     contextUsed: 'Context used:',
     sessions: 'Sessions',
     noSessions: 'No sessions',
+      workerLog: 'Worker log',
+      noWorkerLog: 'No worker log yet (task hasn\'t spawned or log was rotated away)',
     lineageSessions: '{count} segments',
     searchTitle: 'Search Sessions',
     searchSubtitle: 'Search by title or message content',

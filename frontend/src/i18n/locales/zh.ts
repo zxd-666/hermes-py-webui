@@ -101,6 +101,8 @@ export default {
     contextUsed: '上下文已用:',
     sessions: '会话',
     noSessions: '暂无会话',
+      workerLog: '工作日志',
+      noWorkerLog: '暂无工作日志（任务尚未执行或日志已轮转）',
     lineageSessions: '{count} 个压缩分段',
     searchTitle: '搜索会话',
     searchSubtitle: '按标题或消息内容搜索',
