@@ -637,6 +637,7 @@ def delete_board(slug: str):
 
 
 # ── POST /tasks/{task_id}/archive ──────────────────────
+@router.post("/tasks/{task_id}/archive")
 async def archive_task(request: Request, task_id: str):
     """Archive (or unarchive) a task."""
     db = _get_db()
