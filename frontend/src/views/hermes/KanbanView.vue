@@ -1669,7 +1669,7 @@ onBeforeUnmount(() => {
 }
 
 .search-input {
-  max-width: 320px;
+  max-width: 160px;
 }
 
 /* Board scroll wrapper — constrains height, allows horizontal scroll */
