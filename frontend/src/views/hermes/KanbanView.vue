@@ -1543,7 +1543,7 @@ onBeforeUnmount(() => {
                   {{ t('kanban.workerLog') }}
                   <span v-if="workerLogSize">({{ workerLogSize }} B)</span>
                   <button v-if="selectedTask.id" class="section-toggle" style="margin-left: 8px" @click="loadWorkerLog(selectedTask.id)">
-                    refresh
+                    {{ t('kanban.refresh') }}
                   </button>
                   <NSpin v-if="workerLogLoading" :size="12" style="margin-left: 6px;" />
                 </div>
@@ -2101,13 +2101,14 @@ onBeforeUnmount(() => {
 
 .timeline-item {
   padding: 10px 12px;
-  border-radius: $radius-sm;
-  border: 1px solid $border-light;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(0,0,0,0.06));
+  background: rgba(0, 0, 0, 0.02);
 }
 
-/* Runs — subtle card */
+/* Runs — same base as other items */
 .run-item {
-  background: $bg-card-hover;
+  background: rgba(0, 0, 0, 0.02);
 }
 
 /* Events — minimal row, no card background */
@@ -2196,7 +2197,9 @@ onBeforeUnmount(() => {
 
 /* Comments */
 .comment-item {
-  background: $bg-card-hover;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border-color, rgba(0,0,0,0.06));
+  border-radius: 6px;
 }
 
 .timeline-header {
