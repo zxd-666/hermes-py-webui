@@ -203,24 +203,6 @@ const boardOptions = computed(() =>
   boards.value.map(b => ({ label: (b.name || b.slug) + ' · ' + (b.task_count ?? 0), value: b.slug }))
 )
 
-function renderBoardOption(info: { option: { label: string; value: string } }) {
-  const opt = info.option
-  return h('div', { style: 'display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;' }, [
-    h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' }, opt.label),
-    opt.value !== 'default'
-      ? h(NButton, {
-          size: 'tiny', quaternary: true, circle: true,
-          style: 'flex-shrink:0;',
-          onClick: (e: Event) => { e.stopPropagation(); handleDeleteBoard(opt.value) },
-        }, {
-          icon: () => h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, [
-            h('polyline', { points: '3 6 5 6 21 6' }),
-            h('path', { d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' }),
-          ]),
-        })
-      : null,
-  ])
-}
 
 // Triage operations
 const showSpecify = ref(false)
@@ -947,16 +929,22 @@ onBeforeUnmount(() => {
           class="board-select"
           :arrow="false"
           :consistent-menu-width="false"
-          :render-option="renderBoardOption"
           @update:value="handleSwitchBoard"
-        />
+        >
+          <template #action>
+            <div class="board-dropdown-actions">
+              <button class="board-action-btn" @click.stop="showCreateBoard = true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                新建看板
+              </button>
+              <button v-if="currentBoardSlug !== 'default'" class="board-action-btn danger" @click.stop="handleDeleteBoard(currentBoardSlug)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                删除当前看板
+              </button>
+            </div>
+          </template>
+        </NSelect>
       </div>
-      <NButton size="small" @click="showCreateBoard = true">
-        <template #icon>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </template>
-        新建看板
-      </NButton>
     </header>
 
     <div class="kanban-toolbar">
@@ -2501,4 +2489,31 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.board-dropdown-actions {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 4px 0 2px;
+}
+.board-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.65);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+.board-action-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.board-action-btn.danger {
+  color: #d03050;
+}
+.board-action-btn.danger:hover {
+  background: rgba(208, 48, 80, 0.08);
+}
 </style>
