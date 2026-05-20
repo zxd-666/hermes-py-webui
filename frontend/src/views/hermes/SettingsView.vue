@@ -468,7 +468,7 @@ onMounted(async () => {
             <template v-else-if="activeSections">
               <template v-for="([section, fields], idx) in activeSections" :key="section">
                 <div class="section-divider">
-                  <span class="section-label">{{ section.replace(/_/g, ' ') }}</span>
+                  <span class="section-label">{{ t(`settings.schemaSection.${section}`, section.replace(/_/g, ' ')) }}</span>
                 </div>
                 <SchemaField
                   v-for="{ key, field } in fields"

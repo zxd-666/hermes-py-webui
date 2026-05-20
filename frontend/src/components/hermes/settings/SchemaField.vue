@@ -81,15 +81,11 @@ const section = props.fieldKey.split('.')[0]
 const fieldRest = props.fieldKey.split('.').slice(1)  // ["sub1", "sub2", "field"]
 const fieldName = fieldRest.join('_')  // For flat display
 
-// Label: prefer i18n key, fallback to field key (humanized)
-const rawLabel = props.schema.label_i18n
-  ? t(props.schema.label_i18n, '')
-  : fieldName.replace(/_/g, ' ')
-const label = rawLabel || fieldName
-// Hint: prefer i18n, fallback to agent description
-const hint = props.schema.hint_i18n
-  ? t(props.schema.hint_i18n, '')
-  : (props.schema.description || '')
+// Label: prefer schemaField i18n, fallback to humanized field key
+const i18nLabel = t(`settings.schemaField.${props.fieldKey}.label`, '')
+const label = i18nLabel || fieldName.replace(/_/g, ' ')
+// Hint: prefer schemaField i18n, fallback to agent description
+const hint = t(`settings.schemaField.${props.fieldKey}.description`, '') || (props.schema.description || '')
 const platformTag = PLATFORM_MAP[props.fieldKey] ?? null
 
 const selectOptions = computed(() =>
