@@ -20,8 +20,7 @@ import {
 } from "@/api/hermes/config";
 import type { ConfigSchema, ConfigFieldSchema } from "@/api/hermes/config";
 import SchemaField from "@/components/hermes/settings/SchemaField.vue";
-import AccountSettings from "@/components/hermes/settings/AccountSettings.vue";
-import ModelSettings from "@/components/hermes/settings/ModelSettings.vue";
+
 
 const settingsStore = useSettingsStore();
 const { t, locale } = useI18n();
@@ -57,22 +56,15 @@ const categoryCounts = computed(() => {
   return counts;
 });
 
-// Special tabs that use custom components (not schema-driven)
-const specialTabs = computed(() => [
-  { key: "models", label: t("settings.tabs.model") },
-  { key: "account", label: t("settings.tabs.account") },
-]);
-
-const allTabs = computed(() => [
-  ...categories.value.map((cat) => ({
-    key: cat,
-    label: t(`settings.schemaCategory.${cat}`, cat.replace(/_/g, " ")),
-  })),
-  ...specialTabs.value,
-]);
-
 // ── Active fields (with section sub-grouping) ──────
 interface FieldEntry { key: string; field: ConfigFieldSchema }
+
+const allTabs = computed(() =>
+  categories.value.map((cat) => ({
+    key: cat,
+    label: t(`settings.schemaCategory.${cat}`, cat.replace(/_/g, " ")),
+  }))
+);
 
 const activeFields = computed<FieldEntry[]>(() => {
   if (!schema.value) return [];
@@ -106,14 +98,6 @@ const activeSections = computed(() => {
   }
   return sections.size > 1 ? sections : null;
 });
-
-const isSpecialTab = computed(() =>
-  specialTabs.value.some((tab) => tab.key === activeCategory.value)
-);
-
-const totalFieldCount = computed(() =>
-  schema.value ? Object.keys(schema.value.fields).length : 0
-);
 
 // ── Config value getter ───────────────────────────
 function getFieldValue(key: string): any {
@@ -421,37 +405,20 @@ onMounted(async () => {
             v-for="tab in allTabs"
             :key="tab.key"
             class="nav-item"
-            :class="{
-              active: activeCategory === tab.key,
-              'nav-item--special': tab.key === 'models' || tab.key === 'account',
-            }"
+            :class="{ active: activeCategory === tab.key }"
             @click="activeCategory = tab.key"
           >
             <span class="nav-label">{{ tab.label }}</span>
             <span v-if="categoryCounts[tab.key]" class="nav-count">{{ categoryCounts[tab.key] }}</span>
           </div>
         </nav>
-        <div v-if="configPath" class="sidebar-footer">
-          <code class="config-path-code">{{ configPath }}</code>
-          <span class="field-count">{{ totalFieldCount }} {{ t('settings.fieldCount') }}</span>
-        </div>
       </aside>
 
       <!-- ── Main content ───────────────────────── -->
       <main class="settings-main">
         <NSpin :show="settingsStore.loading || settingsStore.saving || schemaLoading" size="large">
-          <!-- Special: Models -->
-          <div v-if="activeCategory === 'models'" class="settings-content">
-            <ModelSettings />
-          </div>
-
-          <!-- Special: Account -->
-          <div v-else-if="activeCategory === 'account'" class="settings-content">
-            <AccountSettings />
-          </div>
-
           <!-- Schema-driven fields -->
-          <div v-else class="settings-content">
+          <div class="settings-content">
             <div class="content-header">
               <h3 class="content-title">
                 {{ t(`settings.schemaCategory.${activeCategory}`, activeCategory) }}
@@ -669,28 +636,6 @@ onMounted(async () => {
   text-overflow: ellipsis;
 }
 
-.sidebar-footer {
-  padding: 8px 10px 0;
-  border-top: 1px solid $border-light;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.config-path-code {
-  font-size: 11px;
-  color: var(--text-tertiary, #999);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-
-.field-count {
-  font-size: 11px;
-  color: var(--text-tertiary, #999);
-}
-
 // ── Main Content ─────────────────────────────────────
 .settings-main {
   flex: 1;
@@ -772,10 +717,6 @@ onMounted(async () => {
     .nav-count {
       display: none;
     }
-  }
-
-  .sidebar-footer {
-    display: none;
   }
 
   .settings-main {
