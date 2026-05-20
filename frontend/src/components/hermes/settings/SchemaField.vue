@@ -1,9 +1,71 @@
 <script setup lang="ts">
-import { NSwitch, NInputNumber, NInput, NSelect, NDynamicTags, useMessage } from 'naive-ui'
+import { NSwitch, NInputNumber, NInput, NSelect, NDynamicTags, NTag, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import type { ConfigFieldSchema } from '@/api/hermes/config'
+
+// ── Platform tags: mark fields that only work on specific clients ──
+type PlatformTag = { label: string; type: 'warning' | 'info' }
+const PLATFORM_MAP: Record<string, PlatformTag> = {
+  // CLI / TUI only
+  'display.skin':                  { label: 'CLI', type: 'warning' },
+  'display.busy_input_mode':       { label: 'CLI', type: 'warning' },
+  'display.copy_shortcut':         { label: 'CLI', type: 'warning' },
+  'display.bell_on_complete':      { label: 'CLI', type: 'warning' },
+  'display.compact':               { label: 'CLI', type: 'warning' },
+  'display.tui_auto_resume_recent':{ label: 'CLI', type: 'warning' },
+  'display.tui_status_indicator':  { label: 'CLI', type: 'warning' },
+  'display.tool_progress_command': { label: 'CLI', type: 'warning' },
+  'display.persistent_output':     { label: 'CLI', type: 'warning' },
+  'display.persistent_output_max_lines': { label: 'CLI', type: 'warning' },
+  'display.resume_display':        { label: 'CLI', type: 'warning' },
+  'terminal.auto_source_bashrc':   { label: 'CLI', type: 'warning' },
+  'terminal.backend':              { label: 'CLI', type: 'warning' },
+  'terminal.container_cpu':        { label: 'CLI', type: 'warning' },
+  'terminal.container_disk':       { label: 'CLI', type: 'warning' },
+  'terminal.container_memory':     { label: 'CLI', type: 'warning' },
+  'terminal.container_persistent': { label: 'CLI', type: 'warning' },
+  'terminal.cwd':                  { label: 'CLI', type: 'warning' },
+  'terminal.daytona_image':        { label: 'CLI', type: 'warning' },
+  'terminal.docker_extra_args':    { label: 'CLI', type: 'warning' },
+  'terminal.docker_forward_env':   { label: 'CLI', type: 'warning' },
+  'terminal.docker_image':         { label: 'CLI', type: 'warning' },
+  'terminal.docker_mount_cwd_to_workspace': { label: 'CLI', type: 'warning' },
+  'terminal.docker_run_as_host_user': { label: 'CLI', type: 'warning' },
+  'terminal.docker_volumes':       { label: 'CLI', type: 'warning' },
+  'terminal.env_passthrough':       { label: 'CLI', type: 'warning' },
+  'terminal.modal_image':          { label: 'CLI', type: 'warning' },
+  'terminal.modal_mode':           { label: 'CLI', type: 'warning' },
+  'terminal.persistent_shell':     { label: 'CLI', type: 'warning' },
+  'terminal.shell_init_files':     { label: 'CLI', type: 'warning' },
+  'terminal.singularity_image':    { label: 'CLI', type: 'warning' },
+  'terminal.timeout':              { label: 'CLI', type: 'warning' },
+  'terminal.vercel_runtime':       { label: 'CLI', type: 'warning' },
+  'voice.auto_tts':                { label: 'CLI', type: 'warning' },
+  'voice.beep_enabled':            { label: 'CLI', type: 'warning' },
+  'voice.max_recording_seconds':   { label: 'CLI', type: 'warning' },
+  'voice.record_key':              { label: 'CLI', type: 'warning' },
+  'voice.silence_duration':        { label: 'CLI', type: 'warning' },
+  'voice.silence_threshold':       { label: 'CLI', type: 'warning' },
+  'agent.inline_shell':            { label: 'CLI', type: 'warning' },
+  'agent.inline_shell_timeout':    { label: 'CLI', type: 'warning' },
+  'agent.force_ipv4':              { label: 'CLI', type: 'warning' },
+  'agent.mode':                    { label: 'CLI', type: 'warning' },
+  'agent.service_tier':            { label: 'CLI', type: 'warning' },
+  'human_delay.mode':              { label: 'CLI', type: 'warning' },
+  'human_delay.min_ms':            { label: 'CLI', type: 'warning' },
+  'human_delay.max_ms':            { label: 'CLI', type: 'warning' },
+  'lsp.enabled':                   { label: 'CLI', type: 'warning' },
+  'lsp.install_strategy':          { label: 'CLI', type: 'warning' },
+  'lsp.wait_mode':                 { label: 'CLI', type: 'warning' },
+  'lsp.wait_timeout':              { label: 'CLI', type: 'warning' },
+  'updates.backup_keep':           { label: 'CLI', type: 'warning' },
+  'updates.pre_update_backup':     { label: 'CLI', type: 'warning' },
+  'security.destructive_slash_confirm': { label: 'CLI', type: 'warning' },
+  // Dashboard only
+  'display.show_token_analytics':  { label: 'Dashboard', type: 'info' },
+}
 
 const props = defineProps<{
   fieldKey: string
@@ -20,6 +82,7 @@ const fieldName = props.fieldKey.split('.').slice(1).join('_')
 
 const label = t(props.schema.label_i18n, props.fieldKey)
 const hint = t(props.schema.hint_i18n, '')
+const platformTag = PLATFORM_MAP[props.fieldKey] ?? null
 
 const selectOptions = computed(() =>
   (props.schema.options || []).map((opt) => ({
@@ -45,7 +108,17 @@ async function save(values: Record<string, any>) {
 <template>
   <div class="schema-field">
     <div class="field-info">
-      <label class="field-label">{{ label }}</label>
+      <div class="field-label-row">
+        <label class="field-label">{{ label }}</label>
+        <NTag
+          v-if="platformTag"
+          :type="platformTag.type"
+          size="tiny"
+          round
+          class="platform-tag"
+          :bordered="false"
+        >{{ platformTag.label }}</NTag>
+      </div>
       <p v-if="hint" class="field-hint">{{ hint }}</p>
     </div>
     <div class="field-control">
@@ -126,7 +199,20 @@ async function save(values: Record<string, any>) {
 .field-label {
   font-size: 13px;
   color: $text-primary;
-  display: block;
+  display: inline;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.platform-tag {
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 6px;
+  opacity: 0.85;
 }
 
 .field-hint {
