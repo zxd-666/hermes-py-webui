@@ -104,8 +104,9 @@ const allTabs = computed(() => {
   return flat;
 });
 
-// Auxiliary sub-group labels (key → display name)
-const AUX_SUBGROUP_LABELS: Record<string, string> = {
+// ── YAML Section Labels (for sub-grouping) ──────────
+const YAML_SECTION_LABELS: Record<string, string> = {
+  // Auxiliary sub-roles
   vision: '视觉模型',
   approval: '审批模型',
   compression: '压缩模型',
@@ -117,48 +118,96 @@ const AUX_SUBGROUP_LABELS: Record<string, string> = {
   title_generation: '标题生成模型',
   triage_specifier: '分类模型',
   web_extract: '网页提取模型',
+  // Cross-category YAML sections
+  checkpoints: '检查点',
+  skills: '技能系统',
+  cron: '定时任务',
+  code_execution: '代码执行',
+  context: '上下文',
+  goals: '目标限制',
+  network: '网络',
+  prompt_caching: 'Prompt 缓存',
+  dashboard: '仪表盘',
+  privacy: '隐私',
+  approvals: '审批确认',
 };
 
 interface FieldEntry { key: string; field: ConfigFieldSchema }
 interface SubGroup { label: string; slug: string; fields: FieldEntry[] }
 
-const activeFields = computed<FieldEntry[]>(() => {
-  if (!schema.value || activeCategory.value === 'auxiliary') return [];
-  const q = searchQuery.value.trim().toLowerCase();
-  return Object.entries(schema.value.fields)
-    .filter(([_, field]) => {
-      if (field.category !== activeCategory.value) return false;
-      if (!q) return true;
-      const label = t(field.label_i18n, "").toLowerCase();
-      const hint = t(field.hint_i18n, "").toLowerCase();
-      return label.includes(q) || hint.includes(q) || field.category.includes(q);
-    })
-    .map(([key, field]) => ({ key, field }));
+// Check if a category has fields from multiple YAML sections
+const multiSectionCategories = computed<Set<string>>(() => {
+  if (!schema.value) return new Set();
+  const result = new Map<string, Set<string>>();
+  for (const [key, field] of Object.entries(schema.value.fields)) {
+    const cat = field.category;
+    const parts = key.split('.');
+    const yamlSection = parts.length >= 2 ? parts[0] : '(flat)';
+    if (!result.has(cat)) result.set(cat, new Set());
+    result.get(cat)!.add(yamlSection);
+  }
+  const multi = new Set<string>();
+  for (const [cat, sections] of result.entries()) {
+    // Auxiliary has sub-role grouping (parts[1]), not top-level section
+    if (cat === 'auxiliary' || sections.size > 1) {
+      multi.add(cat);
+    }
+  }
+  return multi;
 });
 
-const auxiliarySubGroups = computed<SubGroup[]>(() => {
-  if (!schema.value || activeCategory.value !== 'auxiliary') return [];
+// Unified sub-grouping: for categories with multiple YAML sections (or auxiliary sub-roles)
+const activeSubGroups = computed<SubGroup[]>(() => {
+  if (!schema.value) return [];
+  const cat = activeCategory.value;
+  if (!multiSectionCategories.value.has(cat)) return [];
+
   const q = searchQuery.value.trim().toLowerCase();
   const grouped = new Map<string, FieldEntry[]>();
 
   for (const [key, field] of Object.entries(schema.value.fields)) {
-    if (field.category !== 'auxiliary') continue;
+    if (field.category !== cat) continue;
     if (q) {
       const label = t(field.label_i18n, "").toLowerCase();
       const hint = t(field.hint_i18n, "").toLowerCase();
       if (!label.includes(q) && !hint.includes(q) && !key.includes(q)) continue;
     }
     const parts = key.split('.');
-    const slug = parts.length >= 3 ? parts[1] : '_other';
+    // Auxiliary: group by sub-role (parts[1]), others: group by YAML section (parts[0])
+    const slug = (cat === 'auxiliary' && parts.length >= 3) ? parts[1] : (parts.length >= 2 ? parts[0] : '(flat)');
     if (!grouped.has(slug)) grouped.set(slug, []);
     grouped.get(slug)!.push({ key, field });
   }
 
-  return Array.from(grouped.entries()).map(([slug, fields]) => ({
-    label: AUX_SUBGROUP_LABELS[slug] || slug,
-    slug,
-    fields,
-  }));
+  // Sort: primary section first, then alphabetical
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => {
+      if (a === cat) return -1;
+      if (b === cat) return 1;
+      return a.localeCompare(b);
+    })
+    .map(([slug, fields]) => ({
+      label: YAML_SECTION_LABELS[slug] || slug,
+      slug,
+      fields,
+    }));
+});
+
+// Flat field list for categories without sub-grouping
+const activeFields = computed<FieldEntry[]>(() => {
+  if (!schema.value) return [];
+  const cat = activeCategory.value;
+  if (multiSectionCategories.value.has(cat)) return [];
+  const q = searchQuery.value.trim().toLowerCase();
+  return Object.entries(schema.value.fields)
+    .filter(([_, field]) => {
+      if (field.category !== cat) return false;
+      if (!q) return true;
+      const label = t(field.label_i18n, "").toLowerCase();
+      const hint = t(field.hint_i18n, "").toLowerCase();
+      return label.includes(q) || hint.includes(q) || field.category.includes(q);
+    })
+    .map(([key, field]) => ({ key, field }));
 });
 
 const isSpecialTab = computed(() =>
@@ -529,40 +578,37 @@ onMounted(async () => {
             <AccountSettings />
           </div>
 
-          <!-- Schema-driven: Auxiliary (sub-grouped) -->
-          <div v-else-if="activeCategory === 'auxiliary'" class="settings-content">
+          <!-- Schema-driven: Sub-grouped (multi YAML section or auxiliary) -->
+          <div v-else-if="activeSubGroups.length > 0" class="settings-content">
             <div class="content-header">
               <h3 class="content-title">
-                {{ t(`settings.schemaCategory.auxiliary`, 'auxiliary') }}
+                {{ t(`settings.schemaCategory.${activeCategory}`, activeCategory) }}
               </h3>
               <NButton
                 size="tiny"
                 quaternary
-                @click="resetCategory('auxiliary')"
+                @click="resetCategory(activeCategory)"
               >
                 ↺ {{ t("settings.resetDefaults") }}
               </NButton>
             </div>
-            <template v-if="auxiliarySubGroups.length > 0">
-              <div
-                v-for="sub in auxiliarySubGroups"
-                :key="sub.slug"
-                class="aux-subgroup"
-              >
-                <div class="aux-subgroup-title">{{ sub.label }}</div>
-                <SchemaField
-                  v-for="{ key, field } in sub.fields"
-                  :key="key"
-                  :field-key="key"
-                  :schema="field"
-                  :value="getFieldValue(key)"
-                />
-              </div>
-            </template>
-            <NEmpty v-else :description="t('settings.noFields')" />
+            <div
+              v-for="sub in activeSubGroups"
+              :key="sub.slug"
+              class="field-subgroup"
+            >
+              <div class="field-subgroup-title">{{ sub.label }}</div>
+              <SchemaField
+                v-for="{ key, field } in sub.fields"
+                :key="key"
+                :field-key="key"
+                :schema="field"
+                :value="getFieldValue(key)"
+              />
+            </div>
           </div>
 
-          <!-- Schema-driven: Regular -->
+          <!-- Schema-driven: Regular (single section) -->
           <div v-else class="settings-content">
             <div class="content-header">
               <h3 class="content-title">
@@ -852,8 +898,8 @@ onMounted(async () => {
   letter-spacing: -0.01em;
 }
 
-// ── Auxiliary sub-groups ─────────────────────────────
-.aux-subgroup {
+// ── Field sub-groups (YAML section / auxiliary role) ─
+.field-subgroup {
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color, #f0f0f0);
@@ -865,7 +911,7 @@ onMounted(async () => {
   }
 }
 
-.aux-subgroup-title {
+.field-subgroup-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-tertiary, #999);
