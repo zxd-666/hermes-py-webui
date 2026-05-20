@@ -230,18 +230,22 @@ async function resetCategory(cat: string) {
 
 // ── Raw YAML ──────────────────────────────────────────
 const rawYaml = ref("");
+const rawYamlOriginal = ref("");
 const rawYamlLoading = ref(false);
 const rawYamlSaving = ref(false);
 const rawYamlModified = ref(false);
 const configPath = ref("");
 const showRawModal = ref(false);
+const yamlModalFullscreen = ref(false);
 
 async function openRawYaml() {
   showRawModal.value = true;
+  yamlModalFullscreen.value = false;
   rawYamlLoading.value = true;
   try {
     const res = await fetchRawConfig();
     rawYaml.value = res.yaml_text;
+    rawYamlOriginal.value = res.yaml_text;
     configPath.value = res.config_path;
     rawYamlModified.value = false;
   } catch {
@@ -251,8 +255,8 @@ async function openRawYaml() {
   }
 }
 
-function onRawYamlChange(val: string) {
-  rawYamlModified.value = val !== rawYaml.value;
+function onRawYamlChange() {
+  rawYamlModified.value = rawYaml.value !== rawYamlOriginal.value;
 }
 
 async function saveRawYaml() {
@@ -265,6 +269,7 @@ async function saveRawYaml() {
     }
     message.success(t("settings.rawSaved"));
     rawYamlModified.value = false;
+    rawYamlOriginal.value = rawYaml.value;
     await settingsStore.fetchSettings();
   } catch (err: any) {
     message.error(err?.message || t("settings.saveFailed"));
@@ -500,26 +505,30 @@ onMounted(async () => {
       v-model:show="showRawModal"
       preset="card"
       :title="t('settings.rawYamlTitle')"
-      style="width: 800px; max-width: 95vw;"
+      :style="{ width: yamlModalFullscreen ? '95vw' : '920px', maxHeight: '92vh' }"
       :segmented="{ content: true, footer: true }"
+      :class="{ 'yaml-modal--fullscreen': yamlModalFullscreen }"
     >
       <template #header-extra>
-        <code class="config-path-code">{{ configPath }}</code>
+        <span class="yaml-modal-header-extra">
+          <code class="config-path-code">{{ configPath }}</code>
+          <button class="yaml-fullscreen-toggle" @click="yamlModalFullscreen = !yamlModalFullscreen" :title="yamlModalFullscreen ? '退出全屏' : '全屏'">
+            {{ yamlModalFullscreen ? '⊡' : '⊡' }}
+          </button>
+        </span>
       </template>
       <NSpin :show="rawYamlLoading">
-        <NInput
-          v-model:value="rawYaml"
-          type="textarea"
-          :autosize="{ minRows: 20, maxRows: 40 }"
+        <textarea
+          v-model="rawYaml"
+          class="yaml-editor"
           :placeholder="t('settings.rawYamlPlaceholder')"
-          font="monospace"
-          @update:value="onRawYamlChange"
-          style="font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 13px;"
+          spellcheck="false"
+          @input="onRawYamlChange"
         />
       </NSpin>
       <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span v-if="rawYamlModified" style="color: var(--warning-text, #d4a017); font-size: 13px;">
+        <div class="yaml-modal-footer">
+          <span v-if="rawYamlModified" class="yaml-modified-hint">
             {{ t("settings.unsavedChanges") }}
           </span>
           <span v-else />
@@ -817,5 +826,97 @@ onMounted(async () => {
   .settings-main {
     padding: 12px 20px 20px;
   }
+}
+</style>
+
+<!-- YAML Modal uses unscoped styles to override NModal internals -->
+<style lang="scss">
+.yaml-modal--fullscreen {
+  .n-card__content {
+    height: calc(92vh - 120px) !important;
+    overflow: hidden !important;
+  }
+}
+
+.yaml-modal-header-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.yaml-fullscreen-toggle {
+  background: none;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  color: var(--text-tertiary, #999);
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--text-primary, #333);
+    border-color: var(--text-tertiary, #bbb);
+  }
+}
+
+.yaml-editor {
+  width: 100%;
+  height: calc(80vh - 200px);
+  min-height: 300px;
+  resize: vertical;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary, #333);
+  background: var(--body-color, #fafafa);
+  border: 1px solid var(--border-color, #e8e8e8);
+  border-radius: 8px;
+  padding: 16px;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease;
+
+  &:focus {
+    border-color: var(--primary-color, #6246ea);
+    box-shadow: 0 0 0 2px rgba(98, 70, 234, 0.1);
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary, #ccc);
+  }
+
+  // Scrollbar
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color, #d0d0d0);
+    border-radius: 3px;
+    &:hover {
+      background: var(--text-tertiary, #aaa);
+    }
+  }
+}
+
+.yaml-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.yaml-modified-hint {
+  color: var(--warning-text, #d4a017);
+  font-size: 13px;
+}
+
+.yaml-modal--fullscreen .yaml-editor {
+  height: calc(92vh - 200px);
+  min-height: 500px;
 }
 </style>
