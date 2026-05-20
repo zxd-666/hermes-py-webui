@@ -217,14 +217,16 @@ export async function fetchConfigDefaults(): Promise<Record<string, any>> {
 // ── Config Schema ────────────────────────────────────
 
 export interface ConfigFieldSchema {
-  type: 'boolean' | 'number' | 'select' | 'text'
+  type: 'boolean' | 'number' | 'integer' | 'string' | 'select' | 'text' | 'list'
   category: string
-  label_i18n: string
-  hint_i18n: string
-  options?: { value: string; label_i18n: string }[]
+  description?: string  // Agent API uses this instead of hint_i18n
+  label_i18n?: string   // Kept for backward compat (py-webui own schema used this)
+  hint_i18n?: string    // Kept for backward compat
+  options?: (string | { value: string; label: string; label_i18n?: string })[]  // Can be string[] or object[]
   min?: number
   max?: number
   step?: number
+  default?: any
 }
 
 export interface ConfigSchema {

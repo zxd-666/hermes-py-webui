@@ -31,32 +31,31 @@ const dialog = useDialog();
 // ── Schema-driven config ──────────────────────────────
 const schema = ref<ConfigSchema | null>(null);
 const schemaLoading = ref(false);
-const activeCategory = ref("display");
+const activeCategory = ref("general");
 const searchQuery = ref("");
-const collapsedGroups = ref<Set<string>>(new Set());
 
-function toggleGroup(label: string) {
-  const next = new Set(collapsedGroups.value);
-  if (next.has(label)) next.delete(label);
-  else next.add(label);
-  collapsedGroups.value = next;
-}
+// ── Categories (flat, from agent API) ─────────────
+const categories = computed(() => {
+  if (!schema.value) return [];
+  const allCats = [
+    ...new Set(
+      Object.values(schema.value.fields).map((s) => String(s.category ?? "general")),
+    ),
+  ];
+  const ordered = (schema.value.category_order ?? []).filter((c) => allCats.includes(c));
+  const extra = allCats.filter((c) => !ordered.includes(c)).sort();
+  return [...ordered, ...extra];
+});
 
-// ── Sidebar groups ──────────────────────────────────────
-interface NavGroup {
-  label: string
-  items: { key: string; label: string }[]
-}
-
-const SIDEBAR_GROUPS: Record<string, string[]> = {
-  '核心': ['general', 'display', 'agent', 'delegation', 'memory'],
-  '会话': ['sessions', 'session_reset', 'compression', 'approvals'],
-  '安全': ['security', 'browser', 'tool_loop_guardrails', 'tool_output'],
-  '高级': ['auxiliary', 'tts', 'stt', 'voice', 'web', 'x_search', 'model_catalog', 'kanban', 'curator'],
-  '平台': ['platforms', 'discord', 'telegram', 'slack', 'matrix', 'mattermost', 'feishu'],
-  'Provider': ['model', 'fallback_model', 'openrouter', 'bedrock', 'providers'],
-  '系统': ['terminal', 'logging', 'lsp', 'human_delay', 'updates', 'gateway', 'streaming', 'onboarding', 'plugins', 'toolsets', 'hidden_providers'],
-};
+const categoryCounts = computed(() => {
+  if (!schema.value) return {} as Record<string, number>;
+  const counts: Record<string, number> = {};
+  for (const s of Object.values(schema.value.fields)) {
+    const cat = String(s.category ?? "general");
+    counts[cat] = (counts[cat] || 0) + 1;
+  }
+  return counts;
+});
 
 // Special tabs that use custom components (not schema-driven)
 const specialTabs = computed(() => [
@@ -64,152 +63,48 @@ const specialTabs = computed(() => [
   { key: "account", label: t("settings.tabs.account") },
 ]);
 
-const sidebarGroups = computed<NavGroup[]>(() => {
-  if (!schema.value) return [];
-  const allCats = schema.value.category_order;
-  const groups: NavGroup[] = [];
+const allTabs = computed(() => [
+  ...categories.value.map((cat) => ({
+    key: cat,
+    label: t(`settings.schemaCategory.${cat}`, cat.replace(/_/g, " ")),
+  })),
+  ...specialTabs.value,
+]);
 
-  for (const [groupLabel, catKeys] of Object.entries(SIDEBAR_GROUPS)) {
-    const items = catKeys
-      .filter(cat => allCats.includes(cat))
-      .map(cat => ({
-        key: cat,
-        label: t(`settings.schemaCategory.${cat}`, cat),
-      }));
-    if (items.length > 0) {
-      groups.push({ label: groupLabel, items });
-    }
-  }
-
-  // Collect any uncategorized categories
-  const grouped = new Set(Object.values(SIDEBAR_GROUPS).flat());
-  const ungrouped = allCats
-    .filter(cat => !grouped.has(cat))
-    .map(cat => ({
-      key: cat,
-      label: t(`settings.schemaCategory.${cat}`, cat),
-    }));
-  if (ungrouped.length > 0) {
-    groups.push({ label: '其他', items: ungrouped });
-  }
-
-  return groups;
-});
-
-// Flat tab list for search + activeFields logic
-const allTabs = computed(() => {
-  const flat: { key: string; label: string }[] = [];
-  for (const group of sidebarGroups.value) {
-    flat.push(...group.items);
-  }
-  flat.push(...specialTabs.value);
-  return flat;
-});
-
-// ── YAML Section Labels (for sub-grouping) ──────────
-const YAML_SECTION_LABELS: Record<string, string> = {
-  // Auxiliary sub-roles
-  vision: '视觉模型',
-  approval: '审批模型',
-  compression: '压缩模型',
-  curator: '策展模型',
-  kanban_decomposer: '看板分解模型',
-  mcp: 'MCP 模型',
-  profile_describer: '描述器模型',
-  skills_hub: '技能中心模型',
-  title_generation: '标题生成模型',
-  triage_specifier: '分类模型',
-  web_extract: '网页提取模型',
-  // Cross-category YAML sections
-  checkpoints: '检查点',
-  skills: '技能系统',
-  cron: '定时任务',
-  code_execution: '代码执行',
-  context: '上下文',
-  goals: '目标限制',
-  network: '网络',
-  prompt_caching: 'Prompt 缓存',
-  dashboard: '仪表盘',
-  privacy: '隐私',
-  approvals: '审批确认',
-};
-
+// ── Active fields (with section sub-grouping) ──────
 interface FieldEntry { key: string; field: ConfigFieldSchema }
-interface SubGroup { label: string; slug: string; fields: FieldEntry[] }
 
-// Check if a category has fields from multiple YAML sections
-const multiSectionCategories = computed<Set<string>>(() => {
-  if (!schema.value) return new Set();
-  const result = new Map<string, Set<string>>();
-  for (const [key, field] of Object.entries(schema.value.fields)) {
-    const cat = field.category;
-    const parts = key.split('.');
-    const yamlSection = parts.length >= 2 ? parts[0] : '(flat)';
-    if (!result.has(cat)) result.set(cat, new Set());
-    result.get(cat)!.add(yamlSection);
-  }
-  const multi = new Set<string>();
-  for (const [cat, sections] of result.entries()) {
-    // Auxiliary has sub-role grouping (parts[1]), not top-level section
-    if (cat === 'auxiliary' || sections.size > 1) {
-      multi.add(cat);
-    }
-  }
-  return multi;
-});
-
-// Unified sub-grouping: for categories with multiple YAML sections (or auxiliary sub-roles)
-const activeSubGroups = computed<SubGroup[]>(() => {
-  if (!schema.value) return [];
-  const cat = activeCategory.value;
-  if (!multiSectionCategories.value.has(cat)) return [];
-
-  const q = searchQuery.value.trim().toLowerCase();
-  const grouped = new Map<string, FieldEntry[]>();
-
-  for (const [key, field] of Object.entries(schema.value.fields)) {
-    if (field.category !== cat) continue;
-    if (q) {
-      const label = t(field.label_i18n, "").toLowerCase();
-      const hint = t(field.hint_i18n, "").toLowerCase();
-      if (!label.includes(q) && !hint.includes(q) && !key.includes(q)) continue;
-    }
-    const parts = key.split('.');
-    // Auxiliary: group by sub-role (parts[1]), others: group by YAML section (parts[0])
-    const slug = (cat === 'auxiliary' && parts.length >= 3) ? parts[1] : (parts.length >= 2 ? parts[0] : '(flat)');
-    if (!grouped.has(slug)) grouped.set(slug, []);
-    grouped.get(slug)!.push({ key, field });
-  }
-
-  // Sort: primary section first, then alphabetical
-  return Array.from(grouped.entries())
-    .sort(([a], [b]) => {
-      if (a === cat) return -1;
-      if (b === cat) return 1;
-      return a.localeCompare(b);
-    })
-    .map(([slug, fields]) => ({
-      label: YAML_SECTION_LABELS[slug] || slug,
-      slug,
-      fields,
-    }));
-});
-
-// Flat field list for categories without sub-grouping
 const activeFields = computed<FieldEntry[]>(() => {
   if (!schema.value) return [];
   const cat = activeCategory.value;
-  if (multiSectionCategories.value.has(cat)) return [];
   const q = searchQuery.value.trim().toLowerCase();
   return Object.entries(schema.value.fields)
-    .filter(([_, field]) => {
+    .filter(([key, field]) => {
       if (field.category !== cat) return false;
       if (!q) return true;
-      const label = t(field.label_i18n, "").toLowerCase();
-      const hint = t(field.hint_i18n, "").toLowerCase();
-      return label.includes(q) || hint.includes(q) || field.category.includes(q);
+      const label = field.label_i18n
+        ? t(field.label_i18n, "").toLowerCase()
+        : key.split(".").pop()?.replace(/_/g, " ") ?? "";
+      const desc = (field.description || "").toLowerCase();
+      return key.includes(q) || label.includes(q) || desc.includes(q);
     })
     .map(([key, field]) => ({ key, field }));
+});
+
+// Section headers within a category (same as Dashboard: group by key prefix)
+const activeSections = computed(() => {
+  if (!schema.value || searchQuery.value.trim()) return null;
+  const sections = new Map<string, FieldEntry[]>();
+  for (const entry of activeFields.value) {
+    const parts = entry.key.split(".");
+    const section = parts.length > 1 ? parts[0] : "";
+    // Only show section header if it differs from category name
+    const showSection = section && section !== activeCategory.value;
+    if (!showSection) continue;
+    if (!sections.has(section)) sections.set(section, []);
+    sections.get(section)!.push(entry);
+  }
+  return sections.size > 1 ? sections : null;
 });
 
 const isSpecialTab = computed(() =>
@@ -220,103 +115,16 @@ const totalFieldCount = computed(() =>
   schema.value ? Object.keys(schema.value.fields).length : 0
 );
 
-// ── Nested key mapping for platforms section ────────
-const NESTED_KEY_MAP: Record<string, Record<string, string[]>> = {
-  platforms: {
-    api_server_extra_host: ['api_server', 'extra', 'host'],
-    api_server_extra_port: ['api_server', 'extra', 'port'],
-    feishu_extra_app_id: ['feishu', 'extra', 'app_id'],
-    feishu_extra_app_secret: ['feishu', 'extra', 'app_secret'],
-    wecom_extra_bot_id: ['wecom', 'extra', 'bot_id'],
-    wecom_extra_secret: ['wecom', 'extra', 'secret'],
-    discord_enabled: ['discord', 'enabled'],
-    telegram_enabled: ['telegram', 'enabled'],
-    weixin_enabled: ['weixin', 'enabled'],
-  },
-  onboarding: {
-    seen_busy_input_prompt: ['seen', 'busy_input_prompt'],
-    seen_openclaw_residue_cleanup: ['seen', 'openclaw_residue_cleanup'],
-    seen_tool_progress_prompt: ['seen', 'tool_progress_prompt'],
-  },
-  gateway: {
-    platforms_telegram_enabled: ['platforms', 'telegram', 'enabled'],
-  },
-  providers: {
-    request_timeout_seconds: ['custom:zai', 'request_timeout_seconds'],
-    stale_timeout_seconds: ['custom:zai', 'stale_timeout_seconds'],
-  },
-  bedrock: {
-    discovery_enabled: ['discovery', 'enabled'],
-    discovery_provider_filter: ['discovery', 'provider_filter'],
-    discovery_refresh_interval: ['discovery', 'refresh_interval'],
-    guardrail_identifier: ['guardrail', 'guardrail_identifier'],
-    guardrail_version: ['guardrail', 'guardrail_version'],
-    guardrail_stream_processing_mode: ['guardrail', 'stream_processing_mode'],
-    guardrail_trace: ['guardrail', 'trace'],
-  },
-};
-
-function resolveNested(obj: any, path: string[]): any {
-  let current = obj;
-  for (const step of path) {
-    if (!current || typeof current !== 'object') return undefined;
-    current = current[step];
+// ── Config value getter ───────────────────────────
+function getFieldValue(key: string): any {
+  // Use the generic config ref (populated from API in store)
+  const parts = key.split(".");
+  let current = settingsStore.config;
+  for (const part of parts) {
+    if (!current || typeof current !== "object") return undefined;
+    current = current[part];
   }
   return current;
-}
-
-// ── Config value getter ───────────────────────────────
-function getFieldValue(key: string): any {
-  const [section, ...rest] = key.split(".");
-  const field = rest.join("_");
-  const storeMap: Record<string, any> = {
-    display: settingsStore.display,
-    agent: settingsStore.agent,
-    delegation: settingsStore.delegation,
-    memory: settingsStore.memory,
-    session_reset: settingsStore.sessionReset,
-    sessions: settingsStore.sessions,
-    approvals: settingsStore.approvals,
-    human_delay: settingsStore.humanDelay,
-    security: settingsStore.security,
-    // Platform sections
-    platforms: settingsStore.platforms,
-    discord: settingsStore.discord,
-    telegram: settingsStore.telegram,
-    slack: settingsStore.slack,
-    matrix: settingsStore.matrix,
-    feishu: settingsStore.feishu,
-    // Provider sections
-    openrouter: (settingsStore as any).openrouter,
-    bedrock: (settingsStore as any).bedrock,
-    model: (settingsStore as any).model,
-    fallback_model: settingsStore.fallbackModel,
-    providers: (settingsStore as any).providers,
-    // System sections
-    gateway: (settingsStore as any).gateway,
-    streaming: (settingsStore as any).streaming,
-    onboarding: (settingsStore as any).onboarding,
-    plugins: (settingsStore as any).plugins,
-    toolsets: (settingsStore as any).toolsets,
-    hidden_providers: (settingsStore as any).hidden_providers,
-    mattermost: (settingsStore as any).mattermost,
-  };
-  const sectionData = storeMap[section];
-  if (sectionData?.[field] !== undefined) return sectionData[field];
-  // Check nested key mapping
-  const nestedMap = NESTED_KEY_MAP[section];
-  if (nestedMap && nestedMap[field]) {
-    const val = resolveNested(sectionData, nestedMap[field]);
-    if (val !== undefined) return val;
-  }
-  // Fallback: generic config ref for sections without typed store
-  const cfgSection = settingsStore.config?.[section];
-  if (cfgSection?.[field] !== undefined) return cfgSection[field];
-  if (nestedMap) {
-    const val = resolveNested(cfgSection, nestedMap[field]);
-    if (val !== undefined) return val;
-  }
-  return undefined;
 }
 
 // ── Reset to defaults ─────────────────────────────────
@@ -609,36 +417,18 @@ onMounted(async () => {
           />
         </div>
         <nav class="sidebar-nav">
-          <template v-for="group in sidebarGroups" :key="group.label">
-            <div
-              class="nav-group-header"
-              @click="toggleGroup(group.label)"
-            >
-              <span class="group-chevron" :class="{ collapsed: collapsedGroups.has(group.label) }">▸</span>
-              <span class="group-label">{{ group.label }}</span>
-              <span class="group-count">{{ group.items.length }}</span>
-            </div>
-            <div v-show="!collapsedGroups.has(group.label)" class="nav-group-items">
-              <div
-                v-for="tab in group.items"
-                :key="tab.key"
-                class="nav-item"
-                :class="{ active: activeCategory === tab.key }"
-                @click="activeCategory = tab.key"
-              >
-                <span class="nav-label">{{ tab.label }}</span>
-              </div>
-            </div>
-          </template>
-          <div class="sidebar-divider" />
           <div
-            v-for="tab in specialTabs"
+            v-for="tab in allTabs"
             :key="tab.key"
-            class="nav-item nav-item--special"
-            :class="{ active: activeCategory === tab.key }"
+            class="nav-item"
+            :class="{
+              active: activeCategory === tab.key,
+              'nav-item--special': tab.key === 'models' || tab.key === 'account',
+            }"
             @click="activeCategory = tab.key"
           >
             <span class="nav-label">{{ tab.label }}</span>
+            <span v-if="categoryCounts[tab.key]" class="nav-count">{{ categoryCounts[tab.key] }}</span>
           </div>
         </nav>
         <div v-if="configPath" class="sidebar-footer">
@@ -660,37 +450,7 @@ onMounted(async () => {
             <AccountSettings />
           </div>
 
-          <!-- Schema-driven: Sub-grouped (multi YAML section or auxiliary) -->
-          <div v-else-if="activeSubGroups.length > 0" class="settings-content">
-            <div class="content-header">
-              <h3 class="content-title">
-                {{ t(`settings.schemaCategory.${activeCategory}`, activeCategory) }}
-              </h3>
-              <NButton
-                size="tiny"
-                quaternary
-                @click="resetCategory(activeCategory)"
-              >
-                ↺ {{ t("settings.resetDefaults") }}
-              </NButton>
-            </div>
-            <div
-              v-for="sub in activeSubGroups"
-              :key="sub.slug"
-              class="field-subgroup"
-            >
-              <div class="field-subgroup-title">{{ sub.label }}</div>
-              <SchemaField
-                v-for="{ key, field } in sub.fields"
-                :key="key"
-                :field-key="key"
-                :schema="field"
-                :value="getFieldValue(key)"
-              />
-            </div>
-          </div>
-
-          <!-- Schema-driven: Regular (single section) -->
+          <!-- Schema-driven fields -->
           <div v-else class="settings-content">
             <div class="content-header">
               <h3 class="content-title">
@@ -705,13 +465,29 @@ onMounted(async () => {
               </NButton>
             </div>
             <NEmpty v-if="activeFields.length === 0" :description="t('settings.noFields')" />
-            <SchemaField
-              v-for="{ key, field } in activeFields"
-              :key="key"
-              :field-key="key"
-              :schema="field"
-              :value="getFieldValue(key)"
-            />
+            <template v-else-if="activeSections">
+              <template v-for="([section, fields], idx) in activeSections" :key="section">
+                <div class="section-divider">
+                  <span class="section-label">{{ section.replace(/_/g, ' ') }}</span>
+                </div>
+                <SchemaField
+                  v-for="{ key, field } in fields"
+                  :key="key"
+                  :field-key="key"
+                  :schema="field"
+                  :value="getFieldValue(key)"
+                />
+              </template>
+            </template>
+            <template v-else>
+              <SchemaField
+                v-for="{ key, field } in activeFields"
+                :key="key"
+                :field-key="key"
+                :schema="field"
+                :value="getFieldValue(key)"
+              />
+            </template>
           </div>
         </NSpin>
       </main>
@@ -851,51 +627,12 @@ onMounted(async () => {
   }
 }
 
-// Group header
-.nav-group-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 10px 4px;
-  cursor: pointer;
-  user-select: none;
-
-  .group-chevron {
-    font-size: 10px;
-    color: var(--text-tertiary, #aaa);
-    transition: transform 0.2s ease;
-    display: inline-block;
-
-    &.collapsed {
-      transform: rotate(-90deg);
-    }
-  }
-
-  .group-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-tertiary, #aaa);
-  }
-
-  .group-count {
-    font-size: 10px;
-    color: var(--text-tertiary, #bbb);
-    margin-left: auto;
-  }
-}
-
-.nav-group-items {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.sidebar-divider {
-  height: 1px;
-  background: $border-light;
-  margin: 8px 10px;
+// Category count badge
+.nav-count {
+  font-size: 10px;
+  color: var(--text-tertiary, #bbb);
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .nav-item {
@@ -980,28 +717,28 @@ onMounted(async () => {
   letter-spacing: -0.01em;
 }
 
-// ── Field sub-groups (YAML section / auxiliary role) ─
-.field-subgroup {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color, #f0f0f0);
+// Section divider within a category (Dashboard-style)
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0 6px;
 
-  &:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: $border-light;
   }
 }
 
-.field-subgroup-title {
-  font-size: 12px;
+.section-label {
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-tertiary, #999);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px dashed var(--border-color, #eee);
+  color: var(--text-tertiary, #aaa);
+  white-space: nowrap;
 }
 
 @media (max-width: $breakpoint-mobile) {
@@ -1026,24 +763,15 @@ onMounted(async () => {
     padding-right: 0;
     padding-bottom: 8px;
 
-    .nav-group-header {
+    .nav-item {
+      white-space: nowrap;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
+    .nav-count {
       display: none;
     }
-
-    .nav-group-items {
-      flex-direction: row;
-      gap: 0;
-    }
-
-    .sidebar-divider {
-      display: none;
-    }
-  }
-
-  .nav-item {
-    white-space: nowrap;
-    padding: 5px 10px;
-    font-size: 12px;
   }
 
   .sidebar-footer {

@@ -38,6 +38,23 @@ export const useSettingsStore = defineStore('settings', () => {
   // Generic config ref for sections without typed store
   const config = ref<Record<string, any>>({})
 
+  // Deep merge helper (only merges plain objects, not arrays)
+  function deepMerge(target: any, source: any): any {
+    if (!source || typeof source !== 'object') return source
+    if (Array.isArray(source)) return source
+    const result = Array.isArray(target) ? target : { ...target }
+    for (const key of Object.keys(source)) {
+      const sv = source[key]
+      const tv = result[key]
+      if (sv && typeof sv === 'object' && !Array.isArray(sv) && tv && typeof tv === 'object') {
+        result[key] = deepMerge(tv, sv)
+      } else {
+        result[key] = sv
+      }
+    }
+    return result
+  }
+
   async function fetchSettings() {
     loading.value = true
     try {
@@ -81,7 +98,10 @@ export const useSettingsStore = defineStore('settings', () => {
     saving.value = true
     try {
       const res = await configApi.updateConfigSection(section, values) as any
-    switch (section) {
+      // Deep-merge values into generic config ref
+      const sectionData = config.value[section] || {}
+      config.value = { ...config.value, [section]: deepMerge(sectionData, values) }
+      switch (section) {
       case 'display': display.value = { ...display.value, ...values }; break
       case 'agent': agent.value = { ...agent.value, ...values }; break
       case 'delegation': delegation.value = { ...delegation.value, ...values }; break

@@ -78,25 +78,42 @@ const message = useMessage()
 const { t } = useI18n()
 
 const section = props.fieldKey.split('.')[0]
-const fieldName = props.fieldKey.split('.').slice(1).join('_')
+const fieldRest = props.fieldKey.split('.').slice(1)  // ["sub1", "sub2", "field"]
+const fieldName = fieldRest.join('_')  // For flat display
 
-const label = t(props.schema.label_i18n, props.fieldKey)
-const hint = t(props.schema.hint_i18n, '')
+// Label: prefer i18n key, fallback to field key (humanized)
+const rawLabel = props.schema.label_i18n
+  ? t(props.schema.label_i18n, '')
+  : fieldName.replace(/_/g, ' ')
+const label = rawLabel || fieldName
+// Hint: prefer i18n, fallback to agent description
+const hint = props.schema.hint_i18n
+  ? t(props.schema.hint_i18n, '')
+  : (props.schema.description || '')
 const platformTag = PLATFORM_MAP[props.fieldKey] ?? null
 
 const selectOptions = computed(() =>
-  (props.schema.options || []).map((opt) => ({
-    label: t(opt.label_i18n, opt.value),
-    value: opt.value,
-  }))
+  (props.schema.options || []).map((opt: any) => {
+    // Agent API returns string[]; py-webui used { value, label_i18n }[]
+    if (typeof opt === 'string') return { label: opt, value: opt }
+    return { label: t(opt.label_i18n, opt.label || opt.value), value: opt.value }
+  })
 )
 
 const listValue = ref<string[]>(Array.isArray(props.value) ? [...props.value] : [])
 const stringValue = ref(typeof props.value === 'string' ? props.value : '')
 
-async function save(values: Record<string, any>) {
+async function save(value: any) {
   try {
-    await settingsStore.saveSection(section, values)
+    // Build nested object from fieldRest: ["compression", "provider"] → { compression: { provider: value } }
+    const nested: any = {}
+    let current = nested
+    for (let i = 0; i < fieldRest.length - 1; i++) {
+      current[fieldRest[i]] = {}
+      current = current[fieldRest[i]]
+    }
+    current[fieldRest[fieldRest.length - 1]] = value
+    await settingsStore.saveSection(section, nested)
     message.success(t('settings.saved'))
   } catch {
     message.error(t('settings.saveFailed'))
@@ -126,7 +143,7 @@ async function save(values: Record<string, any>) {
       <NSwitch
         v-if="schema.type === 'boolean'"
         :value="value"
-        @update:value="(v: boolean) => save({ [fieldName]: v })"
+        @update:value="(v: boolean) => save(v)"
       />
 
       <!-- Select -->
@@ -137,7 +154,7 @@ async function save(values: Record<string, any>) {
         size="small"
         class="input-sm"
         :show-tooltip="true"
-        @update:value="(v: string) => save({ [fieldName]: v })"
+        @update:value="(v: string) => save(v)"
       />
 
       <!-- Number -->
@@ -149,7 +166,7 @@ async function save(values: Record<string, any>) {
         :step="schema.step"
         size="small"
         class="input-sm"
-        @update:value="(v: number | null) => v != null && save({ [fieldName]: v })"
+        @update:value="(v: number | null) => v != null && save(v)"
       />
 
       <!-- String -->
@@ -159,8 +176,8 @@ async function save(values: Record<string, any>) {
         size="small"
         class="input-sm"
         @update:value="(v: string) => { stringValue = v }"
-        @keydown.enter="() => save({ [fieldName]: stringValue })"
-        @blur="() => save({ [fieldName]: stringValue })"
+        @keydown.enter="() => save(stringValue)"
+        @blur="() => save(stringValue)"
       />
 
       <!-- List (dynamic tags) -->
@@ -169,7 +186,7 @@ async function save(values: Record<string, any>) {
         :value="listValue"
         size="small"
         class="input-sm"
-        @update:value="(v: string[]) => { listValue = v; save({ [fieldName]: v }) }"
+        @update:value="(v: string[]) => { listValue = v; save(v) }"
       />
     </div>
   </div>
