@@ -237,6 +237,95 @@ const rawYamlModified = ref(false);
 const configPath = ref("");
 const showRawModal = ref(false);
 const yamlModalFullscreen = ref(false);
+const yamlEditorRef = ref<HTMLTextAreaElement | null>(null);
+const yamlPreRef = ref<HTMLPreElement | null>(null);
+
+// ── YAML Syntax Highlighting ───────────────────────────
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function highlightYamlValue(raw: string): string {
+  const trimmed = raw.trimEnd();
+  if (!trimmed) return escapeHtml(raw);
+
+  // Inline comment split (only if # preceded by whitespace)
+  const cmtIdx = trimmed.search(/(?<=\s)#/);
+  const main = cmtIdx >= 0 ? trimmed.slice(0, cmtIdx).trimEnd() : trimmed;
+  const cmt = cmtIdx >= 0 ? trimmed.slice(cmtIdx) : '';
+
+  let html: string;
+  if ((main.startsWith('"') && main.endsWith('"')) || (main.startsWith("'") && main.endsWith("'"))) {
+    html = `<span class="yhl-str">${escapeHtml(main)}</span>`;
+  } else if (main === 'true' || main === 'false' || main === 'yes' || main === 'no' || main === 'on' || main === 'off') {
+    html = `<span class="yhl-bool">${escapeHtml(main)}</span>`;
+  } else if (main === 'null' || main === '~' || main === '') {
+    html = `<span class="yhl-null">${escapeHtml(main || 'null')}</span>`;
+  } else if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(main)) {
+    html = `<span class="yhl-num">${escapeHtml(main)}</span>`;
+  } else if (main.startsWith('[')) {
+    html = `<span class="yhl-str">${escapeHtml(main)}</span>`;
+  } else {
+    html = `<span class="yhl-str">${escapeHtml(main)}</span>`;
+  }
+
+  if (cmt) html += ` <span class="yhl-cmt">${escapeHtml(cmt)}</span>`;
+  const trailing = raw.slice(trimmed.length);
+  return html + escapeHtml(trailing);
+}
+
+function highlightYamlLine(line: string): string {
+  const indent = line.match(/^(\s*)/)?.[1] || '';
+  const content = line.slice(indent.length);
+  const ei = escapeHtml(indent);
+
+  if (!content) return ei;
+  if (content.startsWith('#')) return `${ei}<span class="yhl-cmt">${escapeHtml(content)}</span>`;
+
+  // key: value pattern
+  const m = content.match(/^([^:]+?)((\s*:\s*)(.*))$/);
+  if (m) {
+    const key = escapeHtml(m[1]);
+    const colon = escapeHtml(m[3]);
+    const val = m[4];
+    return `${ei}<span class="yhl-key">${key}</span>${colon}${val ? highlightYamlValue(val) : ''}`;
+  }
+
+  // List item: "- value"
+  if (content.startsWith('- ')) {
+    return `${ei}<span class="yhl-dash">-</span> ${highlightYamlValue(content.slice(1))}`;
+  }
+
+  return escapeHtml(line);
+}
+
+const highlightedYaml = computed(() => {
+  if (!rawYaml.value) return '';
+  return rawYaml.value.split('\n').map(highlightYamlLine).join('\n');
+});
+
+function onEditorScroll() {
+  if (yamlPreRef.value && yamlEditorRef.value) {
+    yamlPreRef.value.scrollTop = yamlEditorRef.value.scrollTop;
+    yamlPreRef.value.scrollLeft = yamlEditorRef.value.scrollLeft;
+  }
+}
+
+function onEditorKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const ta = yamlEditorRef.value;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const val = rawYaml.value;
+    rawYaml.value = val.slice(0, start) + '  ' + val.slice(end);
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = start + 2;
+      onRawYamlChange();
+    });
+  }
+}
 
 async function openRawYaml() {
   showRawModal.value = true;
@@ -518,13 +607,23 @@ onMounted(async () => {
         </span>
       </template>
       <NSpin :show="rawYamlLoading">
-        <textarea
-          v-model="rawYaml"
-          class="yaml-editor"
-          :placeholder="t('settings.rawYamlPlaceholder')"
-          spellcheck="false"
-          @input="onRawYamlChange"
-        />
+        <div class="yaml-editor-container">
+          <pre
+            ref="yamlPreRef"
+            class="yaml-highlight-layer"
+            v-html="highlightedYaml"
+          />
+          <textarea
+            ref="yamlEditorRef"
+            v-model="rawYaml"
+            class="yaml-editor"
+            :placeholder="t('settings.rawYamlPlaceholder')"
+            spellcheck="false"
+            @input="onRawYamlChange"
+            @scroll="onEditorScroll"
+            @keydown="onEditorKeyDown"
+          />
+        </div>
       </NSpin>
       <template #footer>
         <div class="yaml-modal-footer">
@@ -861,47 +960,113 @@ onMounted(async () => {
   }
 }
 
-.yaml-editor {
+.yaml-editor-container {
+  position: relative;
   width: 100%;
   height: calc(80vh - 200px);
   min-height: 300px;
-  resize: vertical;
-  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Fira Code', monospace;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text-primary, #333);
-  background: var(--body-color, #fafafa);
   border: 1px solid var(--border-color, #e8e8e8);
   border-radius: 8px;
-  padding: 16px;
-  tab-size: 2;
-  white-space: pre;
-  overflow: auto;
-  box-sizing: border-box;
-  outline: none;
+  overflow: hidden;
   transition: border-color 0.2s ease;
+  box-sizing: border-box;
 
-  &:focus {
+  &:focus-within {
     border-color: var(--primary-color, #6246ea);
     box-shadow: 0 0 0 2px rgba(98, 70, 234, 0.1);
   }
 
-  &::placeholder {
-    color: var(--text-tertiary, #ccc);
-  }
-
-  // Scrollbar
-  &::-webkit-scrollbar {
+  // Scrollbar (shared by both layers)
+  textarea::-webkit-scrollbar,
+  pre::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  &::-webkit-scrollbar-thumb {
+  textarea::-webkit-scrollbar-thumb,
+  pre::-webkit-scrollbar-thumb {
     background: var(--border-color, #d0d0d0);
     border-radius: 3px;
     &:hover {
       background: var(--text-tertiary, #aaa);
     }
   }
+}
+
+.yaml-highlight-layer,
+.yaml-editor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  border: none;
+  outline: none;
+}
+
+.yaml-highlight-layer {
+  // Highlighted text underneath
+  pointer-events: none;
+  z-index: 1;
+  background: var(--body-color, #fafafa);
+  color: var(--text-primary, #333);
+}
+
+.yaml-editor {
+  // Transparent textarea on top
+  z-index: 2;
+  resize: vertical;
+  color: transparent;
+  caret-color: var(--text-primary, #333);
+  background: transparent;
+  -webkit-text-fill-color: transparent;
+
+  &::placeholder {
+    -webkit-text-fill-color: var(--text-tertiary, #ccc);
+    color: var(--text-tertiary, #ccc);
+  }
+}
+
+// ── YAML Token Colors ───────────────────────────────
+.yhl-key {
+  color: #6246ea;
+  font-weight: 500;
+}
+
+.yhl-str {
+  color: #0d9488;
+}
+
+.yhl-num {
+  color: #d97706;
+}
+
+.yhl-bool {
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.yhl-null {
+  color: var(--text-tertiary, #aaa);
+  font-style: italic;
+}
+
+.yhl-cmt {
+  color: var(--text-tertiary, #aaa);
+  font-style: italic;
+}
+
+.yhl-dash {
+  color: var(--text-tertiary, #aaa);
+  font-weight: 600;
 }
 
 .yaml-modal-footer {
