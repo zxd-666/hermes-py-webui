@@ -90,8 +90,10 @@ const platformTag = PLATFORM_MAP[props.fieldKey] ?? null
 
 const selectOptions = computed(() =>
   (props.schema.options || []).map((opt: any) => {
-    // Agent API returns string[]; py-webui used { value, label_i18n }[]
-    if (typeof opt === 'string') return { label: opt, value: opt }
+    if (typeof opt === 'string') {
+      const label = t(`settings.selectOption.${opt}`, opt)
+      return { label, value: opt }
+    }
     return { label: t(opt.label_i18n, opt.label || opt.value), value: opt.value }
   })
 )
