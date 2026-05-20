@@ -20,7 +20,7 @@ import {
 } from "@/api/hermes/config";
 import type { ConfigSchema, ConfigFieldSchema } from "@/api/hermes/config";
 import SchemaField from "@/components/hermes/settings/SchemaField.vue";
-
+import { SCHEMA_SECTION_I18N } from "@/i18n/schemaFieldI18n";
 
 const settingsStore = useSettingsStore();
 const { t, locale } = useI18n();
@@ -36,14 +36,7 @@ const searchQuery = ref("");
 // ── Categories (flat, from agent API) ─────────────
 const categories = computed(() => {
   if (!schema.value) return [];
-  const allCats = [
-    ...new Set(
-      Object.values(schema.value.fields).map((s) => String(s.category ?? "general")),
-    ),
-  ];
-  const ordered = (schema.value.category_order ?? []).filter((c) => allCats.includes(c));
-  const extra = allCats.filter((c) => !ordered.includes(c)).sort();
-  return [...ordered, ...extra];
+  return schema.value.category_order ?? [];
 });
 
 const categoryCounts = computed(() => {
@@ -435,7 +428,7 @@ onMounted(async () => {
             <template v-else-if="activeSections">
               <template v-for="([section, fields], idx) in activeSections" :key="section">
                 <div class="section-divider">
-                  <span class="section-label">{{ t(`settings.schemaSection.${section}`, section.replace(/_/g, ' ')) }}</span>
+                  <span class="section-label">{{ SCHEMA_SECTION_I18N[section] || section.replace(/_/g, ' ') }}</span>
                 </div>
                 <SchemaField
                   v-for="{ key, field } in fields"

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { NSwitch, NInputNumber, NInput, NSelect, NDynamicTags, NTag, useMessage } from 'naive-ui'
 import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useSettingsStore } from '@/stores/hermes/settings'
+import { SCHEMA_FIELD_I18N, SELECT_OPTION_I18N } from "@/i18n/schemaFieldI18n";
+import { useI18n } from "vue-i18n";
+import { useSettingsStore } from "@/stores/hermes/settings";
 import type { ConfigFieldSchema } from '@/api/hermes/config'
 
 // ── Platform tags: mark fields that only work on specific clients ──
@@ -81,18 +82,17 @@ const section = props.fieldKey.split('.')[0]
 const fieldRest = props.fieldKey.split('.').slice(1)  // ["sub1", "sub2", "field"]
 const fieldName = fieldRest.join('_')  // For flat display
 
-// Label: prefer schemaField i18n, fallback to humanized field key
-const i18nLabel = t(`settings.schemaField.${props.fieldKey}.label`, '')
-const label = i18nLabel || fieldName.replace(/_/g, ' ')
-// Hint: prefer schemaField i18n, fallback to agent description
-const hint = t(`settings.schemaField.${props.fieldKey}.description`, '') || (props.schema.description || '')
+// Label: prefer flat i18n map, fallback to humanized field key
+const fieldI18n = SCHEMA_FIELD_I18N[props.fieldKey]
+const label = fieldI18n?.label || fieldName.replace(/_/g, ' ')
+// Hint: prefer flat i18n map, fallback to agent description
+const hint = fieldI18n?.description || (props.schema.description || '')
 const platformTag = PLATFORM_MAP[props.fieldKey] ?? null
 
 const selectOptions = computed(() =>
   (props.schema.options || []).map((opt: any) => {
     if (typeof opt === 'string') {
-      const label = t(`settings.selectOption.${opt}`, opt)
-      return { label, value: opt }
+      return { label: SELECT_OPTION_I18N[opt] ?? opt, value: opt }
     }
     return { label: t(opt.label_i18n, opt.label || opt.value), value: opt.value }
   })
