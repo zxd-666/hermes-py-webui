@@ -191,10 +191,19 @@ def _get_hermes_info() -> dict:
     }
 
 
+def _get_active_sessions() -> list[str]:
+    """Get session IDs with in-flight agent runs."""
+    try:
+        from backend.streaming import get_all_active_session_ids
+        return get_all_active_session_ids()
+    except Exception:
+        return []
+
+
 @router.get("/health")
 async def health():
     info = _get_hermes_info()
-    return {"status": "ok", "service": "hermes-py-webui", **info}
+    return {"status": "ok", "service": "hermes-py-webui", **info, "active_sessions": _get_active_sessions()}
 
 
 @router.get("/api/hermes/lan-access")

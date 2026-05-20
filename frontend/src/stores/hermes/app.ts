@@ -26,6 +26,7 @@ export const useAppStore = defineStore('app', () => {
   const hermesUpdateAvailable = ref(false)
   const hermesCommitsBehind = ref(0)
   const hermesUpdating = ref(false)
+  const globalActiveSessions = ref<Set<string>>(new Set())
 
   // Settings
   const streamEnabled = ref(true)
@@ -57,6 +58,7 @@ export const useAppStore = defineStore('app', () => {
       if (res.hermes_version) hermesVersion.value = res.hermes_version
       hermesUpdateAvailable.value = !!res.hermes_update_available
       hermesCommitsBehind.value = res.hermes_commits_behind || 0
+      globalActiveSessions.value = new Set(res.active_sessions || [])
     } catch {
       connected.value = false
     }
@@ -168,5 +170,6 @@ export const useAppStore = defineStore('app', () => {
     hermesCommitsBehind,
     hermesUpdating,
     doHermesUpdate,
+    globalActiveSessions,
   }
 })

@@ -448,7 +448,7 @@ export const useChatStore = defineStore('chat', () => {
   const visibleSessions = computed<Session[]>(() => sessions.value)
 
   function isSessionLive(sessionId: string): boolean {
-    return streamStates.value.has(sessionId) || serverWorking.value.has(sessionId)
+    return streamStates.value.has(sessionId) || serverWorking.value.has(sessionId) || useAppStore().globalActiveSessions.has(sessionId)
   }
 
   function markInFlight(sid: string, runId: string) {

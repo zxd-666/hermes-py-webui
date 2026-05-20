@@ -176,6 +176,12 @@ def get_active_stream_id(session_id: str) -> str | None:
         return _session_stream_map.get(session_id)
 
 
+def get_all_active_session_ids() -> list[str]:
+    """Return all session IDs that currently have an in-flight run."""
+    with _streams_lock:
+        return list(_session_stream_map.keys())
+
+
 _FILE_LINK_RE = re.compile(r'\[File:\s*([^\]]+)\]\(([^)]+)\)')
 _IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'}
 

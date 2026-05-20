@@ -10,6 +10,7 @@ export interface HealthResponse {
   hermes_version?: string
   hermes_update_available?: boolean
   hermes_commits_behind?: number
+  active_sessions?: string[]
 }
 
 // Config-based model types
