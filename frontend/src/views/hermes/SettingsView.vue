@@ -33,6 +33,28 @@ const schema = ref<ConfigSchema | null>(null);
 const schemaLoading = ref(false);
 const activeCategory = ref("display");
 const searchQuery = ref("");
+const collapsedGroups = ref<Set<string>>(new Set());
+
+function toggleGroup(label: string) {
+  const next = new Set(collapsedGroups.value);
+  if (next.has(label)) next.delete(label);
+  else next.add(label);
+  collapsedGroups.value = next;
+}
+
+// ── Sidebar groups ──────────────────────────────────────
+interface NavGroup {
+  label: string
+  items: { key: string; label: string }[]
+}
+
+const SIDEBAR_GROUPS: Record<string, string[]> = {
+  '核心': ['general', 'display', 'agent', 'delegation', 'memory'],
+  '会话': ['sessions', 'session_reset', 'compression', 'approvals'],
+  '安全': ['security', 'browser', 'tool_loop_guardrails', 'tool_output'],
+  '高级': ['auxiliary', 'tts', 'stt', 'voice', 'web', 'x_search', 'model_catalog', 'kanban', 'curator'],
+  '系统': ['terminal', 'logging', 'lsp', 'human_delay', 'updates'],
+};
 
 // Special tabs that use custom components (not schema-driven)
 const specialTabs = computed(() => [
@@ -40,29 +62,103 @@ const specialTabs = computed(() => [
   { key: "account", label: t("settings.tabs.account") },
 ]);
 
-const schemaTabs = computed(() => {
+const sidebarGroups = computed<NavGroup[]>(() => {
   if (!schema.value) return [];
-  return schema.value.category_order.map((cat) => ({
-    key: cat,
-    label: t(`settings.schemaCategory.${cat}`, cat),
-  }));
+  const allCats = schema.value.category_order;
+  const groups: NavGroup[] = [];
+
+  for (const [groupLabel, catKeys] of Object.entries(SIDEBAR_GROUPS)) {
+    const items = catKeys
+      .filter(cat => allCats.includes(cat))
+      .map(cat => ({
+        key: cat,
+        label: t(`settings.schemaCategory.${cat}`, cat),
+      }));
+    if (items.length > 0) {
+      groups.push({ label: groupLabel, items });
+    }
+  }
+
+  // Collect any uncategorized categories
+  const grouped = new Set(Object.values(SIDEBAR_GROUPS).flat());
+  const ungrouped = allCats
+    .filter(cat => !grouped.has(cat))
+    .map(cat => ({
+      key: cat,
+      label: t(`settings.schemaCategory.${cat}`, cat),
+    }));
+  if (ungrouped.length > 0) {
+    groups.push({ label: '其他', items: ungrouped });
+  }
+
+  return groups;
 });
 
-const allTabs = computed(() => [...schemaTabs.value, ...specialTabs.value]);
+// Flat tab list for search + activeFields logic
+const allTabs = computed(() => {
+  const flat: { key: string; label: string }[] = [];
+  for (const group of sidebarGroups.value) {
+    flat.push(...group.items);
+  }
+  flat.push(...specialTabs.value);
+  return flat;
+});
 
-const activeFields = computed(() => {
-  if (!schema.value) return [];
+// Auxiliary sub-group labels (key → display name)
+const AUX_SUBGROUP_LABELS: Record<string, string> = {
+  vision: '视觉模型',
+  approval: '审批模型',
+  compression: '压缩模型',
+  curator: '策展模型',
+  kanban_decomposer: '看板分解模型',
+  mcp: 'MCP 模型',
+  profile_describer: '描述器模型',
+  skills_hub: '技能中心模型',
+  title_generation: '标题生成模型',
+  triage_specifier: '分类模型',
+  web_extract: '网页提取模型',
+};
+
+interface FieldEntry { key: string; field: ConfigFieldSchema }
+interface SubGroup { label: string; slug: string; fields: FieldEntry[] }
+
+const activeFields = computed<FieldEntry[]>(() => {
+  if (!schema.value || activeCategory.value === 'auxiliary') return [];
   const q = searchQuery.value.trim().toLowerCase();
   return Object.entries(schema.value.fields)
     .filter(([_, field]) => {
-      const matchesCategory = field.category === activeCategory.value;
-      if (!matchesCategory) return false;
+      if (field.category !== activeCategory.value) return false;
       if (!q) return true;
       const label = t(field.label_i18n, "").toLowerCase();
       const hint = t(field.hint_i18n, "").toLowerCase();
       return label.includes(q) || hint.includes(q) || field.category.includes(q);
     })
     .map(([key, field]) => ({ key, field }));
+});
+
+const auxiliarySubGroups = computed<SubGroup[]>(() => {
+  if (!schema.value || activeCategory.value !== 'auxiliary') return [];
+  const q = searchQuery.value.trim().toLowerCase();
+  const grouped = new Map<string, FieldEntry[]>();
+
+  for (const [key, field] of Object.entries(schema.value.fields)) {
+    if (field.category !== 'auxiliary') continue;
+    if (q) {
+      const label = t(field.label_i18n, "").toLowerCase();
+      const hint = t(field.hint_i18n, "").toLowerCase();
+      if (!label.includes(q) && !hint.includes(q) && !key.includes(q)) continue;
+    }
+    const parts = key.split('.');
+    const slug = parts.length >= 3 ? parts[1] : '_other';
+    if (!grouped.has(slug)) grouped.set(slug, []);
+    grouped.get(slug)!.push({ key, field });
+  }
+
+  return Array.from(grouped.entries()).map(([slug, fields]) => ({
+    label: AUX_SUBGROUP_LABELS[slug] || slug,
+    slug,
+    fields,
+  }));
 });
 
 const isSpecialTab = computed(() =>
@@ -259,15 +355,18 @@ onMounted(async () => {
     <header class="page-header">
       <h2 class="header-title">{{ t("settings.title") }}</h2>
       <div class="header-actions">
-        <NSpace :size="8">
+        <NSpace :size="4">
           <NButton size="small" quaternary @click="downloadJson">
-            📥 {{ t("settings.exportJson") }}
+            <template #icon><span class="btn-icon">↓</span></template>
+            {{ t("settings.exportJson") }}
           </NButton>
           <NButton size="small" quaternary @click="triggerImport">
-            📤 {{ t("settings.importJson") }}
+            <template #icon><span class="btn-icon">↑</span></template>
+            {{ t("settings.importJson") }}
           </NButton>
           <NButton size="small" quaternary @click="openRawYaml">
-            🔧 {{ t("settings.rawYaml") }}
+            <template #icon><span class="btn-icon">⟨⟩</span></template>
+            {{ t("settings.rawYaml") }}
           </NButton>
         </NSpace>
       </div>
@@ -285,10 +384,32 @@ onMounted(async () => {
           />
         </div>
         <nav class="sidebar-nav">
+          <template v-for="group in sidebarGroups" :key="group.label">
+            <div
+              class="nav-group-header"
+              @click="toggleGroup(group.label)"
+            >
+              <span class="group-chevron" :class="{ collapsed: collapsedGroups.has(group.label) }">▸</span>
+              <span class="group-label">{{ group.label }}</span>
+              <span class="group-count">{{ group.items.length }}</span>
+            </div>
+            <div v-show="!collapsedGroups.has(group.label)" class="nav-group-items">
+              <div
+                v-for="tab in group.items"
+                :key="tab.key"
+                class="nav-item"
+                :class="{ active: activeCategory === tab.key }"
+                @click="activeCategory = tab.key"
+              >
+                <span class="nav-label">{{ tab.label }}</span>
+              </div>
+            </div>
+          </template>
+          <div class="sidebar-divider" />
           <div
-            v-for="tab in allTabs"
+            v-for="tab in specialTabs"
             :key="tab.key"
-            class="nav-item"
+            class="nav-item nav-item--special"
             :class="{ active: activeCategory === tab.key }"
             @click="activeCategory = tab.key"
           >
@@ -314,7 +435,40 @@ onMounted(async () => {
             <AccountSettings />
           </div>
 
-          <!-- Schema-driven -->
+          <!-- Schema-driven: Auxiliary (sub-grouped) -->
+          <div v-else-if="activeCategory === 'auxiliary'" class="settings-content">
+            <div class="content-header">
+              <h3 class="content-title">
+                {{ t(`settings.schemaCategory.auxiliary`, 'auxiliary') }}
+              </h3>
+              <NButton
+                size="tiny"
+                quaternary
+                @click="resetCategory('auxiliary')"
+              >
+                ↺ {{ t("settings.resetDefaults") }}
+              </NButton>
+            </div>
+            <template v-if="auxiliarySubGroups.length > 0">
+              <div
+                v-for="sub in auxiliarySubGroups"
+                :key="sub.slug"
+                class="aux-subgroup"
+              >
+                <div class="aux-subgroup-title">{{ sub.label }}</div>
+                <SchemaField
+                  v-for="{ key, field } in sub.fields"
+                  :key="key"
+                  :field-key="key"
+                  :schema="field"
+                  :value="getFieldValue(key)"
+                />
+              </div>
+            </template>
+            <NEmpty v-else :description="t('settings.noFields')" />
+          </div>
+
+          <!-- Schema-driven: Regular -->
           <div v-else class="settings-content">
             <div class="content-header">
               <h3 class="content-title">
@@ -399,20 +553,27 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 20px;
   flex-shrink: 0;
   border-bottom: 1px solid $border-light;
 
   h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: $text-primary;
+    letter-spacing: -0.01em;
   }
 }
 
 .header-actions {
   flex-shrink: 0;
+}
+
+.btn-icon {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
 }
 
 .settings-layout {
@@ -423,7 +584,7 @@ onMounted(async () => {
 
 // ── Sidebar ──────────────────────────────────────────
 .settings-sidebar {
-  width: 200px;
+  width: $sidebar-width + 40px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -443,13 +604,69 @@ onMounted(async () => {
   flex-direction: column;
   gap: 2px;
   padding-right: 12px;
+
+  // Thin scrollbar
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color, #e0e0e0);
+    border-radius: 2px;
+  }
+}
+
+// Group header
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 10px 4px;
+  cursor: pointer;
+  user-select: none;
+
+  .group-chevron {
+    font-size: 10px;
+    color: var(--text-tertiary, #aaa);
+    transition: transform 0.2s ease;
+    display: inline-block;
+
+    &.collapsed {
+      transform: rotate(-90deg);
+    }
+  }
+
+  .group-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary, #aaa);
+  }
+
+  .group-count {
+    font-size: 10px;
+    color: var(--text-tertiary, #bbb);
+    margin-left: auto;
+  }
+}
+
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: $border-light;
+  margin: 8px 10px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 7px 10px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: $radius-sm;
   cursor: pointer;
   font-size: 13px;
   color: var(--text-secondary, #999);
@@ -462,9 +679,14 @@ onMounted(async () => {
   }
 
   &.active {
-    background: var(--primary-color-hover, rgba(99, 102, 241, 0.1));
-    color: var(--primary-color, #6366f1);
+    background: var(--primary-color-hover, rgba(98, 70, 234, 0.08));
+    color: var(--primary-color, #6246ea);
     font-weight: 500;
+  }
+
+  &--special {
+    color: var(--text-secondary, #888);
+    font-size: 12.5px;
   }
 }
 
@@ -519,6 +741,31 @@ onMounted(async () => {
   font-weight: 600;
   color: var(--text-primary, #333);
   margin: 0;
+  letter-spacing: -0.01em;
+}
+
+// ── Auxiliary sub-groups ─────────────────────────────
+.aux-subgroup {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+
+  &:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+}
+
+.aux-subgroup-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-color, #eee);
 }
 
 @media (max-width: $breakpoint-mobile) {
@@ -542,6 +789,19 @@ onMounted(async () => {
     gap: 0;
     padding-right: 0;
     padding-bottom: 8px;
+
+    .nav-group-header {
+      display: none;
+    }
+
+    .nav-group-items {
+      flex-direction: row;
+      gap: 0;
+    }
+
+    .sidebar-divider {
+      display: none;
+    }
   }
 
   .nav-item {
