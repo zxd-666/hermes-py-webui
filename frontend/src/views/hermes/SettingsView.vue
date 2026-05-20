@@ -53,7 +53,9 @@ const SIDEBAR_GROUPS: Record<string, string[]> = {
   '会话': ['sessions', 'session_reset', 'compression', 'approvals'],
   '安全': ['security', 'browser', 'tool_loop_guardrails', 'tool_output'],
   '高级': ['auxiliary', 'tts', 'stt', 'voice', 'web', 'x_search', 'model_catalog', 'kanban', 'curator'],
-  '系统': ['terminal', 'logging', 'lsp', 'human_delay', 'updates'],
+  '平台': ['platforms', 'discord', 'telegram', 'slack', 'matrix', 'mattermost', 'feishu'],
+  'Provider': ['model', 'fallback_model', 'openrouter', 'bedrock', 'providers'],
+  '系统': ['terminal', 'logging', 'lsp', 'human_delay', 'updates', 'gateway', 'streaming', 'onboarding', 'plugins', 'toolsets', 'hidden_providers'],
 };
 
 // Special tabs that use custom components (not schema-driven)
@@ -218,6 +220,51 @@ const totalFieldCount = computed(() =>
   schema.value ? Object.keys(schema.value.fields).length : 0
 );
 
+// ── Nested key mapping for platforms section ────────
+const NESTED_KEY_MAP: Record<string, Record<string, string[]>> = {
+  platforms: {
+    api_server_extra_host: ['api_server', 'extra', 'host'],
+    api_server_extra_port: ['api_server', 'extra', 'port'],
+    feishu_extra_app_id: ['feishu', 'extra', 'app_id'],
+    feishu_extra_app_secret: ['feishu', 'extra', 'app_secret'],
+    wecom_extra_bot_id: ['wecom', 'extra', 'bot_id'],
+    wecom_extra_secret: ['wecom', 'extra', 'secret'],
+    discord_enabled: ['discord', 'enabled'],
+    telegram_enabled: ['telegram', 'enabled'],
+    weixin_enabled: ['weixin', 'enabled'],
+  },
+  onboarding: {
+    seen_busy_input_prompt: ['seen', 'busy_input_prompt'],
+    seen_openclaw_residue_cleanup: ['seen', 'openclaw_residue_cleanup'],
+    seen_tool_progress_prompt: ['seen', 'tool_progress_prompt'],
+  },
+  gateway: {
+    platforms_telegram_enabled: ['platforms', 'telegram', 'enabled'],
+  },
+  providers: {
+    request_timeout_seconds: ['custom:zai', 'request_timeout_seconds'],
+    stale_timeout_seconds: ['custom:zai', 'stale_timeout_seconds'],
+  },
+  bedrock: {
+    discovery_enabled: ['discovery', 'enabled'],
+    discovery_provider_filter: ['discovery', 'provider_filter'],
+    discovery_refresh_interval: ['discovery', 'refresh_interval'],
+    guardrail_identifier: ['guardrail', 'guardrail_identifier'],
+    guardrail_version: ['guardrail', 'guardrail_version'],
+    guardrail_stream_processing_mode: ['guardrail', 'stream_processing_mode'],
+    guardrail_trace: ['guardrail', 'trace'],
+  },
+};
+
+function resolveNested(obj: any, path: string[]): any {
+  let current = obj;
+  for (const step of path) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = current[step];
+  }
+  return current;
+}
+
 // ── Config value getter ───────────────────────────────
 function getFieldValue(key: string): any {
   const [section, ...rest] = key.split(".");
@@ -232,9 +279,44 @@ function getFieldValue(key: string): any {
     approvals: settingsStore.approvals,
     human_delay: settingsStore.humanDelay,
     security: settingsStore.security,
+    // Platform sections
+    platforms: settingsStore.platforms,
+    discord: settingsStore.discord,
+    telegram: settingsStore.telegram,
+    slack: settingsStore.slack,
+    matrix: settingsStore.matrix,
+    feishu: settingsStore.feishu,
+    // Provider sections
+    openrouter: (settingsStore as any).openrouter,
+    bedrock: (settingsStore as any).bedrock,
+    model: (settingsStore as any).model,
+    fallback_model: settingsStore.fallbackModel,
+    providers: (settingsStore as any).providers,
+    // System sections
+    gateway: (settingsStore as any).gateway,
+    streaming: (settingsStore as any).streaming,
+    onboarding: (settingsStore as any).onboarding,
+    plugins: (settingsStore as any).plugins,
+    toolsets: (settingsStore as any).toolsets,
+    hidden_providers: (settingsStore as any).hidden_providers,
+    mattermost: (settingsStore as any).mattermost,
   };
   const sectionData = storeMap[section];
-  return sectionData?.[field] ?? undefined;
+  if (sectionData?.[field] !== undefined) return sectionData[field];
+  // Check nested key mapping
+  const nestedMap = NESTED_KEY_MAP[section];
+  if (nestedMap && nestedMap[field]) {
+    const val = resolveNested(sectionData, nestedMap[field]);
+    if (val !== undefined) return val;
+  }
+  // Fallback: generic config ref for sections without typed store
+  const cfgSection = settingsStore.config?.[section];
+  if (cfgSection?.[field] !== undefined) return cfgSection[field];
+  if (nestedMap) {
+    const val = resolveNested(cfgSection, nestedMap[field]);
+    if (val !== undefined) return val;
+  }
+  return undefined;
 }
 
 // ── Reset to defaults ─────────────────────────────────

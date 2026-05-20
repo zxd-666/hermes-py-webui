@@ -252,7 +252,57 @@ async def update_config(req: Request, body: dict):
     cfg = _load_hermes_config(profile)
     if section not in cfg:
         cfg[section] = {}
-    cfg[section].update(values)
+
+    # Expand nested keys (e.g. "api_server_extra_host" → api_server.extra.host)
+    _NESTED_KEY_MAP = {
+        "platforms": {
+            "api_server_extra_host": ["api_server", "extra", "host"],
+            "api_server_extra_port": ["api_server", "extra", "port"],
+            "feishu_extra_app_id": ["feishu", "extra", "app_id"],
+            "feishu_extra_app_secret": ["feishu", "extra", "app_secret"],
+            "wecom_extra_bot_id": ["wecom", "extra", "bot_id"],
+            "wecom_extra_secret": ["wecom", "extra", "secret"],
+            "discord_enabled": ["discord", "enabled"],
+            "telegram_enabled": ["telegram", "enabled"],
+            "weixin_enabled": ["weixin", "enabled"],
+        },
+        "onboarding": {
+            "seen_busy_input_prompt": ["seen", "busy_input_prompt"],
+            "seen_openclaw_residue_cleanup": ["seen", "openclaw_residue_cleanup"],
+            "seen_tool_progress_prompt": ["seen", "tool_progress_prompt"],
+        },
+        "gateway": {
+            "platforms_telegram_enabled": ["platforms", "telegram", "enabled"],
+        },
+        "providers": {
+            "request_timeout_seconds": ["custom:zai", "request_timeout_seconds"],
+            "stale_timeout_seconds": ["custom:zai", "stale_timeout_seconds"],
+        },
+        "bedrock": {
+            "discovery_enabled": ["discovery", "enabled"],
+            "discovery_provider_filter": ["discovery", "provider_filter"],
+            "discovery_refresh_interval": ["discovery", "refresh_interval"],
+            "guardrail_identifier": ["guardrail", "guardrail_identifier"],
+            "guardrail_version": ["guardrail", "guardrail_version"],
+            "guardrail_stream_processing_mode": ["guardrail", "stream_processing_mode"],
+            "guardrail_trace": ["guardrail", "trace"],
+        },
+    }
+
+    nested_map = _NESTED_KEY_MAP.get(section, {})
+    for key, val in values.items():
+        path = nested_map.get(key)
+        if path:
+            # Navigate/create nested path
+            target = cfg[section]
+            for step in path[:-1]:
+                if step not in target or not isinstance(target[step], dict):
+                    target[step] = {}
+                target = target[step]
+            target[path[-1]] = val
+        else:
+            cfg[section][key] = val
+
     _save_hermes_config(cfg, profile)
     needs_restart = False
     if section in _GATEWAY_PLATFORM_SECTIONS:
@@ -942,8 +992,425 @@ CONFIG_SCHEMA = {
         "x_search",
         "model_catalog",
         "updates",
+        "platforms",
+        "discord",
+        "telegram",
+        "slack",
+        "matrix",
+        "mattermost",
+        "feishu",
+        "openrouter",
+        "bedrock",
+        "model",
+        "fallback_model",
+        "providers",
+        "gateway",
+        "streaming",
+        "onboarding",
+        "plugins",
+        "toolsets",
+        "hidden_providers",
     ],
     "fields": {
+        # ══════════════════════════════════════════════════════════
+        # ── platforms (平台连接) ─────────────────────────────────
+        # ══════════════════════════════════════════════════════════
+    "platforms.api_server_cors_origins": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.api_server_cors_origins",
+        "hint_i18n": "settings.platforms.api_server_cors_originsHint"
+    },
+    "platforms.api_server_enabled": {
+        "type": "boolean", "category": "platforms",
+        "label_i18n": "settings.platforms.api_server_enabled",
+        "hint_i18n": "settings.platforms.api_server_enabledHint"
+    },
+    "platforms.api_server_extra_host": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.api_server_extra_host",
+        "hint_i18n": "settings.platforms.api_server_extra_hostHint"
+    },
+    "platforms.api_server_extra_port": {
+        "type": "integer", "category": "platforms",
+        "label_i18n": "settings.platforms.api_server_extra_port",
+        "hint_i18n": "settings.platforms.api_server_extra_portHint",
+        "min": 0, "max": 65535, "step": 1
+    },
+    "platforms.api_server_key": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.api_server_key",
+        "hint_i18n": "settings.platforms.api_server_keyHint"
+    },
+    "platforms.discord_enabled": {
+        "type": "boolean", "category": "platforms",
+        "label_i18n": "settings.platforms.discord_enabled",
+        "hint_i18n": "settings.platforms.discord_enabledHint"
+    },
+    "platforms.feishu_extra_app_id": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.feishu_extra_app_id",
+        "hint_i18n": "settings.platforms.feishu_extra_app_idHint"
+    },
+    "platforms.feishu_extra_app_secret": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.feishu_extra_app_secret",
+        "hint_i18n": "settings.platforms.feishu_extra_app_secretHint"
+    },
+    "platforms.telegram_enabled": {
+        "type": "boolean", "category": "platforms",
+        "label_i18n": "settings.platforms.telegram_enabled",
+        "hint_i18n": "settings.platforms.telegram_enabledHint"
+    },
+    "platforms.wecom_extra_bot_id": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.wecom_extra_bot_id",
+        "hint_i18n": "settings.platforms.wecom_extra_bot_idHint"
+    },
+    "platforms.wecom_extra_secret": {
+        "type": "string", "category": "platforms",
+        "label_i18n": "settings.platforms.wecom_extra_secret",
+        "hint_i18n": "settings.platforms.wecom_extra_secretHint"
+    },
+    "platforms.weixin_enabled": {
+        "type": "boolean", "category": "platforms",
+        "label_i18n": "settings.platforms.weixin_enabled",
+        "hint_i18n": "settings.platforms.weixin_enabledHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── discord ──────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "discord.allow_any_attachment": {
+        "type": "boolean", "category": "discord",
+        "label_i18n": "settings.discord.allow_any_attachment",
+        "hint_i18n": "settings.discord.allow_any_attachmentHint"
+    },
+    "discord.allowed_channels": {
+        "type": "string", "category": "discord",
+        "label_i18n": "settings.discord.allowed_channels",
+        "hint_i18n": "settings.discord.allowed_channelsHint"
+    },
+    "discord.auto_thread": {
+        "type": "boolean", "category": "discord",
+        "label_i18n": "settings.discord.auto_thread",
+        "hint_i18n": "settings.discord.auto_threadHint"
+    },
+    "discord.dm_role_auth_guild": {
+        "type": "string", "category": "discord",
+        "label_i18n": "settings.discord.dm_role_auth_guild",
+        "hint_i18n": "settings.discord.dm_role_auth_guildHint"
+    },
+    "discord.free_response_channels": {
+        "type": "string", "category": "discord",
+        "label_i18n": "settings.discord.free_response_channels",
+        "hint_i18n": "settings.discord.free_response_channelsHint"
+    },
+    "discord.history_backfill": {
+        "type": "boolean", "category": "discord",
+        "label_i18n": "settings.discord.history_backfill",
+        "hint_i18n": "settings.discord.history_backfillHint"
+    },
+    "discord.history_backfill_limit": {
+        "type": "integer", "category": "discord",
+        "label_i18n": "settings.discord.history_backfill_limit",
+        "hint_i18n": "settings.discord.history_backfill_limitHint",
+        "min": 1, "max": 1000, "step": 1
+    },
+    "discord.max_attachment_bytes": {
+        "type": "integer", "category": "discord",
+        "label_i18n": "settings.discord.max_attachment_bytes",
+        "hint_i18n": "settings.discord.max_attachment_bytesHint"
+    },
+    "discord.reactions": {
+        "type": "boolean", "category": "discord",
+        "label_i18n": "settings.discord.reactions",
+        "hint_i18n": "settings.discord.reactionsHint"
+    },
+    "discord.require_mention": {
+        "type": "boolean", "category": "discord",
+        "label_i18n": "settings.discord.require_mention",
+        "hint_i18n": "settings.discord.require_mentionHint"
+    },
+    "discord.server_actions": {
+        "type": "string", "category": "discord",
+        "label_i18n": "settings.discord.server_actions",
+        "hint_i18n": "settings.discord.server_actionsHint"
+    },
+    "discord.thread_require_mention": {
+        "type": "boolean", "category": "discord",
+        "label_i18n": "settings.discord.thread_require_mention",
+        "hint_i18n": "settings.discord.thread_require_mentionHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── telegram ─────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "telegram.allowed_chats": {
+        "type": "string", "category": "telegram",
+        "label_i18n": "settings.telegram.allowed_chats",
+        "hint_i18n": "settings.telegram.allowed_chatsHint"
+    },
+    "telegram.free_response_chats": {
+        "type": "string", "category": "telegram",
+        "label_i18n": "settings.telegram.free_response_chats",
+        "hint_i18n": "settings.telegram.free_response_chatsHint"
+    },
+    "telegram.reactions": {
+        "type": "boolean", "category": "telegram",
+        "label_i18n": "settings.telegram.reactions",
+        "hint_i18n": "settings.telegram.reactionsHint"
+    },
+    "telegram.token": {
+        "type": "string", "category": "telegram",
+        "label_i18n": "settings.telegram.token",
+        "hint_i18n": "settings.telegram.tokenHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── slack ────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "slack.allowed_channels": {
+        "type": "string", "category": "slack",
+        "label_i18n": "settings.slack.allowed_channels",
+        "hint_i18n": "settings.slack.allowed_channelsHint"
+    },
+    "slack.free_response_channels": {
+        "type": "string", "category": "slack",
+        "label_i18n": "settings.slack.free_response_channels",
+        "hint_i18n": "settings.slack.free_response_channelsHint"
+    },
+    "slack.require_mention": {
+        "type": "boolean", "category": "slack",
+        "label_i18n": "settings.slack.require_mention",
+        "hint_i18n": "settings.slack.require_mentionHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── matrix ───────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "matrix.allowed_rooms": {
+        "type": "string", "category": "matrix",
+        "label_i18n": "settings.matrix.allowed_rooms",
+        "hint_i18n": "settings.matrix.allowed_roomsHint"
+    },
+    "matrix.free_response_rooms": {
+        "type": "string", "category": "matrix",
+        "label_i18n": "settings.matrix.free_response_rooms",
+        "hint_i18n": "settings.matrix.free_response_roomsHint"
+    },
+    "matrix.require_mention": {
+        "type": "boolean", "category": "matrix",
+        "label_i18n": "settings.matrix.require_mention",
+        "hint_i18n": "settings.matrix.require_mentionHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── mattermost ───────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "mattermost.allowed_channels": {
+        "type": "string", "category": "mattermost",
+        "label_i18n": "settings.mattermost.allowed_channels",
+        "hint_i18n": "settings.mattermost.allowed_channelsHint"
+    },
+    "mattermost.free_response_channels": {
+        "type": "string", "category": "mattermost",
+        "label_i18n": "settings.mattermost.free_response_channels",
+        "hint_i18n": "settings.mattermost.free_response_channelsHint"
+    },
+    "mattermost.require_mention": {
+        "type": "boolean", "category": "mattermost",
+        "label_i18n": "settings.mattermost.require_mention",
+        "hint_i18n": "settings.mattermost.require_mentionHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── feishu ───────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "feishu.free_response_chats": {
+        "type": "string", "category": "feishu",
+        "label_i18n": "settings.feishu.free_response_chats",
+        "hint_i18n": "settings.feishu.free_response_chatsHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── openrouter (Provider) ────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "openrouter.min_coding_score": {
+        "type": "number", "category": "openrouter",
+        "label_i18n": "settings.openrouter.min_coding_score",
+        "hint_i18n": "settings.openrouter.min_coding_scoreHint",
+        "min": 0, "max": 1, "step": 0.05
+    },
+    "openrouter.response_cache": {
+        "type": "boolean", "category": "openrouter",
+        "label_i18n": "settings.openrouter.response_cache",
+        "hint_i18n": "settings.openrouter.response_cacheHint"
+    },
+    "openrouter.response_cache_ttl": {
+        "type": "integer", "category": "openrouter",
+        "label_i18n": "settings.openrouter.response_cache_ttl",
+        "hint_i18n": "settings.openrouter.response_cache_ttlHint",
+        "min": 0, "max": 3600, "step": 1
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── bedrock (Provider) ───────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "bedrock.discovery_enabled": {
+        "type": "boolean", "category": "bedrock",
+        "label_i18n": "settings.bedrock.discovery_enabled",
+        "hint_i18n": "settings.bedrock.discovery_enabledHint"
+    },
+    "bedrock.discovery_provider_filter": {
+        "type": "list", "category": "bedrock",
+        "label_i18n": "settings.bedrock.discovery_provider_filter",
+        "hint_i18n": "settings.bedrock.discovery_provider_filterHint"
+    },
+    "bedrock.discovery_refresh_interval": {
+        "type": "integer", "category": "bedrock",
+        "label_i18n": "settings.bedrock.discovery_refresh_interval",
+        "hint_i18n": "settings.bedrock.discovery_refresh_intervalHint",
+        "min": 0, "max": 86400, "step": 1
+    },
+    "bedrock.guardrail_identifier": {
+        "type": "string", "category": "bedrock",
+        "label_i18n": "settings.bedrock.guardrail_identifier",
+        "hint_i18n": "settings.bedrock.guardrail_identifierHint"
+    },
+    "bedrock.guardrail_version": {
+        "type": "string", "category": "bedrock",
+        "label_i18n": "settings.bedrock.guardrail_version",
+        "hint_i18n": "settings.bedrock.guardrail_versionHint"
+    },
+    "bedrock.guardrail_stream_processing_mode": {
+        "type": "string", "category": "bedrock",
+        "label_i18n": "settings.bedrock.guardrail_stream_processing_mode",
+        "hint_i18n": "settings.bedrock.guardrail_stream_processing_modeHint"
+    },
+    "bedrock.guardrail_trace": {
+        "type": "string", "category": "bedrock",
+        "label_i18n": "settings.bedrock.guardrail_trace",
+        "hint_i18n": "settings.bedrock.guardrail_traceHint"
+    },
+    "bedrock.region": {
+        "type": "string", "category": "bedrock",
+        "label_i18n": "settings.bedrock.region",
+        "hint_i18n": "settings.bedrock.regionHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── model (默认模型) ─────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "model.default": {
+        "type": "string", "category": "model",
+        "label_i18n": "settings.model.default",
+        "hint_i18n": "settings.model.defaultHint"
+    },
+    "model.provider": {
+        "type": "string", "category": "model",
+        "label_i18n": "settings.model.provider",
+        "hint_i18n": "settings.model.providerHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── fallback_model (后备模型) ────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "fallback_model.model": {
+        "type": "string", "category": "fallback_model",
+        "label_i18n": "settings.fallback_model.model",
+        "hint_i18n": "settings.fallback_model.modelHint"
+    },
+    "fallback_model.provider": {
+        "type": "string", "category": "fallback_model",
+        "label_i18n": "settings.fallback_model.provider",
+        "hint_i18n": "settings.fallback_model.providerHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── providers (超时配置) ─────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "providers.custom:zai.request_timeout_seconds": {
+        "type": "integer", "category": "providers",
+        "label_i18n": "settings.providers.request_timeout_seconds",
+        "hint_i18n": "settings.providers.request_timeout_secondsHint",
+        "min": 1, "max": 600, "step": 1
+    },
+    "providers.custom:zai.stale_timeout_seconds": {
+        "type": "integer", "category": "providers",
+        "label_i18n": "settings.providers.stale_timeout_seconds",
+        "hint_i18n": "settings.providers.stale_timeout_secondsHint",
+        "min": 1, "max": 600, "step": 1
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── gateway ──────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "gateway.platforms_telegram_enabled": {
+        "type": "boolean", "category": "gateway",
+        "label_i18n": "settings.gateway.platforms_telegram_enabled",
+        "hint_i18n": "settings.gateway.platforms_telegram_enabledHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── streaming ────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "streaming.enabled": {
+        "type": "boolean", "category": "streaming",
+        "label_i18n": "settings.streaming.enabled",
+        "hint_i18n": "settings.streaming.enabledHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── onboarding ───────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "onboarding.seen_busy_input_prompt": {
+        "type": "boolean", "category": "onboarding",
+        "label_i18n": "settings.onboarding.seen_busy_input_prompt",
+        "hint_i18n": "settings.onboarding.seen_busy_input_promptHint"
+    },
+    "onboarding.seen_openclaw_residue_cleanup": {
+        "type": "boolean", "category": "onboarding",
+        "label_i18n": "settings.onboarding.seen_openclaw_residue_cleanup",
+        "hint_i18n": "settings.onboarding.seen_openclaw_residue_cleanupHint"
+    },
+    "onboarding.seen_tool_progress_prompt": {
+        "type": "boolean", "category": "onboarding",
+        "label_i18n": "settings.onboarding.seen_tool_progress_prompt",
+        "hint_i18n": "settings.onboarding.seen_tool_progress_promptHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── plugins ──────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "plugins.enabled": {
+        "type": "list", "category": "plugins",
+        "label_i18n": "settings.plugins.enabled",
+        "hint_i18n": "settings.plugins.enabledHint"
+    },
+    "plugins.disabled": {
+        "type": "list", "category": "plugins",
+        "label_i18n": "settings.plugins.disabled",
+        "hint_i18n": "settings.plugins.disabledHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── toolsets ─────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "toolsets._list": {
+        "type": "list", "category": "toolsets",
+        "label_i18n": "settings.toolsets._list",
+        "hint_i18n": "settings.toolsets._listHint"
+    },
+
+    # ══════════════════════════════════════════════════════════
+    # ── hidden_providers ─────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    "hidden_providers._list": {
+        "type": "list", "category": "hidden_providers",
+        "label_i18n": "settings.hidden_providers._list",
+        "hint_i18n": "settings.hidden_providers._listHint"
+    },
+
         # ── 通用 (general) ── 新增 ──
         "command_allowlist": {
             "type": "list", "category": "general",

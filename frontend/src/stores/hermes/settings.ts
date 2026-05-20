@@ -35,6 +35,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const dingtalk = ref<Record<string, any>>({})
   const weixin = ref<Record<string, any>>({})
   const platforms = ref<Record<string, any>>({})
+  // Generic config ref for sections without typed store
+  const config = ref<Record<string, any>>({})
 
   async function fetchSettings() {
     loading.value = true
@@ -66,6 +68,8 @@ export const useSettingsStore = defineStore('settings', () => {
       dingtalk.value = data.dingtalk || {}
       weixin.value = data.weixin || {}
       platforms.value = creds
+      // Store full config for generic section access
+      config.value = data
     } catch (err) {
       console.error('Failed to fetch settings:', err)
     } finally {
@@ -128,6 +132,7 @@ export const useSettingsStore = defineStore('settings', () => {
     privacy, compression, fallbackModel, auxiliary,
     approvals, humanDelay, security,
     telegram, discord, slack, whatsapp, matrix, wecom, feishu, dingtalk, weixin, platforms,
+    config,
     fetchSettings, saveSection,
   }
 })
