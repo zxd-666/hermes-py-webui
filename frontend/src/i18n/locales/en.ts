@@ -104,6 +104,8 @@ export default {
     updating: 'Updating...',
     updateSuccess: 'Update complete, please restart the server',
     updateFailed: 'Update failed',
+    hermesUpdate: 'Update Hermes ({count} commits)',
+    hermesUpdateSuccess: 'Hermes updated successfully',
     logout: 'Sign Out',
     nodeVersionWarning: 'Detected Node.js v{version}. Please upgrade to version 23 or later.',
     changelog: 'Changelog',

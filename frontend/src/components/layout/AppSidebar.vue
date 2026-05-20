@@ -69,6 +69,15 @@ async function handleUpdate() {
   }
 }
 
+async function handleHermesUpdate() {
+  const ok = await appStore.doHermesUpdate();
+  if (ok) {
+    message.success(t('sidebar.hermesUpdateSuccess'), { duration: 5000 });
+  } else {
+    message.error(t('sidebar.updateFailed'));
+  }
+}
+
 function handleLogout() {
   localStorage.clear();
   router.replace({ name: 'login' });
@@ -276,7 +285,22 @@ function handleLogout() {
         <ThemeSwitch />
         <LanguageSwitch />
       </div>
-      <NButton v-if="appStore.updateAvailable" type="primary" size="tiny" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
+      <!-- Hermes 版本号 -->
+      <div v-if="appStore.hermesVersion" class="hermes-version">
+        <svg v-if="appStore.hermesUpdateAvailable" class="update-dot" width="6" height="6" viewBox="0 0 6 6" fill="none">
+          <circle cx="3" cy="3" r="3" fill="#f0a020"/>
+        </svg>
+        <span class="version-text">Hermes V{{ appStore.hermesVersion }}</span>
+        <button v-if="appStore.hermesUpdateAvailable && !appStore.hermesUpdating" class="download-icon" :title="t('sidebar.hermesUpdate')" @click="handleHermesUpdate">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
+        <span v-if="appStore.hermesUpdating" class="updating-text">{{ t('sidebar.updating') }}</span>
+      </div>
+      <NButton v-else-if="appStore.updateAvailable" type="primary" size="tiny" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
         {{ appStore.updating ? t('sidebar.updating') : t('sidebar.updateVersion', { version: appStore.latestVersion }) }}
       </NButton>
     </div>
@@ -436,6 +460,54 @@ function handleLogout() {
 .update-btn {
   margin: 4px 0 0;
   border-radius: 4px;
+}
+
+.hermes-version {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: $text-muted;
+
+  .version-text {
+    color: $text-secondary;
+  }
+
+  .update-dot {
+    flex-shrink: 0;
+  }
+
+  .download-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    padding: 2px;
+    border: none;
+    background: none;
+    color: $text-muted;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+
+    &:hover {
+      color: $accent-primary;
+      background-color: rgba(var(--accent-primary-rgb), 0.08);
+    }
+  }
+
+  .updating-text {
+    margin-left: auto;
+    color: $text-muted;
+    font-size: 11px;
+    animation: pulse-opacity 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 // Hidden state

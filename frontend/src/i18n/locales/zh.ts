@@ -104,6 +104,8 @@ export default {
     updating: '正在更新...',
     updateSuccess: '更新完成，请重启服务',
     updateFailed: '更新失败',
+    hermesUpdate: '更新 Hermes（{count} commit）',
+    hermesUpdateSuccess: 'Hermes 更新完成',
     logout: '退出登录',
     nodeVersionWarning: '检测到 Node.js v{version}，请升级到23以上版本。',
     changelog: '更新日志',

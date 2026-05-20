@@ -171,9 +171,30 @@ async def _windows_service_uninstall():
         return {"ok": False, "error": str(e)}
 
 
+def _get_hermes_info() -> dict:
+    """Get Hermes Agent version and update availability."""
+    try:
+        from hermes_cli import __version__ as hermes_version
+    except Exception:
+        hermes_version = None
+    try:
+        from hermes_cli.banner import check_for_updates
+        behind = check_for_updates()
+        hermes_update_available = behind is not None and behind > 0
+    except Exception:
+        behind = None
+        hermes_update_available = False
+    return {
+        "hermes_version": hermes_version,
+        "hermes_update_available": hermes_update_available,
+        "hermes_commits_behind": behind if (behind is not None and behind > 0) else 0,
+    }
+
+
 @router.get("/health")
 async def health():
-    return {"status": "ok", "service": "hermes-py-webui"}
+    info = _get_hermes_info()
+    return {"status": "ok", "service": "hermes-py-webui", **info}
 
 
 @router.get("/api/hermes/lan-access")

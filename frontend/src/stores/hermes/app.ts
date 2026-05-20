@@ -22,6 +22,10 @@ export const useAppStore = defineStore('app', () => {
   const customModels = ref<Record<string, string[]>>({})
   const healthPollTimer = ref<ReturnType<typeof setInterval>>()
   const nodeVersion = ref('')
+  const hermesVersion = ref('')
+  const hermesUpdateAvailable = ref(false)
+  const hermesCommitsBehind = ref(0)
+  const hermesUpdating = ref(false)
 
   // Settings
   const streamEnabled = ref(true)
@@ -50,8 +54,26 @@ export const useAppStore = defineStore('app', () => {
       if (res.webui_latest) latestVersion.value = res.webui_latest
       updateAvailable.value = !!res.webui_update_available
       if (res.node_version) nodeVersion.value = res.node_version
+      if (res.hermes_version) hermesVersion.value = res.hermes_version
+      hermesUpdateAvailable.value = !!res.hermes_update_available
+      hermesCommitsBehind.value = res.hermes_commits_behind || 0
     } catch {
       connected.value = false
+    }
+  }
+
+  async function doHermesUpdate(): Promise<boolean> {
+    hermesUpdating.value = true
+    try {
+      const res = await triggerUpdate()
+      if (res.success) {
+        hermesUpdateAvailable.value = false
+        hermesCommitsBehind.value = 0
+        await checkConnection()
+      }
+      return res.success
+    } finally {
+      hermesUpdating.value = false
     }
   }
 
@@ -141,5 +163,10 @@ export const useAppStore = defineStore('app', () => {
     switchModel,
     startHealthPolling,
     stopHealthPolling,
+    hermesVersion,
+    hermesUpdateAvailable,
+    hermesCommitsBehind,
+    hermesUpdating,
+    doHermesUpdate,
   }
 })
