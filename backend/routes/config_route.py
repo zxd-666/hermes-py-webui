@@ -264,6 +264,19 @@ async def update_config(req: Request, body: dict):
     return {"ok": True, "needs_restart": needs_restart}
 
 
+@router.put("/config/json")
+async def import_config_json(req: Request, body: dict):
+    """Import full config from JSON, replacing config.yaml entirely."""
+    profile = _profile_from_request(req)
+    cfg = _load_hermes_config(profile)
+    _normalize_model_section(cfg)
+    # Deep merge: imported values overwrite existing, but keep missing sections
+    cfg.update(body)
+    _normalize_model_section(cfg)
+    _save_hermes_config(cfg, profile)
+    return {"ok": True, "needs_restart": True}
+
+
 @router.get("/config/models")
 async def get_config_models(req: Request):
     """Get configured model groups."""

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { NSwitch, NInputNumber, NInput, NSelect, NDynamicTags, NTag, useMessage } from 'naive-ui'
-import { computed, ref } from 'vue'
+import { NSwitch, NInputNumber, NInput, NSelect, NDynamicTags, NTag } from 'naive-ui'
+import { computed, ref, watch } from 'vue'
 import { SCHEMA_FIELD_I18N, SELECT_OPTION_I18N } from "@/i18n/schemaFieldI18n";
 import { useI18n } from "vue-i18n";
-import { useSettingsStore } from "@/stores/hermes/settings";
 import type { ConfigFieldSchema } from '@/api/hermes/config'
 
 // ── Platform tags: mark fields that only work on specific clients ──
@@ -74,8 +73,6 @@ const props = defineProps<{
   value: any
 }>()
 
-const settingsStore = useSettingsStore()
-const message = useMessage()
 const { t } = useI18n()
 
 const section = props.fieldKey.split('.')[0]
@@ -100,23 +97,41 @@ const selectOptions = computed(() =>
 
 const listValue = ref<string[]>(Array.isArray(props.value) ? [...props.value] : [])
 const stringValue = ref(typeof props.value === 'string' ? props.value : '')
+const numberValue = ref(typeof props.value === 'number' ? props.value : null)
 
-async function save(value: any) {
-  try {
-    // Build nested object from fieldRest: ["compression", "provider"] → { compression: { provider: value } }
-    const nested: any = {}
-    let current = nested
-    for (let i = 0; i < fieldRest.length - 1; i++) {
-      current[fieldRest[i]] = {}
-      current = current[fieldRest[i]]
-    }
-    current[fieldRest[fieldRest.length - 1]] = value
-    await settingsStore.saveSection(section, nested)
-    message.success(t('settings.saved'))
-  } catch {
-    message.error(t('settings.saveFailed'))
+// Sync local refs when parent updates value (e.g. after reset or fetch)
+watch(() => props.value, (newVal) => {
+  if (Array.isArray(newVal)) listValue.value = [...newVal]
+  else if (typeof newVal === 'string') stringValue.value = newVal
+  else if (typeof newVal === 'number') numberValue.value = newVal
+})
+
+// Build nested dict: "tts.edge.voice" → { edge: { voice: value } }
+function buildNested(value: any): Record<string, any> {
+  const nested: any = {}
+  let current = nested
+  for (let i = 0; i < fieldRest.length - 1; i++) {
+    current[fieldRest[i]] = {}
+    current = current[fieldRest[i]]
   }
+  current[fieldRest[fieldRest.length - 1]] = value
+  return nested
 }
+
+function emitChange(value: any) {
+  // Normalize empty values so undefined/null/'' are treated as equal
+  const norm = (v: any) => (v === undefined || v === null || v === '') ? '' : v
+  if (JSON.stringify(norm(value)) === JSON.stringify(norm(props.value))) return
+  // Update local ref so input reflects the pending change immediately
+  if (typeof value === 'number') numberValue.value = value
+  else if (typeof value === 'string') stringValue.value = value
+  else if (Array.isArray(value)) listValue.value = [...value]
+  emit('change', { key: props.fieldKey, value, nested: buildNested(value) })
+}
+
+const emit = defineEmits<{
+  change: [payload: { key: string; value: any; nested: Record<string, any> }]
+}>()
 
 </script>
 
@@ -141,7 +156,7 @@ async function save(value: any) {
       <NSwitch
         v-if="schema.type === 'boolean'"
         :value="value"
-        @update:value="(v: boolean) => save(v)"
+        @update:value="(v: boolean) => emitChange(v)"
       />
 
       <!-- Select -->
@@ -152,19 +167,20 @@ async function save(value: any) {
         size="small"
         class="input-sm"
         :show-tooltip="true"
-        @update:value="(v: string) => save(v)"
+        @update:value="(v: string) => emitChange(v)"
       />
 
       <!-- Number -->
       <NInputNumber
         v-else-if="schema.type === 'number'"
-        :value="value"
+        :value="numberValue"
         :min="schema.min"
         :max="schema.max"
         :step="schema.step"
         size="small"
         class="input-sm"
-        @update:value="(v: number | null) => v != null && save(v)"
+        :placeholder="t('settings.inputPlaceholder')"
+        @update:value="(v: number | null) => v != null && emitChange(v)"
       />
 
       <!-- String -->
@@ -173,9 +189,10 @@ async function save(value: any) {
         :value="stringValue"
         size="small"
         class="input-sm"
+        :placeholder="t('settings.inputPlaceholder')"
         @update:value="(v: string) => { stringValue = v }"
-        @keydown.enter="() => save(stringValue)"
-        @blur="() => save(stringValue)"
+        @keydown.enter="() => emitChange(stringValue)"
+        @blur="() => emitChange(stringValue)"
       />
 
       <!-- List (dynamic tags) -->
@@ -184,7 +201,8 @@ async function save(value: any) {
         :value="listValue"
         size="small"
         class="input-sm"
-        @update:value="(v: string[]) => { listValue = v; save(v) }"
+        :placeholder="t('settings.inputPlaceholder')"
+        @update:value="(v: string[]) => { listValue = v; emitChange(v) }"
       />
     </div>
   </div>
@@ -195,13 +213,18 @@ async function save(value: any) {
 
 .schema-field {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 10px 0;
   border-bottom: 1px solid $border-light;
 
   &:last-child {
     border-bottom: none;
+  }
+
+  // Non-list fields: vertically center
+  &:not(:has(.input-sm .n-dynamic-tags)) {
+    align-items: center;
   }
 }
 
@@ -239,6 +262,16 @@ async function save(value: any) {
 
 .field-control {
   flex-shrink: 0;
+  max-width: 65%;
+
+  // List fields: wrap tags, allow wider but still bounded
+  :deep(.n-dynamic-tags) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
 }
 
 .input-sm {

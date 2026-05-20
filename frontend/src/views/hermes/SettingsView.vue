@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, provide } from "vue";
+import { onMounted, ref, computed, provide, watch } from "vue";
 import {
   NSpin,
   NButton,
@@ -17,6 +17,7 @@ import {
   saveRawConfig,
   fetchConfigDefaults,
   fetchConfigSchema,
+  importConfigJson,
 } from "@/api/hermes/config";
 import type { ConfigSchema, ConfigFieldSchema } from "@/api/hermes/config";
 import SchemaField from "@/components/hermes/settings/SchemaField.vue";
@@ -34,9 +35,16 @@ const activeCategory = ref("general");
 const searchQuery = ref("");
 
 // ── Categories (flat, from agent API) ─────────────
+// Matches Dashboard: category_order first, then remaining sorted alphabetically
 const categories = computed(() => {
   if (!schema.value) return [];
-  return schema.value.category_order ?? [];
+  const ordered = schema.value.category_order ?? [];
+  const allCats = new Set<string>();
+  for (const f of Object.values(schema.value.fields)) {
+    if (f.category) allCats.add(f.category);
+  }
+  const extra = [...allCats].filter((c) => !ordered.includes(c)).sort();
+  return [...ordered, ...extra];
 });
 
 const categoryCounts = computed(() => {
@@ -104,6 +112,59 @@ function getFieldValue(key: string): any {
   return current;
 }
 
+// ── Dirty tracking & batch save ────────────────────────
+// { "tts": { edge: { voice: "xxx" } }, "general": { model: "..." } }
+const pendingChanges = ref<Record<string, Record<string, any>>>({})
+const saving = ref(false)
+
+const isDirty = computed(() => Object.keys(pendingChanges.value).length > 0)
+const dirtyCount = computed(() => {
+  let n = 0
+  for (const sec of Object.values(pendingChanges.value)) n += Object.keys(sec).length
+  return n
+})
+
+function onFieldChange(payload: { key: string; value: any; nested: Record<string, any> }) {
+  const section = payload.key.split('.')[0]
+  if (!pendingChanges.value[section]) pendingChanges.value[section] = {}
+  // Deep merge nested into pending
+  const merged = pendingChanges.value[section]
+  for (const [k, v] of Object.entries(payload.nested)) {
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      merged[k] = { ...(merged[k] || {}), ...v }
+    } else {
+      merged[k] = v
+    }
+  }
+  pendingChanges.value = { ...pendingChanges.value }  // trigger reactivity
+}
+
+async function savePending() {
+  if (!isDirty.value || saving.value) return
+  saving.value = true
+  try {
+    for (const [section, values] of Object.entries(pendingChanges.value)) {
+      await settingsStore.saveSection(section, values)
+    }
+    message.success(t('settings.saved'))
+    pendingChanges.value = {}
+    await settingsStore.fetchSettings()
+  } catch {
+    message.error(t('settings.saveFailed'))
+  } finally {
+    saving.value = false
+  }
+}
+
+function discardPending() {
+  pendingChanges.value = {}
+}
+
+// Discard on category switch
+watch(activeCategory, () => {
+  if (isDirty.value) discardPending()
+})
+
 // ── Reset to defaults ─────────────────────────────────
 const defaultsMap = ref<Record<string, Record<string, any>>>({});
 let defaultsLoaded = false;
@@ -135,6 +196,7 @@ async function resetCategory(cat: string) {
     onPositiveClick: async () => {
       try {
         await settingsStore.saveSection(cat, defaults);
+        pendingChanges.value = {};
         message.success(t("settings.resetDone", { scope: t(`settings.schemaCategory.${cat}`, cat) }));
         await settingsStore.fetchSettings();
       } catch (err: any) {
@@ -285,7 +347,7 @@ async function saveRawYaml() {
 
 // ── Export / Import JSON ───────────────────────────────
 function downloadJson() {
-  const config = settingsStore;
+  const config = settingsStore.config || {};
   const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -318,10 +380,10 @@ function triggerImport() {
         onPositiveClick: async () => {
           settingsStore.saving = true;
           try {
-            const sections = Object.keys(data);
-            for (const section of sections) {
-              if (section === "platforms") continue;
-              await settingsStore.saveSection(section, data[section]);
+            const res = await importConfigJson(data) as any;
+            pendingChanges.value = {};
+            if (res?.needs_restart) {
+              message.warning(t("settings.needsRestart"));
             }
             message.success(t("settings.imported"));
             await settingsStore.fetchSettings();
@@ -416,13 +478,25 @@ onMounted(async () => {
               <h3 class="content-title">
                 {{ t(`settings.schemaCategory.${activeCategory}`, activeCategory) }}
               </h3>
-              <NButton
-                size="tiny"
-                quaternary
-                @click="resetCategory(activeCategory)"
-              >
-                ↺ {{ t("settings.resetDefaults") }}
-              </NButton>
+              <div class="content-actions">
+                <NButton
+                  v-if="isDirty"
+                  size="tiny"
+                  type="primary"
+                  :loading="saving"
+                  @click="savePending"
+                >
+                  {{ t('settings.saveChanges') }}
+                  <template v-if="dirtyCount > 1"> ({{ dirtyCount }})</template>
+                </NButton>
+                <NButton
+                  size="tiny"
+                  quaternary
+                  @click="resetCategory(activeCategory)"
+                >
+                  ↺ {{ t("settings.resetDefaults") }}
+                </NButton>
+              </div>
             </div>
             <NEmpty v-if="activeFields.length === 0" :description="t('settings.noFields')" />
             <template v-else-if="activeSections">
@@ -436,6 +510,7 @@ onMounted(async () => {
                   :field-key="key"
                   :schema="field"
                   :value="getFieldValue(key)"
+                  @change="onFieldChange"
                 />
               </template>
             </template>
@@ -446,6 +521,7 @@ onMounted(async () => {
                 :field-key="key"
                 :schema="field"
                 :value="getFieldValue(key)"
+                @change="onFieldChange"
               />
             </template>
           </div>
@@ -645,6 +721,12 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.content-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .content-title {

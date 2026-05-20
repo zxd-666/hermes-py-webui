@@ -210,9 +210,16 @@ export async function saveRawConfig(yaml_text: string): Promise<{ ok?: boolean; 
 
 // ── Defaults / Export / Import ────────────────────────
 
-export async function fetchConfigDefaults(): Promise<Record<string, any>> {
-  return request<Record<string, any>>('/api/hermes/config/defaults')
-}
+  export async function fetchConfigDefaults(): Promise<Record<string, any>> {
+    return request<Record<string, any>>('/api/hermes/config/defaults')
+  }
+
+  export async function importConfigJson(data: Record<string, any>): Promise<{ ok?: boolean; needs_restart?: boolean }> {
+    return request<{ ok?: boolean; needs_restart?: boolean }>('/api/hermes/config/json', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
 
 // ── Config Schema ────────────────────────────────────
 
