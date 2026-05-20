@@ -17,6 +17,7 @@ const routeTitleKeys: Record<string, string> = {
   'hermes.usage': 'sidebar.usage',
   'hermes.channels': 'sidebar.channels',
   'hermes.gateways': 'sidebar.gateways',
+  'hermes.workspace': 'sidebar.workspace',
   'hermes.settings': 'settings.title',
   'hermes.systemSettings': 'sidebar.systemSettings',
   'hermes.files': 'sidebar.files',
@@ -72,6 +73,11 @@ const router = createRouter({
       path: '/hermes/memory',
       name: 'hermes.memory',
       component: () => import('@/views/hermes/MemoryView.vue'),
+    },
+    {
+      path: '/hermes/workspace',
+      name: 'hermes.workspace',
+      component: () => import('@/views/hermes/WorkspaceView.vue'),
     },
     {
       path: '/hermes/settings',

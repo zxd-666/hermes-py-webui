@@ -1,12 +1,26 @@
 <script setup lang="ts">
-defineProps<{
+import { computed, inject, type Ref } from 'vue'
+
+const props = defineProps<{
   label: string
   hint?: string
 }>()
+
+// Inject search query from SettingsView — fallback to empty string
+const searchQuery = (inject<Ref<string>>('settingsSearchQuery', { value: '' })?.value ?? '') || ''
+
+const visible = computed(() => {
+  const q = (typeof searchQuery === 'string' ? searchQuery : '').trim().toLowerCase()
+  if (!q) return true
+  return (
+    props.label.toLowerCase().includes(q) ||
+    (props.hint || '').toLowerCase().includes(q)
+  )
+})
 </script>
 
 <template>
-  <div class="setting-row">
+  <div v-if="visible" class="setting-row">
     <div class="setting-info">
       <label class="setting-label">{{ label }}</label>
       <p v-if="hint" class="setting-hint">{{ hint }}</p>

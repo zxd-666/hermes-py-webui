@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NSelect, NInputNumber, NSwitch, useMessage } from 'naive-ui'
+import { NButton, NSelect, NInputNumber, NSwitch, useMessage } from 'naive-ui'
+import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import SettingRow from './SettingRow.vue'
@@ -7,6 +8,7 @@ import SettingRow from './SettingRow.vue'
 const settingsStore = useSettingsStore()
 const message = useMessage()
 const { t } = useI18n()
+const resetScope = inject<(scope: string, label: string) => void>('resetScope')
 
 async function saveApprovals(values: Record<string, any>) {
   try {
@@ -40,7 +42,12 @@ async function saveSecurity(values: Record<string, any>) {
   <section class="settings-section">
     <!-- Block 1: 审批模式 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.approvals.approvalMode') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.approvals.approvalMode') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('approvals', t('settings.approvals.approvalMode'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.approvals.mode')" :hint="t('settings.approvals.modeHint')">
         <NSelect
           :value="settingsStore.approvals.mode || 'manual'"
@@ -76,7 +83,12 @@ async function saveSecurity(values: Record<string, any>) {
 
     <!-- Block 2: 模拟延迟 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.humanDelay.humanDelay') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.humanDelay.humanDelay') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('human_delay', t('settings.humanDelay.humanDelay'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.humanDelay.mode')" :hint="t('settings.humanDelay.modeHint')">
         <NSelect
           :value="settingsStore.humanDelay.mode || 'off'"
@@ -108,7 +120,12 @@ async function saveSecurity(values: Record<string, any>) {
 
     <!-- Block 3: 安全 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.security.securityBlock') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.security.securityBlock') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('security', t('settings.security.securityBlock'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.security.redactSecrets')" :hint="t('settings.security.redactSecretsHint')">
         <NSwitch
           :value="settingsStore.security.redact_secrets"
@@ -144,10 +161,17 @@ async function saveSecurity(values: Record<string, any>) {
   }
 }
 
+.config-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .config-block-title {
   font-size: 13px;
   font-weight: 600;
   color: $text-secondary;
-  margin: 0 0 10px;
+  margin: 0;
 }
 </style>

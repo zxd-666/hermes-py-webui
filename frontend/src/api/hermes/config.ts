@@ -189,3 +189,49 @@ export async function saveWeixinCredentials(data: {
     body: JSON.stringify(data),
   })
 }
+
+// ── Raw YAML ──────────────────────────────────────────
+
+export interface RawConfigResponse {
+  yaml_text: string
+  config_path: string
+}
+
+export async function fetchRawConfig(): Promise<RawConfigResponse> {
+  return request<RawConfigResponse>('/api/hermes/config/raw')
+}
+
+export async function saveRawConfig(yaml_text: string): Promise<{ ok?: boolean; error?: string; config?: AppConfig }> {
+  return request('/api/hermes/config/raw', {
+    method: 'PUT',
+    body: JSON.stringify({ yaml_text }),
+  })
+}
+
+// ── Defaults / Export / Import ────────────────────────
+
+export async function fetchConfigDefaults(): Promise<Record<string, any>> {
+  return request<Record<string, any>>('/api/hermes/config/defaults')
+}
+
+// ── Config Schema ────────────────────────────────────
+
+export interface ConfigFieldSchema {
+  type: 'boolean' | 'number' | 'select' | 'text'
+  category: string
+  label_i18n: string
+  hint_i18n: string
+  options?: { value: string; label_i18n: string }[]
+  min?: number
+  max?: number
+  step?: number
+}
+
+export interface ConfigSchema {
+  category_order: string[]
+  fields: Record<string, ConfigFieldSchema>
+}
+
+export async function fetchConfigSchema(): Promise<ConfigSchema> {
+  return request<ConfigSchema>('/api/hermes/config/schema')
+}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NSwitch, useMessage } from 'naive-ui'
+import { NSwitch, NButton, useMessage } from 'naive-ui'
+import { inject, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import SettingRow from './SettingRow.vue'
@@ -7,6 +8,8 @@ import SettingRow from './SettingRow.vue'
 const settingsStore = useSettingsStore()
 const message = useMessage()
 const { t } = useI18n()
+
+const resetScope = inject<(scope: string, label: string) => void>('resetScope')
 
 async function save(values: Record<string, any>) {
   try {
@@ -20,6 +23,12 @@ async function save(values: Record<string, any>) {
 
 <template>
   <section class="settings-section">
+    <div v-if="resetScope" class="section-header">
+      <span />
+      <NButton size="tiny" quaternary @click="resetScope('display', t('settings.tabs.display'))">
+        ↺ {{ t('settings.resetDefaults') }}
+      </NButton>
+    </div>
     <SettingRow :label="t('settings.display.streaming')" :hint="t('settings.display.streamingHint')">
       <NSwitch :value="settingsStore.display.streaming" @update:value="v => save({ streaming: v })" />
     </SettingRow>
@@ -46,5 +55,12 @@ async function save(values: Record<string, any>) {
 
 .settings-section {
   margin-top: 16px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 </style>

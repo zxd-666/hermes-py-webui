@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NInputNumber, NSelect, NSwitch, useMessage } from 'naive-ui'
+import { NInputNumber, NSelect, NSwitch, NButton, useMessage } from 'naive-ui'
+import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import SettingRow from './SettingRow.vue'
@@ -7,6 +8,7 @@ import SettingRow from './SettingRow.vue'
 const settingsStore = useSettingsStore()
 const message = useMessage()
 const { t } = useI18n()
+const resetScope = inject<(scope: string, label: string) => void>('resetScope')
 
 async function saveAgent(values: Record<string, any>) {
   try {
@@ -31,7 +33,12 @@ async function saveDelegation(values: Record<string, any>) {
   <section class="settings-section">
     <!-- Block 1: 基础 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.agent.basic', '基础') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.agent.basic', '基础') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('agent', t('settings.agent.basic', '基础'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.agent.maxTurns')" :hint="t('settings.agent.maxTurnsHint')">
         <NInputNumber
           :value="settingsStore.agent.max_turns"
@@ -73,7 +80,12 @@ async function saveDelegation(values: Record<string, any>) {
 
     <!-- Block 2: 委托 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.agent.delegation', '委托') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.agent.delegation', '委托') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('delegation', t('settings.agent.delegation', '委托'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.agent.maxConcurrentChildren')" :hint="t('settings.agent.maxConcurrentChildrenHint')">
         <NInputNumber
           :value="settingsStore.delegation.max_concurrent_children"
@@ -123,6 +135,13 @@ async function saveDelegation(values: Record<string, any>) {
   font-size: 13px;
   font-weight: 600;
   color: $text-secondary;
-  margin: 0 0 10px;
+  margin: 0;
+}
+
+.config-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 </style>

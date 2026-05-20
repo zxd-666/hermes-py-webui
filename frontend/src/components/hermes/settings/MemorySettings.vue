@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NSwitch, NInputNumber, useMessage } from 'naive-ui'
+import { NButton, NSwitch, NInputNumber, useMessage } from 'naive-ui'
+import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import SettingRow from './SettingRow.vue'
@@ -7,6 +8,7 @@ import SettingRow from './SettingRow.vue'
 const settingsStore = useSettingsStore()
 const message = useMessage()
 const { t } = useI18n()
+const resetScope = inject<(scope: string, label: string) => void>('resetScope')
 
 async function save(values: Record<string, any>) {
   try {
@@ -22,7 +24,12 @@ async function save(values: Record<string, any>) {
   <section class="settings-section">
     <!-- Block 1: 基础 -->
     <div class="config-block">
-      <div class="config-block-title">{{ t('settings.memory.basic', '基础') }}</div>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.memory.basic', '基础') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('memory', t('settings.memory.basic', '基础'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.memory.enabled')" :hint="t('settings.memory.enabledHint')">
         <NSwitch :value="settingsStore.memory.memory_enabled" @update:value="v => save({ memory_enabled: v })" />
       </SettingRow>
@@ -49,7 +56,12 @@ async function save(values: Record<string, any>) {
 
     <!-- Block 2: 高级 -->
     <div class="config-block">
-      <div class="config-block-title">{{ t('settings.memory.advanced', '高级') }}</div>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.memory.advanced', '高级') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('memory', t('settings.memory.advanced', '高级'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.memory.nudgeInterval')" :hint="t('settings.memory.nudgeIntervalHint')">
         <NInputNumber
           :value="settingsStore.memory.nudge_interval"
@@ -105,10 +117,17 @@ async function save(values: Record<string, any>) {
   padding-bottom: 0;
 }
 
+.config-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .config-block-title {
   font-size: 13px;
   font-weight: 600;
   color: $text-secondary;
-  margin: 0 0 10px;
+  margin: 0;
 }
 </style>

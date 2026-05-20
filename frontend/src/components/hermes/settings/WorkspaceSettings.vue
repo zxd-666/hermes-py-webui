@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ref, onMounted } from 'vue'
 import { fetchWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace } from '@/api/hermes/workspaces'
 import type { WorkspacePreset } from '@/api/hermes/workspaces'
+import { request } from '@/api/client'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -16,6 +17,18 @@ const showAddForm = ref(false)
 const newName = ref('')
 const newPath = ref('')
 const editingId = ref<string | null>(null)
+
+async function browseFolder() {
+  try {
+    const res = await request<{ path: string }>('/api/hermes/workspace/pick-folder')
+    newPath.value = res.path
+    if (!newName.value.trim()) {
+      newName.value = res.path.split('/').pop() || ''
+    }
+  } catch {
+    // User cancelled
+  }
+}
 
 async function loadWorkspaces() {
   loading.value = true
@@ -128,12 +141,15 @@ async function handleDelete(id: string) {
       </div>
       <div class="form-row">
         <label>{{ t('settings.workspace.path') }}</label>
-        <NInput
-          v-model:value="newPath"
-          size="small"
-          :placeholder="t('settings.workspace.pathPlaceholder')"
-          @keydown.enter="handleSave"
-        />
+        <div class="path-input-row">
+          <NInput
+            v-model:value="newPath"
+            size="small"
+            :placeholder="t('settings.workspace.pathPlaceholder')"
+            @keydown.enter="handleSave"
+          />
+          <NButton size="small" @click="browseFolder">{{ t('common.browse') }}</NButton>
+        </div>
       </div>
       <NSpace size="small">
         <NButton size="small" type="primary" :disabled="!newName.trim() || !newPath.trim()" @click="handleSave">
@@ -210,5 +226,11 @@ async function handleDelete(id: string) {
     font-size: 12px;
     opacity: 0.7;
   }
+}
+
+.path-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 </style>

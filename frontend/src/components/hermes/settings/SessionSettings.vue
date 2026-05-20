@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NInputNumber, NSelect, NSwitch, useMessage } from 'naive-ui'
+import { NButton, NInputNumber, NSelect, NSwitch, useMessage } from 'naive-ui'
+import { inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/hermes/settings'
 import { useSessionBrowserPrefsStore } from '@/stores/hermes/session-browser-prefs'
@@ -9,6 +10,7 @@ const settingsStore = useSettingsStore()
 const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
 const message = useMessage()
 const { t } = useI18n()
+const resetScope = inject<(scope: string, label: string) => void>('resetScope')
 
 async function saveReset(values: Record<string, any>) {
   try {
@@ -33,7 +35,12 @@ async function saveRetention(values: Record<string, any>) {
   <section class="settings-section">
     <!-- Block 1: 重置策略 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.session.resetPolicy', '重置策略') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.session.resetPolicy', '重置策略') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('session_reset', t('settings.session.resetPolicy', '重置策略'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.session.mode')" :hint="t('settings.session.modeHint')">
         <NSelect
           :value="settingsStore.sessionReset.mode || 'both'"
@@ -77,7 +84,12 @@ async function saveRetention(values: Record<string, any>) {
 
     <!-- Block 3: 保留 -->
     <div class="config-block">
-      <h4 class="config-block-title">{{ t('settings.session.retention', '保留') }}</h4>
+      <div class="config-block-header">
+        <h4 class="config-block-title">{{ t('settings.session.retention', '保留') }}</h4>
+        <NButton v-if="resetScope" size="tiny" quaternary @click="resetScope('sessions', t('settings.session.retention', '保留'))">
+          ↺ {{ t('settings.resetDefaults') }}
+        </NButton>
+      </div>
       <SettingRow :label="t('settings.session.retentionDays')" :hint="t('settings.session.retentionDaysHint')">
         <NInputNumber
           :value="settingsStore.sessions.retention_days"
@@ -121,10 +133,17 @@ async function saveRetention(values: Record<string, any>) {
   }
 }
 
+.config-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .config-block-title {
   font-size: 13px;
   font-weight: 600;
   color: $text-secondary;
-  margin: 0 0 10px;
+  margin: 0;
 }
 </style>
