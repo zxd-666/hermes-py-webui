@@ -1005,7 +1005,8 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     // Capture session ID at send time — all callbacks use this, not activeSessionId
-    const sid = activeSessionId.value!
+    const originalSid = activeSessionId.value!
+    let sid = originalSid  // mutable — updated on compression continuation
 
     const userMsg: Message = {
       id: uid(),
@@ -1114,14 +1115,65 @@ export const useChatStore = defineStore('chat', () => {
                 compressed: (evt as any).compressed ?? false,
                 error: (evt as any).error,
               })
-              // If compression created a new session, refresh the session list
-              // in the background so the lineage mapping gets updated.
-              // Use setTimeout to avoid interrupting the current stream.
               const newSid = (evt as any).new_session_id
-              if (newSid) {
-                setTimeout(() => loadSessions(), 1000)
+              if (newSid && newSid !== sid) {
+                // ── Migrate to the new continuation session ──
+                // Backend created a child session (newSid, parent=oldSid).
+                // Update the in-memory list immediately so the SSE stream
+                // keeps writing to the correct session object — no need to
+                // wait for a full list refresh that would interrupt the stream.
+                const oldIdx = sessions.value.findIndex(s => s.id === sid)
+                const oldSession = oldIdx !== -1 ? sessions.value[oldIdx] : null
+                if (oldSession) {
+                  // Migrate stream state so isStreaming stays true under new activeSessionId
+                  const streamCtrl = streamStates.value.get(sid)
+                  if (streamCtrl) {
+                    streamStates.value.delete(sid)
+                    streamStates.value.set(newSid, streamCtrl)
+                  }
+                  if (serverWorking.value.has(sid)) {
+                    serverWorking.value.delete(sid)
+                    serverWorking.value.add(newSid)
+                  }
+                  // Build the replacement entry — reuse old metadata + messages
+                  const childMeta = {
+                    id: oldSession.id,
+                    title: oldSession.title,
+                    messageCount: oldSession.messages.length,
+                    startedAt: oldSession.createdAt,
+                    endedAt: null,
+                    lastMessageTs: oldSession.updatedAt,
+                    source: oldSession.source,
+                  }
+                  const newEntry: Session = {
+                    id: newSid,
+                    title: oldSession.title,
+                    source: oldSession.source,
+                    messages: [...oldSession.messages],
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                    children: [childMeta, ...(oldSession.children || [])],
+                    model: oldSession.model,
+                    provider: oldSession.provider,
+                    messageCount: oldSession.messageCount,
+                    inputTokens: oldSession.inputTokens,
+                    outputTokens: oldSession.outputTokens,
+                    endedAt: null,
+                    lastActiveAt: undefined,
+                    workspace: oldSession.workspace,
+                    parentSessionId: oldSession.id,
+                    lineageCount: (oldSession.lineageCount || 1) + 1,
+                    lineageMessageCount: oldSession.lineageMessageCount,
+                    loadedParentIds: [...(oldSession.loadedParentIds || [])],
+                  }
+                  sessions.value.splice(oldIdx, 1, newEntry)
+                  activeSession.value = newEntry
+                }
+                // Point all subsequent SSE event handlers to the new session
+                sid = newSid
+                activeSessionId.value = newSid
               }
-              // Auto-clear after 5s
+              // Auto-clear compression banner after 5s
               setTimeout(() => {
                 if (compressionState.value && !compressionState.value.compressing) {
                   setCompressionState(null)
@@ -1331,6 +1383,10 @@ export const useChatStore = defineStore('chat', () => {
               }
               updateSessionTitle(sid)
               persistSessionTitle(sid)
+              // Refresh session list after compression to sync lineage tree from DB
+              if (sid !== originalSid) {
+                setTimeout(() => loadSessions(), 500)
+              }
               // Completion sound
               try {
                 const st = useSettingsStore()
@@ -1348,7 +1404,7 @@ export const useChatStore = defineStore('chat', () => {
               // polling kicks in and recovers) rather than the other way
               // around (cleared in-flight + stale streaming cache = UI stuck).
 
-              clearInFlight(sid)
+              clearInFlight(originalSid)
               }
               break
             }
@@ -1378,7 +1434,7 @@ export const useChatStore = defineStore('chat', () => {
               })
               } finally {
               cleanup()
-              clearInFlight(sid)
+              clearInFlight(originalSid)
               }
               break
             }
