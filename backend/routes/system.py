@@ -1,5 +1,6 @@
 """System endpoints: health, status, update, platform service management."""
 import asyncio
+import importlib.util
 import os
 import subprocess
 import sys
@@ -172,18 +173,58 @@ async def _windows_service_uninstall():
 
 
 def _get_hermes_info() -> dict:
-    """Get Hermes Agent version and update availability."""
+    """Get Hermes Agent version and update availability.
+
+    The upstream ``check_for_updates()`` compares the installed version against
+    the local git working tree at ``$HERMES_HOME/hermes-agent``, which on pip
+    installs is a stale source checkout whose ``__version__`` lags the wheel
+    actually running in this process. That makes every pip install look
+    "behind by thousands of commits" — a phantom alert that breaks the
+    health-check UX. We pin the version read to the running wheel and skip
+    the git-count branch when the install method is ``pip``.
+    """
+    # Read the version from the wheel we are *actually* running out of, not
+    # from whichever ``hermes_cli`` happens to win the sys.path race. We
+    # already pinned the venv site-packages ahead of the git tree in main.py,
+    # but guard against drift just in case.
+    hermes_version = None
     try:
-        from hermes_cli import __version__ as hermes_version
+        import hermes_cli as _hc
+        _hc_file = getattr(_hc, "__file__", "")
+        hermes_version = getattr(_hc, "__version__", None)
+        if not hermes_version:
+            # Git tree or other non-wheel install — try wheel path, then accept git tree version
+            _hc_wheel = Path(os.path.expanduser(os.environ.get("HERMES_HOME", "~/.hermes"))) / "hermes-agent" / "venv" / "lib" / "python3.11" / "site-packages" / "hermes_cli" / "__init__.py"
+            if _hc_wheel.exists():
+                spec = importlib.util.spec_from_file_location("hermes_cli_wheel", _hc_wheel)
+                _hc_wheel_mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(_hc_wheel_mod)
+                hermes_version = getattr(_hc_wheel_mod, "__version__", None)
     except Exception:
-        hermes_version = None
+        pass
+
+    behind = None
     try:
-        from hermes_cli.banner import check_for_updates
-        behind = check_for_updates()
-        hermes_update_available = behind is not None and behind > 0
+        # Skip git-count entirely for pip installs — only PyPI comparison is meaningful.
+        from hermes_cli.config import detect_install_method, get_project_root
+        install_method = detect_install_method(get_project_root())
     except Exception:
-        behind = None
-        hermes_update_available = False
+        install_method = None
+
+    if install_method == "pip":
+        try:
+            from hermes_cli.banner import check_via_pypi
+            behind = check_via_pypi()
+        except Exception:
+            behind = None
+    else:
+        try:
+            from hermes_cli.banner import check_for_updates
+            behind = check_for_updates()
+        except Exception:
+            behind = None
+
+    hermes_update_available = behind is not None and behind > 0
     return {
         "hermes_version": hermes_version,
         "hermes_update_available": hermes_update_available,

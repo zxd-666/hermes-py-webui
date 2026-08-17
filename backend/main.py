@@ -8,9 +8,30 @@ import re
 import sys
 from pathlib import Path
 
-# Ensure hermes-agent is importable before anything else
+# Ensure hermes-agent is importable before anything else. Prefer the
+# pip-installed wheel inside the hermes-agent venv (it carries the actually
+# running code) over the git working tree at $HERMES_HOME/hermes-agent (which
+# is usually a stale source checkout — see also #19549). We pin the wheel
+# ahead of the git tree on sys.path so `import hermes_cli` resolves to the
+# running wheel, not the stale __init__.py.
 HERMES_HOME = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
-sys.path.insert(0, str(Path(HERMES_HOME) / "hermes-agent"))
+_venv_site = str(Path(HERMES_HOME) / "hermes-agent" / "venv" / "lib" / "python3.11" / "site-packages")
+_git_tree = str(Path(HERMES_HOME) / "hermes-agent")
+
+# De-dup and force venv_site ahead of git_tree. Several route modules and
+# ``streaming.py`` add the git tree via ``sys.path.insert(0, ...)`` at lazy-
+# import time, so we have to re-pin the wheel after every import attempt.
+def _pin_hermes_paths() -> None:
+    seen = set()
+    ordered = []
+    for p in [_venv_site, _git_tree, *sys.path]:
+        if p in seen or not p:
+            continue
+        seen.add(p)
+        ordered.append(p)
+    sys.path[:] = ordered
+
+_pin_hermes_paths()
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
