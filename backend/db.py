@@ -186,6 +186,10 @@ def _row_to_dict_like(row: dict) -> dict:
     """Convert a raw session dict (from dict(), not sqlite3.Row) to API-safe dict."""
     d = dict(row)
     d.pop("system_prompt", None)
+    d.pop("display_identity", None)
+    for k, v in d.items():
+        if isinstance(v, (bytes, bytearray)):
+            d[k] = v.hex()
     return d
 
 
@@ -521,6 +525,10 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     """Convert sqlite3.Row to dict, filtering out sensitive fields."""
     d = dict(row)
     d.pop("system_prompt", None)
+    d.pop("display_identity", None)  # Hermes 内部 BLOB 分组哈希，bytes 无法 JSON 序列化
+    for k, v in d.items():
+        if isinstance(v, (bytes, bytearray)):
+            d[k] = v.hex()  # 兜底：未来新增 BLOB 列不再炸 500
     return d
 
 
