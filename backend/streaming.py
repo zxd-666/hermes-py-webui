@@ -16,6 +16,15 @@ from typing import Optional
 # Ensure hermes-agent is importable
 sys.path.insert(0, str(os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes")) + "/hermes-agent"))
 
+# Snapshot sys.path BEFORE run_agent is imported. hermes_bootstrap (run_agent's
+# first import) calls pm.environments.activate_dependencies(), which strips ALL
+# site-packages entries and activates Hermes' PM-managed env (Python 3.14).
+# This process runs on 3.11, so C-extension .so files there (jiter, pydantic_core)
+# cannot load — deferred imports like `openai` blow up with ModuleNotFoundError
+# on first message send. Restore after the import so everything after resolves
+# against this venv's matching site-packages.
+_SYS_PATH_SNAPSHOT = list(sys.path)
+
 from .config import AGENT_DIR
 
 # Lazy import with pre-warm support
@@ -41,6 +50,11 @@ def _get_ai_agent():
     try:
         print("[9898] Importing AIAgent on demand...", flush=True)
         from run_agent import AIAgent
+        # hermes_bootstrap hijacked sys.path (PM 3.14 env) during the import above;
+        # restore our venv's site-packages so deferred imports (openai/jiter) resolve
+        # against 3.11-compatible packages. Modules already loaded in sys.modules
+        # keep working regardless.
+        sys.path[:] = _SYS_PATH_SNAPSHOT
         _AIAgent = AIAgent
         _AIAgent_loaded = True
         print("[9898] AIAgent imported OK", flush=True)
