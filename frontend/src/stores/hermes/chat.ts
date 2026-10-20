@@ -745,12 +745,28 @@ export const useChatStore = defineStore('chat', () => {
       // If an in-flight run is active, the localStorage snapshot (saved by
       // markInFlight at send time) may contain messages that haven't been
       // persisted to DB yet (e.g. the user's latest message, partial assistant
-      // reply). Append any messages from the snapshot that DB doesn't have.
+      // reply). Append snapshot messages the DB doesn't have — matched by
+      // CONTENT, not id: snapshot messages carry client-side uids that never
+      // equal DB ids, so id-only checks would re-append stale copies that are
+      // already persisted (duplicated bubbles with truncated markdown tables).
       if (readInFlight(sessionId)) {
         const cached = readPendingMsgs(sessionId)
         if (cached.length) {
-          const dbMsgIds = new Set((data.messages || []).map((m: any) => m.id))
-          const extra = cached.filter(m => !dbMsgIds.has(m.id))
+          const dbMsgs = (data.messages || []) as any[]
+          const dbMsgIds = new Set(dbMsgs.map(m => m.id))
+          const sameContent = (a: string, b: string) => {
+            const x = (a || '').trim(), y = (b || '').trim()
+            if (!x || !y) return false
+            return x.startsWith(y.slice(0, 80)) || y.startsWith(x.slice(0, 80))
+          }
+          const extra = cached.filter(m => {
+            if (dbMsgIds.has(m.id)) return false
+            // DB already has this message (ids differ, content matches)
+            if (dbMsgs.some(d => d.role === m.role && sameContent(d.content, m.content))) return false
+            // Stale partial assistant draft: the run finished and flushed a
+            // superset to DB after the snapshot was taken — skip the draft
+            return true
+          })
           if (extra.length) {
             activeSession.value!.messages = [...activeSession.value!.messages, ...extra]
           }
@@ -1538,6 +1554,14 @@ export const useChatStore = defineStore('chat', () => {
 
         if (!res.ok) {
           console.warn('[resumeInFlightRun] reconnect failed:', res.status)
+          if (res.status === 404) {
+            // Stream is gone for good (process restarted or run already
+            // finished and was cleaned up). DB is the source of truth now —
+            // clear the marker BEFORE refreshing so resumeSession skips the
+            // localStorage snapshot merge entirely (stale partial drafts in
+            // the snapshot would otherwise render as broken pseudo-markdown).
+            clearInFlight(sid)
+          }
           void refreshActiveSession()
           return
         }

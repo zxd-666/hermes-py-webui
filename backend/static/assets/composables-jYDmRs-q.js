@@ -1,0 +1,1 @@
+import{I as e}from"./router-BFvqq3wv.js";import{n as t}from"./warn-BANsY9vk.js";import{M as n}from"./index-Dqh0lzR6.js";function r(){let r=e(n,null);return r===null&&t(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};
