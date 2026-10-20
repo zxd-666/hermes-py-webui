@@ -112,6 +112,19 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
   for (const msg of msgs) {
     // Skip assistant messages that only contain tool_calls (no meaningful content)
     if (msg.role === 'assistant' && msg.tool_calls?.length && !msg.content?.trim()) {
+      // Preserve intermediate reasoning turns: during live streaming these
+      // rendered as thinking blocks, but dropping them here makes the
+      // reloaded session lose its work history (only the final report
+      // remains visible).
+      if (msg.reasoning?.trim()) {
+        result.push({
+          id: String(msg.id),
+          role: 'assistant',
+          content: '',
+          timestamp: Math.round(msg.timestamp * 1000),
+          reasoning: msg.reasoning,
+        })
+      }
       // Emit a tool.started message for each tool call
       for (const tc of msg.tool_calls) {
         result.push({
