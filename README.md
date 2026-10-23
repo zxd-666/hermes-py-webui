@@ -9,7 +9,7 @@
 | | Gateway Mode (hermes-web-ui) | **This Project** |
 |---|---|---|
 | Architecture | Node.js → HTTP → Gateway → AIAgent | **FastAPI → import → AIAgent** |
-| Latency | Extra HTTP hop through Gateway | **Direct function call, zero overhead** |
+| Request path | Extra HTTP hop through Gateway | **Direct call without the Gateway HTTP hop** |
 | Workdir | Global, shared across sessions | **Per-session workdir binding** |
 | Runtime | Requires Node.js + Python | **Python only** (frontend is pre-built) |
 | Streaming | Socket.IO | **SSE — lighter, stateless** |
@@ -17,6 +17,61 @@
 In short: this project trades the Gateway's decoupling for **direct access to AIAgent internals** — most notably, the ability to bind a workspace directory to each individual session. If you need multi-node or remote deployment, use the Gateway. If you want maximum control from a local or single-server setup, this is it.
 
 [**中文**](README_zh.md) | English
+
+## Prerequisites
+
+| Dependency | Version | Description |
+|------------|---------|-------------|
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Latest | Required. This project calls AIAgent via `from run_agent import AIAgent` |
+| Python | 3.11+ | Backend runtime |
+
+Make sure Hermes Agent is installed at `~/.hermes/hermes-agent/` (with `run_agent.py`) and initialized via the Hermes CLI (at least one Model Provider configured).
+
+## Quick Start
+
+```bash
+# 1. Clone into ~/.hermes/
+git clone https://github.com/zxd-666/hermes-py-webui.git ~/.hermes/hermes-py-webui
+cd ~/.hermes/hermes-py-webui
+
+# 2. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. Install dependencies
+python -m pip install -r requirements.txt
+
+# 4. Start
+python -m backend.main
+```
+
+Open http://127.0.0.1:9898
+
+> The frontend is pre-built (`backend/static/`). No Node.js needed unless you want to modify the UI source.
+
+### One-Line Install (via Hermes Agent)
+
+If you already have Hermes Agent running, just send this prompt to install and configure everything:
+
+```
+帮我安装 hermes-py-webui，项目地址：https://github.com/zxd-666/hermes-py-webui
+
+安装到 ~/.hermes/hermes-py-webui，创建虚拟环境，安装依赖，最后启动服务。启动成功后帮我配置开机自启。
+```
+
+### Auto-Start (macOS / Windows)
+
+After the WebUI starts, open **System Settings → Auto Start** to configure startup. The app generates the service configuration with the current installation path and the selected LAN Access setting. By default it listens on `127.0.0.1`; enable LAN Access only when other devices need to connect.
+
+### Development Mode
+
+```bash
+# Terminal 1: Backend (hot reload)
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 9898 --reload
+
+# Terminal 2: Frontend (Vite dev server)
+cd frontend && npm run dev
+```
 
 ## Screenshots
 
@@ -57,7 +112,7 @@ In short: this project trades the Gateway's decoupling for **direct access to AI
 
 ## 📱 Mobile Access
 
-Responsive design out of the box — access your full Hermes workspace from any mobile browser. No app install required.
+The interface supports mobile browsers, but the server listens on `127.0.0.1` by default. To open it from a phone on the same network, enable **System Settings → LAN Access**, then use the computer's LAN IP and port `9898`. LAN access makes the service reachable by other devices on that network; review the access settings before enabling it.
 
 <table>
 <tr>
@@ -180,104 +235,6 @@ The complete web management interface for Hermes Agent, running on `localhost:98
 
 - Real-time log viewing and search
 
-## Prerequisites
-
-| Dependency | Version | Description |
-|------------|---------|-------------|
-| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Latest | Required. This project calls AIAgent via `from run_agent import AIAgent` |
-| Python | 3.11+ | Backend runtime |
-
-Make sure Hermes Agent is installed at `~/.hermes/hermes-agent/` (with `run_agent.py`) and initialized via the Hermes CLI (at least one Model Provider configured).
-
-## Quick Start
-
-```bash
-# 1. Clone into ~/.hermes/
-git clone https://github.com/zxd-666/hermes-py-webui.git ~/.hermes/hermes-py-webui
-cd ~/.hermes/hermes-py-webui
-
-# 2. Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Start
-python -m backend.main
-```
-
-Open http://127.0.0.1:9898
-
-> The frontend is pre-built (`backend/static/`). No Node.js needed unless you want to modify the UI source.
-
-### One-Line Install (via Hermes Agent)
-
-If you already have Hermes Agent running, just send this prompt to install and configure everything:
-
-```
-帮我安装 hermes-py-webui，项目地址：https://github.com/zxd-666/hermes-py-webui
-
-安装到 ~/.hermes/hermes-py-webui，创建虚拟环境，安装依赖，最后启动服务。启动成功后帮我配置开机自启。
-```
-
-### macOS Auto-Start (launchd)
-
-```bash
-# Replace /Users/edy with your home directory
-cat > ~/Library/LaunchAgents/com.hermes.py-webui.plist << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.hermes.py-webui</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/Users/edy/.hermes/hermes-py-webui/.venv/bin/python3</string>
-        <string>-m</string>
-        <string>uvicorn</string>
-        <string>backend.main:app</string>
-        <string>--host</string>
-        <string>0.0.0.0</string>
-        <string>--port</string>
-        <string>9898</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/Users/edy/.hermes/hermes-py-webui</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/Users/edy/.hermes/logs/hermes-py-webui.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/edy/.hermes/logs/hermes-py-webui.err.log</string>
-</dict>
-</plist>
-EOF
-launchctl load ~/Library/LaunchAgents/com.hermes.py-webui.plist
-```
-
-### Windows Auto-Start (Task Scheduler)
-
-The WebUI can configure this automatically via **Settings → Auto Start**. To do it manually:
-
-```powershell
-# Replace C:\Users\YourName with your home directory
-schtasks /Create /TN "HermesPyWebUI" /TR "\"C:\Users\YourName\.hermes\hermes-py-webui\.venv\Scripts\python.exe\" -m uvicorn backend.main:app --host 127.0.0.1 --port 9898" /SC ONLOGON /RL HIGHEST /F
-```
-
-### Development Mode
-
-```bash
-# Terminal 1: Backend (hot reload)
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 9898 --reload
-
-# Terminal 2: Frontend (Vite dev server)
-cd frontend && npm run dev
-```
-
 ## Architecture
 
 ```
@@ -383,3 +340,7 @@ Thank you to both authors for their open-source contributions to the Hermes ecos
 ## License
 
 [MIT](LICENSE)
+
+## Contact
+
+ZhangZhang Lab · [GitHub](https://github.com/zxd-666) · [Xiaohongshu](https://xhslink.cn/o/7DSli2Fl3Vb)
